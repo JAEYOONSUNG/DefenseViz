@@ -230,24 +230,43 @@ The dotplot displays all possible R-M system combinations:
 
 ### REase Catalytic Motifs
 
-| Motif | Regex Pattern | Biological Function |
-|-------|---------------|---------------------|
-| **PD-(D/E)xK** | `PD[DE].K` | Type II endonuclease catalytic core |
-| **Walker A** | `G.{4}GK[TS]` | ATP-binding (P-loop) in helicases |
-| **Walker B** | `[LIVMF]{4}DE` | ATP hydrolysis in helicases |
-| **DEAD/DEAH** | `DEA[DH]` | Helicase superfamily 2 core motif |
-| **SAT/SAH** | `S[ATV][THPSAQK]` | Helicase motif III |
-| **TAN** | `T[AT][NT]` | Helicase motif III variant |
-| **QxxR** | `Q..R` | Helicase motif VI |
-| **ARGID** | `[AR]G[IL]D` | Helicase motif V |
+**Type II REase (endonuclease):**
+
+| Motif | Regex Pattern | Spacing | Biological Function |
+|-------|---------------|---------|---------------------|
+| **PD-(D/E)xK** | `PD.{5,30}[DE].K` | 5-30 aa between PD and (D/E)xK | Type II endonuclease catalytic core |
+| **HNH** | `H.{0,4}N.{0,4}H` | 0-4 aa | HNH endonuclease domain |
+| **GIY-YIG** | `G[IL]Y.{5,50}Y[IL]G` | 5-50 aa | GIY-YIG nuclease domain |
+
+**Type I REase (helicase/translocase) - SF2 helicase motifs:**
+
+| Motif | Regex Pattern | Example | Biological Function |
+|-------|---------------|---------|---------------------|
+| **Walker A** | `G[TSAV]GK[TS]` | GTGKT, GSGKS | ATP-binding P-loop |
+| **Walker B** | `DE.{1,2}[HD]` | DEAH, DEAD, DEVH | ATP hydrolysis (hhhhDE core) |
+| **DEAD-box** | `DEAD` | DEAD | SF2 helicase subgroup |
+| **DEAH-box** | `DEAH` | DEAH | SF2 helicase subgroup |
+| **Motif III (SAT)** | `S[ATV][THPSAQK]` | SAT, SAH, SAA | DNA translocation coupling |
+| **Motif III (TAN)** | `T[AT][NT]` | TAN, TAT, TTN | Motif III variant |
+| **Motif VI (QxxR)** | `Q.{2}R` | QXXR | RNA/DNA binding |
+| **Motif V (ARGID)** | `[AR]G[IL]D` | AGID, RGLD | Helicase motif V |
 
 ### MTase Catalytic Motifs
 
-| Motif | Regex Pattern | Biological Function |
-|-------|---------------|---------------------|
-| **DPPY** | `[DNSH]PP[YFW]` | Catalytic motif IV (base flipping) |
-| **NPPY** | `NPP[YF]` | Motif IV variant |
-| **FxGxG** | `[FY].G.G` | SAM-binding motif I |
+**Motif IV (catalytic site):**
+
+| Motif | Regex Pattern | Example | Biological Function |
+|-------|---------------|---------|---------------------|
+| **DPPY** | `DPPY`, `DPPF`, `DPPW` | DPPY | m6A/m4C methylation (base flipping) |
+| **NPPY** | `NPPY`, `NPPF`, `NPPW` | NPPY | m5C methylation |
+| **SPPY** | `SPPY`, `SPPF` | SPPY | Motif IV variant |
+
+**Motif I (SAM-binding):**
+
+| Motif | Regex Pattern | Example | Biological Function |
+|-------|---------------|---------|---------------------|
+| **FxGxG** | `F[AGVLIST]G[AGVLIST]G` | FAGAG, FLGLG | S-adenosylmethionine binding |
+| **GxGxG** | `G[AGVLIST]G[AGVLIST]G` | GAGLG | SAM-binding variant |
 
 ## Advanced Usage
 
@@ -406,7 +425,7 @@ This project is licensed under the MIT License.
 ## Author
 
 **Jae-Yoon Sung**
-Email: o3wodbs@gmail.com
+Email: sungjaeyoon92@gmail.com
 
 ---
 
