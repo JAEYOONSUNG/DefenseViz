@@ -27,18 +27,7 @@
 install.packages("devtools")
 
 # Install DefenseViz from GitHub
-devtools::install_github("your-username/DefenseViz")
-```
-
-### From Source
-
-```r
-# Clone the repository, then:
-devtools::install("path/to/DefenseViz")
-
-# Or using R CMD:
-# R CMD build DefenseViz
-# R CMD INSTALL DefenseViz_*.tar.gz
+devtools::install_github("JAEYOONSUNG/DefenseViz")
 ```
 
 ### Dependencies
@@ -88,7 +77,7 @@ results <- rmscan_pipeline(
   input_file = "your_annotation.xlsx",
   output_dir = "."
 )
-
+* xlsx file should be derived from DNMB pipeline
 # Print summary statistics
 print_rmscan_summary(results)
 ```
