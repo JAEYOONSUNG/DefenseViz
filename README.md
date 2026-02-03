@@ -2,279 +2,399 @@
 
 [![R-CMD-check](https://img.shields.io/badge/R--CMD--check-passing-brightgreen)]()
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![R Version](https://img.shields.io/badge/R-%3E%3D4.0-blue)]()
 
-## Restriction-Modification (R-M) System Analysis Pipeline
+## Overview
 
-**DefenseViz**는 세균 게놈의 DNMB 어노테이션 데이터에서 R-M 시스템을 자동으로 탐지하고 REBASE 데이터베이스와 비교 분석하는 R 패키지입니다.
+**DefenseViz** is an R package for comprehensive analysis of bacterial Restriction-Modification (R-M) systems. It automatically detects R-M system components from genome annotation data and performs comparative analysis against the REBASE database to classify enzyme types, identify recognition sequences, and visualize system distributions.
 
-## Features
+## Key Features
 
-- **MTase Detection**: PFAM 도메인 및 키워드 기반 Methyltransferase 탐지
-- **REase Detection**: PFAM 도메인, 키워드, catalytic motif 기반 Restriction Enzyme 탐지
-- **REBASE BLAST**: REBASE 데이터베이스와 BLAST 비교로 R-M 타입 및 인식서열 확인
-- **Operon Analysis**: R-M 시스템 오페론 구조 분석
-- **Catalytic Motif Detection**: PDxDxK, DPPY, Walker A/B, DEAD/DEAH 등 핵심 모티프 탐지
-- **Visualization**: R-M 시스템 Type/Subunit 분포 dotplot
+- **Methyltransferase (MTase) Detection**: Identifies MTases using PFAM domain signatures and keyword-based annotation mining
+- **Restriction Enzyme (REase) Detection**: Detects REases through PFAM domains, product annotations, and catalytic motif patterns
+- **REBASE Integration**: Automated BLAST comparison against the REBASE Gold Standard database for enzyme classification
+- **Operon Analysis**: Genomic context analysis to identify co-localized R-M system components
+- **Catalytic Motif Detection**: Searches for conserved functional motifs (PD-(D/E)xK, DPPY, Walker A/B, DEAD/DEAH helicase motifs)
+- **Recognition Sequence Extraction**: Retrieves DNA recognition sequences from REBASE matches
+- **Visualization**: Generates publication-ready dotplots showing R-M system type and subunit distributions
 
 ## Installation
 
-```r
-# GitHub에서 설치
-devtools::install_github("your-username/DefenseViz")
+### From GitHub
 
-# 또는 로컬에서 빌드 및 설치
+```r
+# Install devtools if not already installed
+install.packages("devtools")
+
+# Install DefenseViz from GitHub
+devtools::install_github("your-username/DefenseViz")
+```
+
+### From Source
+
+```r
+# Clone the repository, then:
 devtools::install("path/to/DefenseViz")
 
-# 또는
-R CMD build DefenseViz
-R CMD INSTALL DefenseViz_0.1.0.tar.gz
+# Or using R CMD:
+# R CMD build DefenseViz
+# R CMD INSTALL DefenseViz_*.tar.gz
 ```
 
 ### Dependencies
 
-**Required:**
-```r
-install.packages(c("dplyr", "tidyr", "stringr", "rlang", "readxl", "ggplot2", "httr", "jsonlite"))
+#### Required R Packages
 
-# Bioconductor
+```r
+# CRAN packages
+install.packages(c(
+  "dplyr",
+  "tidyr",
+  "stringr",
+  "rlang",
+  "readxl",
+  "ggplot2",
+  "httr",
+  "jsonlite"
+))
+
+# Bioconductor packages
+if (!requireNamespace("BiocManager", quietly = TRUE))
+    install.packages("BiocManager")
 BiocManager::install("Biostrings")
 ```
 
-**Optional:**
+#### Optional Packages
+
 ```r
-install.packages(c("xlsx", "writexl"))  # Excel 출력
+# For Excel export (at least one recommended)
+install.packages("xlsx")      # Full Excel support (requires Java)
+install.packages("writexl")   # Lightweight alternative
 ```
 
-**External:**
-- BLAST+ (NCBI): 로컬 BLAST 실행에 필요
+#### External Tools
+
+- **NCBI BLAST+**: Required for local BLAST searches against REBASE
+  - Download: https://blast.ncbi.nlm.nih.gov/doc/blast-help/downloadblastdata.html
+  - Ensure `blastp` is available in your system PATH
 
 ## Quick Start
 
 ```r
 library(DefenseViz)
 
-# 전체 파이프라인 실행
+# Run the complete analysis pipeline
 results <- rmscan_pipeline(
-  input_file = "your_dnmb_annotation.xlsx",
-  output_dir = "rmscan_results"
+  input_file = "your_annotation.xlsx",
+  output_dir = "."
 )
 
-# 결과 요약 출력
+# Print summary statistics
 print_rmscan_summary(results)
 ```
 
-## Pipeline Overview
+## Pipeline Architecture
+
+The DefenseViz pipeline consists of 12 sequential analysis steps:
 
 ```
-┌─────────────────────────────────────────────────────────────────────┐
-│                      DefenseViz Pipeline (12 Steps)                 │
-├─────────────────────────────────────────────────────────────────────┤
-│                                                                     │
-│  [1] Load DNMB Data ─────────────────────────────────────────────  │
-│       ↓                                                             │
-│  [2] Detect MTase (PFAM + Keyword) ──────────────────────────────  │
-│       ↓                                                             │
-│  [3] Detect REase (PFAM + Keyword) ──────────────────────────────  │
-│       ↓                                                             │
-│  [4] Operon Analysis (Genome Context) ───────────────────────────  │
-│       ↓                                                             │
-│  [5] REBASE BLAST Comparison ────────────────────────────────────  │
-│       ↓                                                             │
-│  [6] Filter BLAST Results (identity ≥10%, length ≥50) ───────────  │
-│       ↓                                                             │
-│  [7] Create Annotated Tables (BLAST + Operon info) ──────────────  │
-│       ↓                                                             │
-│  [7b] Detect Catalytic Motifs (PDxDxK, DPPY, Walker, DEAD...) ───  │
-│       ↓                                                             │
-│  [8] TRD Extraction ─────────────────────────────────────────────  │
-│       ↓                                                             │
-│  [9] Extract Recognition Sequences from REBASE ──────────────────  │
-│       ↓                                                             │
-│  [10] Create Comprehensive Table ────────────────────────────────  │
-│       ↓                                                             │
-│  [11] Generate R-M Type Dotplot (identity ≥50%) ─────────────────  │
-│       ↓                                                             │
-│  [12] Export Results (xlsx) ─────────────────────────────────────  │
-│                                                                     │
-└─────────────────────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────────────────┐
+│                    DefenseViz Analysis Pipeline                         │
+├─────────────────────────────────────────────────────────────────────────┤
+│                                                                         │
+│  ┌─────────────────────────────────────────────────────────────────┐   │
+│  │ STEP 1: Data Loading                                            │   │
+│  │   • Load genome annotation file (Excel/CSV)                     │   │
+│  │   • Detect available annotation sources (PFAM, InterPro, etc.)  │   │
+│  └─────────────────────────────────────────────────────────────────┘   │
+│                              ↓                                          │
+│  ┌─────────────────────────────────────────────────────────────────┐   │
+│  │ STEP 2-3: Initial Candidate Detection                           │   │
+│  │   • MTase detection (PFAM domains + keyword search)             │   │
+│  │   • REase detection (PFAM domains + keyword search)             │   │
+│  └─────────────────────────────────────────────────────────────────┘   │
+│                              ↓                                          │
+│  ┌─────────────────────────────────────────────────────────────────┐   │
+│  │ STEP 4: Operon Analysis                                         │   │
+│  │   • Identify gene clusters based on genomic proximity           │   │
+│  │   • Analyze strand orientation patterns                         │   │
+│  └─────────────────────────────────────────────────────────────────┘   │
+│                              ↓                                          │
+│  ┌─────────────────────────────────────────────────────────────────┐   │
+│  │ STEP 5-6: REBASE Comparison                                     │   │
+│  │   • BLAST search against REBASE Gold Standard database          │   │
+│  │   • Filter results (identity ≥10%, alignment length ≥50)        │   │
+│  └─────────────────────────────────────────────────────────────────┘   │
+│                              ↓                                          │
+│  ┌─────────────────────────────────────────────────────────────────┐   │
+│  │ STEP 7: Annotation & Motif Detection                            │   │
+│  │   • Create annotated tables with BLAST results                  │   │
+│  │   • Search for catalytic motifs in protein sequences            │   │
+│  └─────────────────────────────────────────────────────────────────┘   │
+│                              ↓                                          │
+│  ┌─────────────────────────────────────────────────────────────────┐   │
+│  │ STEP 8-9: TRD & Recognition Sequence Extraction                 │   │
+│  │   • Extract Target Recognition Domain (TRD) regions             │   │
+│  │   • Retrieve recognition sequences from REBASE matches          │   │
+│  └─────────────────────────────────────────────────────────────────┘   │
+│                              ↓                                          │
+│  ┌─────────────────────────────────────────────────────────────────┐   │
+│  │ STEP 10-12: Results Compilation & Export                        │   │
+│  │   • Generate comprehensive summary table                        │   │
+│  │   • Create R-M system distribution dotplot                      │   │
+│  │   • Export results to Excel workbook                            │   │
+│  └─────────────────────────────────────────────────────────────────┘   │
+│                                                                         │
+└─────────────────────────────────────────────────────────────────────────┘
 ```
 
 ## Output Files
 
+The pipeline generates two main output files:
+
 | File | Description |
 |------|-------------|
-| `R-M_REBASE_analysis.xlsx` | 종합 분석 결과 Excel (3 sheets) |
-| `RM_system_dotplot.pdf` | R-M 시스템 Type/Subunit 분포 시각화 |
-| `RM_system_dotplot.png` | Dotplot (PNG 형식) |
+| `R-M_REBASE_analysis.xlsx` | Comprehensive analysis results (3 worksheets) |
+| `RM_system_dotplot.pdf/png` | R-M system type and subunit distribution visualization |
 
-### Excel Sheets
+### Excel Workbook Structure
 
-| Sheet | Description |
-|-------|-------------|
-| **RM_Comprehensive** | 전체 R-M 후보 유전자 (모든 데이터) |
-| **High_Identity_50pct** | BLAST identity ≥50% 고신뢰 결과 |
-| **Type_Summary** | R-M Type × Subunit 카운트 요약 |
+| Worksheet | Contents |
+|-----------|----------|
+| **RM_Comprehensive** | All R-M candidate genes with complete annotation data |
+| **High_Identity_50pct** | High-confidence matches (BLAST identity ≥50%) |
+| **Type_Summary** | Count summary by R-M Type × Subunit |
 
-## Output Columns
+### Output Column Descriptions
 
 | Column | Description |
 |--------|-------------|
-| `locus_tag` | 유전자 ID |
-| `product` | 유전자 기능 설명 |
-| `passed_blast_filter` | BLAST 필터 통과 여부 |
-| `rm_type` | R-M 시스템 타입 (Type I ~ IV) |
-| `subunit` | 서브유닛 (M, R, S) |
-| `blast_match` | REBASE 매칭 효소명 |
-| `rec_seq` | 인식 서열 (Recognition Sequence) |
-| `blast_identity` | BLAST identity (0~1) |
-| `operon_id` | 오페론 ID |
-| `motif_confidence` | 모티프 신뢰도 |
-| `rease_motif_positions` | REase 모티프 위치 |
-| `mtase_motif_positions` | MTase 모티프 위치 |
+| `locus_tag` | Gene identifier |
+| `product` | Gene product annotation |
+| `passed_blast_filter` | Boolean: passed BLAST quality filter |
+| `rm_type` | R-M system type (Type I, II, III, or IV) |
+| `subunit` | Functional subunit (M, R, or S) |
+| `blast_match` | Best matching REBASE enzyme name |
+| `rec_seq` | DNA recognition sequence |
+| `blast_identity` | Sequence identity (0-1 scale) |
+| `blast_evalue` | BLAST E-value |
+| `operon_id` | Assigned operon cluster ID |
+| `motif_confidence` | Catalytic motif detection confidence |
+| `rease_motif_positions` | Detected REase motif positions |
+| `mtase_motif_positions` | Detected MTase motif positions |
 
 ## R-M System Classification
 
-### Type (from REBASE enz_type)
+### Type Classification
 
-| Type | Description |
-|------|-------------|
-| Type I | Type I R-M system (HsdR, HsdM, HsdS) |
-| Type II | Type II (including IIG, IIS subtypes) |
-| Type III | Type III (Mod, Res) |
-| Type IV | Methylation-dependent restriction |
+R-M system types are extracted from REBASE `enz_type` annotations:
 
-### Subunit (from enzyme_name prefix)
+| Type | Characteristics | Typical Components |
+|------|-----------------|-------------------|
+| **Type I** | Multi-subunit, ATP-dependent, cleave away from recognition site | HsdR (R), HsdM (M), HsdS (S) |
+| **Type II** | Single or homodimeric, cleave within/near recognition site | REase (R), MTase (M) |
+| **Type III** | Two-subunit, ATP-dependent, cleave ~25bp from recognition site | Mod (M), Res (R) |
+| **Type IV** | Methylation-dependent restriction, no cognate MTase | McrA, McrBC, Mrr (R only) |
+
+### Subunit Classification
+
+Subunit types are determined from REBASE enzyme name prefixes:
 
 | Prefix | Subunit | Function |
 |--------|---------|----------|
-| `M.XXX` | **M** | Methyltransferase |
-| `R.XXX` | **R** | Restriction endonuclease |
-| `S.XXX` | **S** | Specificity subunit |
-| `XXX` (no prefix) | **R** | Default (REase) |
+| `M.XXX` | **M** (Methyltransferase) | DNA methylation |
+| `R.XXX` | **R** (REase) | DNA restriction/cleavage |
+| `S.XXX` | **S** (Specificity) | DNA recognition specificity (Type I only) |
+| `XXX` (no prefix) | **R** | Default assignment for unprefixed enzymes |
 
-## Catalytic Motifs Detected
+### Fixed System Categories for Visualization
 
-### REase Motifs
+The dotplot displays all possible R-M system combinations:
 
-| Motif | Pattern | Function |
-|-------|---------|----------|
-| PD-(D/E)xK | `PD[DE].K` | Type II nuclease catalytic |
-| Walker A | `G.{4}GK[TS]` | ATP binding (helicase) |
-| Walker B | `[LIVMF]{4}DE` | ATP hydrolysis |
-| DEAD/DEAH | `DEA[DH]` | Helicase core |
-| SAT/SAH | `S[ATV][THPSAQK]` | Helicase motif III |
-| TAN | `T[AT][NT]` | Helicase motif III variant |
-| QxxR | `Q..R` | Helicase motif VI |
-| ARGID | `[AR]G[IL]D` | Helicase motif V |
+- Type I: M, R, S subunits
+- Type II: M, R subunits
+- Type III: M, R subunits
+- Type IV: R subunit only
 
-### MTase Motifs
+## Catalytic Motif Detection
 
-| Motif | Pattern | Function |
-|-------|---------|----------|
-| DPPY | `[DNSH]PP[YFW]` | Catalytic motif IV |
-| NPPY | `NPP[YF]` | Motif IV variant |
-| FxGxG | `[FY].G.G` | SAM-binding motif I |
+### REase Catalytic Motifs
+
+| Motif | Regex Pattern | Biological Function |
+|-------|---------------|---------------------|
+| **PD-(D/E)xK** | `PD[DE].K` | Type II endonuclease catalytic core |
+| **Walker A** | `G.{4}GK[TS]` | ATP-binding (P-loop) in helicases |
+| **Walker B** | `[LIVMF]{4}DE` | ATP hydrolysis in helicases |
+| **DEAD/DEAH** | `DEA[DH]` | Helicase superfamily 2 core motif |
+| **SAT/SAH** | `S[ATV][THPSAQK]` | Helicase motif III |
+| **TAN** | `T[AT][NT]` | Helicase motif III variant |
+| **QxxR** | `Q..R` | Helicase motif VI |
+| **ARGID** | `[AR]G[IL]D` | Helicase motif V |
+
+### MTase Catalytic Motifs
+
+| Motif | Regex Pattern | Biological Function |
+|-------|---------------|---------------------|
+| **DPPY** | `[DNSH]PP[YFW]` | Catalytic motif IV (base flipping) |
+| **NPPY** | `NPP[YF]` | Motif IV variant |
+| **FxGxG** | `[FY].G.G` | SAM-binding motif I |
 
 ## Advanced Usage
 
-### Custom Parameters
+### Custom Pipeline Parameters
 
 ```r
 results <- rmscan_pipeline(
   input_file = "annotation.xlsx",
-  output_dir = "output",
+  output_dir = "results",
 
-  # BLAST filtering
-  blast_min_identity = 0.30,   # Default: 0.10 (10%)
-  blast_min_length = 100,      # Default: 50
 
-  # Operon detection
-  max_operon_gap = 3000,       # Default: 5000 bp
-  max_intervening = 2,         # Default: 1 gene
+  # BLAST Filtering Thresholds
+  blast_min_identity = 0.30,    # Minimum identity (default: 0.10 = 10%)
+  blast_min_length = 100,       # Minimum alignment length (default: 50)
 
-  # Options
-  compare_rebase = TRUE,       # Run REBASE comparison
-  search_motifs = TRUE,        # Search TRD motifs
-  verbose = TRUE,              # Print progress
-  save_intermediates = TRUE    # Save to global environment
+  # Operon Detection Parameters
+  max_operon_gap = 3000,        # Maximum intergenic distance (default: 5000 bp)
+  max_intervening = 2,          # Maximum intervening genes (default: 1)
+
+  # Pipeline Options
+  compare_rebase = TRUE,        # Perform REBASE comparison (default: TRUE)
+  search_motifs = TRUE,         # Search for TRD motifs (default: TRUE)
+  verbose = TRUE,               # Print progress messages (default: TRUE)
+  save_intermediates = TRUE     # Save intermediate results to global env (default: TRUE)
 )
 ```
 
-### Access Intermediate Results
+### Accessing Intermediate Results
+
+When `save_intermediates = TRUE`, intermediate data objects are saved to the global environment:
 
 ```r
-# 파이프라인 실행 후 (save_intermediates = TRUE 필요)
-rmscan_rm_comprehensive   # 종합 테이블
-rmscan_mtase_annotated    # MTase 어노테이션
-rmscan_rease_annotated    # REase 어노테이션
-rmscan_blast_filtered     # 필터링된 BLAST 결과
-rmscan_rebase_db          # REBASE 데이터베이스 캐시
-rmscan_operon             # 오페론 분석 결과
-rmscan_catalytic_summary  # 모티프 요약
+# Available after pipeline execution:
+rmscan_dnmb                  # Original input data
+rmscan_mtase                 # MTase candidates
+rmscan_rease                 # REase candidates
+rmscan_operon                # Operon analysis results
+rmscan_blast_filtered        # Filtered BLAST results
+rmscan_rebase_db             # Cached REBASE database
+rmscan_rm_comprehensive      # Final comprehensive table
+rmscan_catalytic_summary     # Catalytic motif summary
 ```
 
-### Individual Functions
+### Using Individual Functions
 
 ```r
-# 1. 데이터 로드
+library(DefenseViz)
+
+# Step 1: Load annotation data
 dnmb_data <- load_dnmb("annotation.xlsx")
 
-# 2. MTase 탐지
-mtase <- detect_methyltransferases(dnmb_data)
+# Step 2: Detect MTases
+mtase_candidates <- detect_methyltransferases(dnmb_data)
 
-# 3. REase 탐지
-rease <- detect_restriction_enzymes(dnmb_data)
+# Step 3: Detect REases
+rease_candidates <- detect_restriction_enzymes(dnmb_data)
 
-# 4. REBASE 데이터 가져오기
+# Step 4: Identify operons
+operons <- identify_rm_operons(mtase_candidates, rease_candidates, dnmb_data)
+
+# Step 5: Get REBASE data
 rebase_db <- get_rebase_data()
 
-# 5. Catalytic motif 탐지
+# Step 6: Detect catalytic motifs
 motifs <- detect_catalytic_motifs(candidates, seq_col = "translation")
 motif_summary <- summarize_catalytic_motifs(motifs)
 
-# 6. 오페론 분석
-operons <- identify_rm_operons(mtase, rease, dnmb_data)
+# Step 7: Generate dotplot
+generate_rm_type_heatmap(rm_data, output_dir = ".", min_identity = 0.5)
 ```
 
-## Input Format
+## Input Data Format
 
-DNMB 어노테이션 Excel/CSV 파일:
+### Required File Format
 
-**Required columns:**
-- `locus_tag` 또는 `protein_id`: 유전자 식별자
-- `start`, `end`: 좌표
-- `strand` 또는 `direction`: 방향 (+/-)
-- `product`: 기능 설명
-- `translation`: 단백질 서열
+The input file should be an Excel (.xlsx) or CSV file containing genome annotation data.
 
-**Optional columns:**
-- `PFAMs` 또는 `Signature accession_Pfam`: PFAM 도메인
-- `seqid` 또는 `contig`: 염색체/콘티그 ID
+### Required Columns
+
+| Column | Description | Example |
+|--------|-------------|---------|
+| `locus_tag` or `protein_id` | Unique gene identifier | `ECOLI_00123` |
+| `start` | Start coordinate | `12345` |
+| `end` | End coordinate | `13456` |
+| `strand` or `direction` | Coding strand | `+` or `-` |
+| `product` | Gene product description | `DNA methyltransferase` |
+| `translation` | Protein sequence | `MKFLILLFNILC...` |
+
+### Optional Columns
+
+| Column | Description |
+|--------|-------------|
+| `PFAMs` or `Signature accession_Pfam` | PFAM domain annotations |
+| `seqid` or `contig` | Chromosome/contig identifier |
+| `InterPro` or `Signature accession_CDD` | Additional domain annotations |
 
 ## System Requirements
 
-- **R**: ≥ 4.0
-- **Memory**: 4GB+ 권장
-- **Disk**: ~100MB (REBASE 캐시)
-- **BLAST+**: NCBI BLAST+ (optional, 로컬 BLAST용)
+| Requirement | Specification |
+|-------------|---------------|
+| **R Version** | ≥ 4.0 |
+| **Memory** | 4 GB RAM minimum (8 GB recommended for large genomes) |
+| **Disk Space** | ~100 MB for REBASE cache |
+| **BLAST+** | Required for REBASE comparison (optional if skipping BLAST) |
+
+## Troubleshooting
+
+### Common Issues
+
+**BLAST not found**
+```r
+# Check if blastp is in PATH
+system("which blastp")
+
+# Or specify full path in environment
+Sys.setenv(PATH = paste("/path/to/blast/bin", Sys.getenv("PATH"), sep = ":"))
+```
+
+**Memory issues with large genomes**
+```r
+# Process in chunks or increase memory limit
+options(future.globals.maxSize = 2000 * 1024^2)  # 2GB
+```
+
+**Excel export fails**
+```r
+# Try alternative package
+install.packages("writexl")  # Doesn't require Java
+```
 
 ## Citation
 
+If you use DefenseViz in your research, please cite:
+
 ```
-DefenseViz: R-M System Analysis Pipeline for Bacterial Genomes
+DefenseViz: An R Package for Automated Analysis of Bacterial
+Restriction-Modification Systems
 https://github.com/your-username/DefenseViz
 ```
 
 ## References
 
-- Roberts RJ, et al. (2023) REBASE - a database for DNA restriction and modification.
-  Nucleic Acids Res. 51(D1):D629-D635.
+1. Roberts RJ, Vincze T, Posfai J, Macelis D. (2023) REBASE - a database for DNA restriction and modification: enzymes, genes and genomes. *Nucleic Acids Research*, 51(D1):D629-D635. doi: 10.1093/nar/gkac975
+
+2. Loenen WAM, Dryden DTF, Raleigh EA, Wilson GG. (2014) Type I restriction enzymes and their relatives. *Nucleic Acids Research*, 42(1):20-44.
+
+3. Pingoud A, Wilson GG, Wende W. (2014) Type II restriction endonucleases - a historical perspective and more. *Nucleic Acids Research*, 42(12):7489-7527.
 
 ## License
 
-MIT License
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
 ## Author
 
-- **Jae-Yoon Sung**
-- Email: o3wodbs@gmail.com
+**Jae-Yoon Sung**
+Email: sungjaeyoon92@gmail.com
+
+---
+
+*DefenseViz - Comprehensive R-M System Analysis for Bacterial Genomics*
