@@ -1,0 +1,32 @@
+Package: DefenseViz
+Title: Restriction-Modification System Analysis and Visualization Pipeline
+Version: 0.1.0
+Authors@R: 
+    person("Jae-Yoon", "Sung", email = "o3wodbs@gmail.com", role = c("aut", "cre"))
+Description: A comprehensive R package for analyzing Restriction-Modification (R-M) 
+    systems from DNMB output. Features include methylation motif extraction, 
+    nuclease activity prediction, operon structure analysis, TRD domain extraction, 
+    REBASE database comparison, and integrated scoring system.
+License: MIT + file LICENSE
+Encoding: UTF-8
+Roxygen: list(markdown = TRUE)
+RoxygenNote: 7.3.3
+Imports:
+    dplyr,
+    tidyr,
+    stringr,
+    readxl,
+    rlang,
+    Biostrings,
+    httr,
+    jsonlite,
+    ggplot2
+Suggests:
+    testthat (>= 3.0.0),
+    knitr,
+    rmarkdown,
+    xlsx,
+    writexl,
+    pheatmap
+Config/testthat/edition: 3
+VignetteBuilder: knitr
