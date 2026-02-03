@@ -42,6 +42,7 @@ install.packages(c(
   "stringr",
   "rlang",
   "readxl",
+  "xlsx",
   "ggplot2",
   "httr",
   "jsonlite"
@@ -53,21 +54,41 @@ if (!requireNamespace("BiocManager", quietly = TRUE))
 BiocManager::install("Biostrings")
 ```
 
-#### Optional Packages
-
-```r
-# For Excel export (at least one recommended)
-install.packages("xlsx")      # Full Excel support (requires Java)
-install.packages("writexl")   # Lightweight alternative
-```
-
 #### External Tools
 
-- **NCBI BLAST+**: Required for local BLAST searches against REBASE
-  - Download: https://blast.ncbi.nlm.nih.gov/doc/blast-help/downloadblastdata.html
-  - Ensure `blastp` is available in your system PATH
+> ⚠️ **Important:** This package uses **local NCBI BLAST+** command-line tools (not the rBLAST R package). You must have BLAST+ installed on your system.
+
+**Installation Options:**
+
+```bash
+# Option 1: Conda (Recommended)
+conda install -c bioconda blast
+
+# Option 2: Mamba (faster)
+mamba install -c bioconda blast
+
+# Option 3: macOS with Homebrew
+brew install blast
+
+# Option 4: Ubuntu/Debian
+sudo apt install ncbi-blast+
+
+# Option 5: Direct download from NCBI
+# https://ftp.ncbi.nlm.nih.gov/blast/executables/blast+/LATEST/
+```
+
+**Verify Installation:**
+
+```bash
+blastp -version
+# Expected output: blastp: 2.x.x+
+```
+
+> **Tip:** If using conda, make sure your conda environment is activated before running R.
 
 ## Quick Start
+
+> **Note:** The input Excel file must be generated from the DNMB (DoriC-NCBI-MiST-BigQuery) annotation pipeline. Ensure your file contains the required columns (`locus_tag`, `product`, `translation`, etc.).
 
 ```r
 library(DefenseViz)
@@ -77,7 +98,7 @@ results <- rmscan_pipeline(
   input_file = "your_annotation.xlsx",
   output_dir = "."
 )
-* xlsx file should be derived from DNMB pipeline
+
 # Print summary statistics
 print_rmscan_summary(results)
 ```
@@ -87,54 +108,54 @@ print_rmscan_summary(results)
 The DefenseViz pipeline consists of 12 sequential analysis steps:
 
 ```
-┌─────────────────────────────────────────────────────────────────────────┐
-│                    DefenseViz Analysis Pipeline                         │
-├─────────────────────────────────────────────────────────────────────────┤
-│                                                                         │
+┌────────────────────────────────────────────────────────────────────────┐
+│                    DefenseViz Analysis Pipeline                        │
+├────────────────────────────────────────────────────────────────────────┤
+│                                                                        │
 │  ┌─────────────────────────────────────────────────────────────────┐   │
 │  │ STEP 1: Data Loading                                            │   │
 │  │   • Load genome annotation file (Excel/CSV)                     │   │
 │  │   • Detect available annotation sources (PFAM, InterPro, etc.)  │   │
 │  └─────────────────────────────────────────────────────────────────┘   │
-│                              ↓                                          │
+│                              ↓                                         │
 │  ┌─────────────────────────────────────────────────────────────────┐   │
 │  │ STEP 2-3: Initial Candidate Detection                           │   │
 │  │   • MTase detection (PFAM domains + keyword search)             │   │
 │  │   • REase detection (PFAM domains + keyword search)             │   │
 │  └─────────────────────────────────────────────────────────────────┘   │
-│                              ↓                                          │
+│                              ↓                                         │
 │  ┌─────────────────────────────────────────────────────────────────┐   │
 │  │ STEP 4: Operon Analysis                                         │   │
 │  │   • Identify gene clusters based on genomic proximity           │   │
 │  │   • Analyze strand orientation patterns                         │   │
 │  └─────────────────────────────────────────────────────────────────┘   │
-│                              ↓                                          │
+│                              ↓                                         │
 │  ┌─────────────────────────────────────────────────────────────────┐   │
 │  │ STEP 5-6: REBASE Comparison                                     │   │
 │  │   • BLAST search against REBASE Gold Standard database          │   │
 │  │   • Filter results (identity ≥10%, alignment length ≥50)        │   │
 │  └─────────────────────────────────────────────────────────────────┘   │
-│                              ↓                                          │
+│                              ↓                                         │
 │  ┌─────────────────────────────────────────────────────────────────┐   │
 │  │ STEP 7: Annotation & Motif Detection                            │   │
 │  │   • Create annotated tables with BLAST results                  │   │
 │  │   • Search for catalytic motifs in protein sequences            │   │
 │  └─────────────────────────────────────────────────────────────────┘   │
-│                              ↓                                          │
+│                              ↓                                         │
 │  ┌─────────────────────────────────────────────────────────────────┐   │
 │  │ STEP 8-9: TRD & Recognition Sequence Extraction                 │   │
 │  │   • Extract Target Recognition Domain (TRD) regions             │   │
 │  │   • Retrieve recognition sequences from REBASE matches          │   │
 │  └─────────────────────────────────────────────────────────────────┘   │
-│                              ↓                                          │
+│                              ↓                                         │
 │  ┌─────────────────────────────────────────────────────────────────┐   │
 │  │ STEP 10-12: Results Compilation & Export                        │   │
 │  │   • Generate comprehensive summary table                        │   │
 │  │   • Create R-M system distribution dotplot                      │   │
 │  │   • Export results to Excel workbook                            │   │
 │  └─────────────────────────────────────────────────────────────────┘   │
-│                                                                         │
-└─────────────────────────────────────────────────────────────────────────┘
+│                                                                        │
+└────────────────────────────────────────────────────────────────────────┘
 ```
 
 ## Output Files
@@ -237,7 +258,6 @@ results <- rmscan_pipeline(
   input_file = "annotation.xlsx",
   output_dir = "results",
 
-
   # BLAST Filtering Thresholds
   blast_min_identity = 0.30,    # Minimum identity (default: 0.10 = 10%)
   blast_min_length = 100,       # Minimum alignment length (default: 50)
@@ -337,24 +357,32 @@ The input file should be an Excel (.xlsx) or CSV file containing genome annotati
 ### Common Issues
 
 **BLAST not found**
-```r
+
+```bash
 # Check if blastp is in PATH
+which blastp
+
+# If using conda, activate your environment first
+conda activate your_env
+which blastp
+```
+
+```r
+# In R, check BLAST availability
 system("which blastp")
 
 # Or specify full path in environment
 Sys.setenv(PATH = paste("/path/to/blast/bin", Sys.getenv("PATH"), sep = ":"))
+
+# For conda users
+Sys.setenv(PATH = paste("~/miniconda3/envs/your_env/bin", Sys.getenv("PATH"), sep = ":"))
 ```
 
 **Memory issues with large genomes**
+
 ```r
 # Process in chunks or increase memory limit
 options(future.globals.maxSize = 2000 * 1024^2)  # 2GB
-```
-
-**Excel export fails**
-```r
-# Try alternative package
-install.packages("writexl")  # Doesn't require Java
 ```
 
 ## Citation
@@ -364,20 +392,16 @@ If you use DefenseViz in your research, please cite:
 ```
 DefenseViz: An R Package for Automated Analysis of Bacterial
 Restriction-Modification Systems
-https://github.com/your-username/DefenseViz
+https://github.com/JAEYOONSUNG/DefenseViz
 ```
 
 ## References
 
 1. Roberts RJ, Vincze T, Posfai J, Macelis D. (2023) REBASE - a database for DNA restriction and modification: enzymes, genes and genomes. *Nucleic Acids Research*, 51(D1):D629-D635. doi: 10.1093/nar/gkac975
 
-2. Loenen WAM, Dryden DTF, Raleigh EA, Wilson GG. (2014) Type I restriction enzymes and their relatives. *Nucleic Acids Research*, 42(1):20-44.
-
-3. Pingoud A, Wilson GG, Wende W. (2014) Type II restriction endonucleases - a historical perspective and more. *Nucleic Acids Research*, 42(12):7489-7527.
-
 ## License
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+This project is licensed under the MIT License.
 
 ## Author
 
