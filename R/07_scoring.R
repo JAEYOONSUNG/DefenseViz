@@ -306,7 +306,7 @@ summarize_catalytic_motifs <- function(motif_data, id_col = "locus_tag") {
   }
 
   summary_data <- motif_data %>%
-    dplyr::group_by(rlang::.data[[id_col]]) %>%
+    dplyr::group_by(.data[[id_col]]) %>%
     dplyr::summarise(
       # ===== INTERNAL: Count motifs by type (for evaluation) =====
       .n_nuclease = sum(motif_type == "rease_typeII", na.rm = TRUE),

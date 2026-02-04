@@ -179,7 +179,7 @@ rmscan_pipeline <- function(input_file,
 
       if (length(query_ids) > 0) {
         query_seqs <- dnmb_data %>%
-          dplyr::filter(rlang::.data[[id_col]] %in% query_ids) %>%
+          dplyr::filter(.data[[id_col]] %in% query_ids) %>%
           dplyr::select(dplyr::all_of(c(id_col, "translation")))
         save_to_env("query_seqs", query_seqs)
 
@@ -372,7 +372,7 @@ rmscan_pipeline <- function(input_file,
 
     if (length(all_candidate_ids) > 0) {
       candidate_seqs <- dnmb_data %>%
-        dplyr::filter(rlang::.data[[id_col]] %in% all_candidate_ids) %>%
+        dplyr::filter(.data[[id_col]] %in% all_candidate_ids) %>%
         dplyr::select(dplyr::all_of(c(id_col, "translation")))
 
       # Detect catalytic motifs
@@ -411,7 +411,7 @@ rmscan_pipeline <- function(input_file,
   if (length(filtered_query_ids) > 0) {
     trd_data <- tryCatch({
       extract_trd_regions(
-        dnmb_data %>% dplyr::filter(rlang::.data[[id_col]] %in% filtered_query_ids),
+        dnmb_data %>% dplyr::filter(.data[[id_col]] %in% filtered_query_ids),
         pfam_col = if (annotation_sources$pfam) NULL else NA,
         product_col = "product",
         seq_col = "translation",
@@ -725,7 +725,7 @@ create_comprehensive_rm_table_v2 <- function(mtase_annotated = NULL,
   # Add "passed_filter" flag
   rm_combined <- rm_combined %>%
     dplyr::mutate(
-      passed_blast_filter = rlang::.data[[id_col]] %in% filtered_ids
+      passed_blast_filter = .data[[id_col]] %in% filtered_ids
     )
 
   # NOTE: scored_data and classified_data joining removed (not needed)
@@ -953,7 +953,7 @@ create_comprehensive_rm_table_v2 <- function(mtase_annotated = NULL,
       operon_id,                            # ★ Same operon_id grouped together
       dplyr::desc(blast_identity),          # Within operon: high identity first
       blast_evalue,                         # Then low evalue
-      rlang::.data[[id_col]]                       # Then by locus_tag
+      .data[[id_col]]                       # Then by locus_tag
     ) %>%
     dplyr::select(-.operon_max_identity, -.operon_has_passed)
 

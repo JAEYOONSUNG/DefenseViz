@@ -111,7 +111,7 @@ extract_rm_candidates <- function(dnmb_data,
   
   # Filter by keywords
   candidates <- dnmb_data %>%
-    dplyr::filter(stringr::str_detect(rlang::.data[[product_col]], pattern))
+    dplyr::filter(stringr::str_detect(.data[[product_col]], pattern))
   
   message(sprintf("Found %d R-M candidate genes (%.1f%% of total)", 
                   nrow(candidates), 
