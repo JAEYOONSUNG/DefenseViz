@@ -113,14 +113,17 @@ identify_rm_operons <- function(mtase_data,
         # Type III: Mod/Res system
         stringr::str_detect(product, "(?i)type.?III|\\bmod\\b|\\bres\\b") ~ "Type_III",
         stringr::str_detect(re_type, "(?i)Type_III") ~ "Type_III",
+        stringr::str_detect(mtase_type, "(?i)Type_III") ~ "Type_III",
 
         # Type IV: McrBC, Mrr (modified base restriction)
         stringr::str_detect(product, "(?i)type.?IV|mcr[ABC]|\\bmrr\\b") ~ "Type_IV",
         stringr::str_detect(re_type, "(?i)Type_IV") ~ "Type_IV",
+        stringr::str_detect(mtase_type, "(?i)Type_IV") ~ "Type_IV",
 
         # Type II: explicit or default for M+R pairs
         stringr::str_detect(product, "(?i)type.?II") ~ "Type_II",
         stringr::str_detect(re_type, "(?i)Type_II") ~ "Type_II",
+        stringr::str_detect(mtase_type, "(?i)Type_II") ~ "Type_II",
 
         # Orphan Dam/Dcm
         stringr::str_detect(mtase_type, "(?i)Dam|Dcm") ~ "orphan",

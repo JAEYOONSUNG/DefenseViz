@@ -122,8 +122,8 @@ extract_trd_by_pfam <- function(dnmb_data, pfam_col = NULL) {
                     ")")
   
   trd_hits <- dnmb_data %>%
-    dplyr::filter(!is.na(.data[[pfam_col]])) %>%
-    dplyr::filter(stringr::str_detect(.data[[pfam_col]], pattern))
+    dplyr::filter(!is.na(rlang::.data[[pfam_col]])) %>%
+    dplyr::filter(stringr::str_detect(rlang::.data[[pfam_col]], pattern))
   
   if (nrow(trd_hits) == 0) {
     message("No TRD domains found by PFAM")
@@ -133,11 +133,11 @@ extract_trd_by_pfam <- function(dnmb_data, pfam_col = NULL) {
   # Classify TRD type
   trd_hits <- trd_hits %>%
     dplyr::mutate(
-      trd_pfam_match = stringr::str_extract_all(.data[[pfam_col]], pattern),
+      trd_pfam_match = stringr::str_extract_all(rlang::.data[[pfam_col]], pattern),
       trd_pfam_str = sapply(trd_pfam_match, paste, collapse = ";"),
       trd_type = dplyr::case_when(
-        stringr::str_detect(.data[[pfam_col]], "(?i)HsdS|TypeI|TER_restrict") ~ "Type_I_specificity",
-        stringr::str_detect(.data[[pfam_col]], "(?i)N4_cytosine|N6_Mtase") ~ "Type_III_TRD",
+        stringr::str_detect(rlang::.data[[pfam_col]], "(?i)HsdS|TypeI|TER_restrict") ~ "Type_I_specificity",
+        stringr::str_detect(rlang::.data[[pfam_col]], "(?i)N4_cytosine|N6_Mtase") ~ "Type_III_TRD",
         TRUE ~ "putative_TRD"
       )
     ) %>%
@@ -181,17 +181,17 @@ extract_trd_by_keyword <- function(dnmb_data, product_col = "product") {
   exclude_pattern <- paste0("(?i)(", paste(exclude_keywords, collapse = "|"), ")")
 
   trd_hits <- dnmb_data %>%
-    dplyr::filter(!is.na(.data[[product_col]])) %>%
-    dplyr::filter(stringr::str_detect(.data[[product_col]], pattern)) %>%
+    dplyr::filter(!is.na(rlang::.data[[product_col]])) %>%
+    dplyr::filter(stringr::str_detect(rlang::.data[[product_col]], pattern)) %>%
     # Exclude false positives
-    dplyr::filter(!stringr::str_detect(.data[[product_col]], exclude_pattern))
+    dplyr::filter(!stringr::str_detect(rlang::.data[[product_col]], exclude_pattern))
 
   if (nrow(trd_hits) > 0) {
     trd_hits <- trd_hits %>%
       dplyr::mutate(
         trd_type_keyword = dplyr::case_when(
-          stringr::str_detect(.data[[product_col]], "(?i)HsdS|type.?I.*S|specificity.?subunit") ~ "Type_I_specificity",
-          stringr::str_detect(.data[[product_col]], "(?i)type.?III|mod") ~ "Type_III_TRD",
+          stringr::str_detect(rlang::.data[[product_col]], "(?i)HsdS|type.?I.*S|specificity.?subunit") ~ "Type_I_specificity",
+          stringr::str_detect(rlang::.data[[product_col]], "(?i)type.?III|mod") ~ "Type_III_TRD",
           TRUE ~ "putative_TRD"
         )
       )
@@ -222,7 +222,7 @@ search_trd_motifs <- function(dnmb_data, seq_col = "translation") {
   
   # Initialize
   trd_motif_hits <- dnmb_data %>%
-    dplyr::filter(!is.na(.data[[seq_col]])) %>%
+    dplyr::filter(!is.na(rlang::.data[[seq_col]])) %>%
     dplyr::mutate(
       trd_motifs_found = NA_character_,
       trd_motif_count = 0L
@@ -245,7 +245,7 @@ search_trd_motifs <- function(dnmb_data, seq_col = "translation") {
           dplyr::if_else(
             is.na(trd_motifs_found),
             motif_name,
-            paste(trd_motifs_found, motif_name, sep = ";")
+            stringr::str_c(trd_motifs_found, motif_name, sep = ";")
           ),
           trd_motifs_found
         ),
@@ -284,7 +284,7 @@ extract_trd_sequences <- function(trd_data,
   }
   
   trd_seqs <- trd_data %>%
-    dplyr::filter(!is.na(.data[[seq_col]])) %>%
+    dplyr::filter(!is.na(rlang::.data[[seq_col]])) %>%
     dplyr::select(
       dplyr::all_of(id_col),
       sequence = dplyr::all_of(seq_col),
@@ -293,7 +293,7 @@ extract_trd_sequences <- function(trd_data,
     dplyr::mutate(
       seq_length = nchar(sequence),
       # Create FASTA header
-      fasta_header = paste0(">", .data[[id_col]], " | ",
+      fasta_header = paste0(">", rlang::.data[[id_col]], " | ",
                             dplyr::coalesce(trd_type, "putative_TRD"))
     )
   
@@ -360,15 +360,15 @@ extract_trd_regions <- function(dnmb_data,
     if (nrow(keyword_results) > 0) keyword_results[[id_col]] else character(),
     if (nrow(motif_results) > 0) motif_results[[id_col]] else character()
   ))
-  
+
   if (length(all_ids) == 0) {
     message("No TRD regions identified")
     return(dplyr::tibble())
   }
-  
+
   # Build combined table
   combined <- dnmb_data %>%
-    dplyr::filter(.data[[id_col]] %in% all_ids)
+    dplyr::filter(rlang::.data[[id_col]] %in% all_ids)
   
   # Add PFAM TRD info
   if (nrow(pfam_results) > 0) {
@@ -408,7 +408,7 @@ extract_trd_regions <- function(dnmb_data,
   combined <- combined %>%
     dplyr::mutate(
       trd_classification = dplyr::coalesce(trd_type, trd_type_keyword, "putative_TRD"),
-      trd_detection_method = paste(
+      trd_detection_method = stringr::str_c(
         dplyr::if_else(!is.na(trd_type), "pfam", ""),
         dplyr::if_else(!is.na(trd_type_keyword), "keyword", ""),
         dplyr::if_else(!is.na(trd_motifs_found), "motif", ""),
@@ -467,7 +467,7 @@ write_trd_fasta <- function(trd_data, output_file, seq_col = "translation") {
     
     if (!is.na(seq) && nchar(seq) > 0) {
       # Wrap sequence at 60 characters
-      seq_wrapped <- paste(
+      seq_wrapped <- stringr::str_c(
         stringr::str_sub(seq, seq(1, nchar(seq), 60), seq(60, nchar(seq) + 59, 60)),
         collapse = "\n"
       )

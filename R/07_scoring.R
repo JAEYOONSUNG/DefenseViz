@@ -306,7 +306,7 @@ summarize_catalytic_motifs <- function(motif_data, id_col = "locus_tag") {
   }
 
   summary_data <- motif_data %>%
-    dplyr::group_by(.data[[id_col]]) %>%
+    dplyr::group_by(rlang::.data[[id_col]]) %>%
     dplyr::summarise(
       # ===== INTERNAL: Count motifs by type (for evaluation) =====
       .n_nuclease = sum(motif_type == "rease_typeII", na.rm = TRUE),
@@ -766,7 +766,7 @@ classify_rm_system_type <- function(data,
       rm_type_scores = paste0("I:", .type_I_score, ";II:", .type_II_score,
                                ";III:", .type_III_score, ";IV:", .type_IV_score)
     ) %>%
-    dplyr::select(-starts_with(".type_"), -.max_score)
+    dplyr::select(-dplyr::starts_with(".type_"), -.max_score)
 
   # Summary message
   type_counts <- table(data$rm_system_type)
@@ -888,7 +888,7 @@ calculate_rm_scores <- function(mtase_data = NULL,
     complete_rm_ids <- operon_data %>%
       dplyr::filter(operon_type == "complete_RM") %>%
       dplyr::pull(!!rlang::sym(id_col))
-    
+
     partial_rm_ids <- operon_data %>%
       dplyr::filter(operon_type %in% c("solitary_MTase", "solitary_REase")) %>%
       dplyr::pull(!!rlang::sym(id_col))
@@ -1072,7 +1072,7 @@ classify_rm_systems <- function(scored_data,
     id_col <- get_id_col(mtase_data)
     mtase_types <- mtase_data %>%
       dplyr::select(dplyr::all_of(id_col), mtase_type) %>%
-      dplyr::rename(gene_id = !!id_col, mtase_type_detail = mtase_type)
+      dplyr::rename(gene_id = !!rlang::sym(id_col), mtase_type_detail = mtase_type)
     
     result <- result %>%
       dplyr::left_join(mtase_types, by = "gene_id")
@@ -1083,7 +1083,7 @@ classify_rm_systems <- function(scored_data,
     id_col <- get_id_col(rease_data)
     rease_types <- rease_data %>%
       dplyr::select(dplyr::all_of(id_col), re_type) %>%
-      dplyr::rename(gene_id = !!id_col, rease_type_detail = re_type)
+      dplyr::rename(gene_id = !!rlang::sym(id_col), rease_type_detail = re_type)
     
     result <- result %>%
       dplyr::left_join(rease_types, by = "gene_id")
@@ -1095,7 +1095,7 @@ classify_rm_systems <- function(scored_data,
     operon_types <- operon_data %>%
       dplyr::select(dplyr::all_of(id_col), predicted_type) %>%
       dplyr::distinct() %>%
-      dplyr::rename(gene_id = !!id_col, operon_predicted_type = predicted_type)
+      dplyr::rename(gene_id = !!rlang::sym(id_col), operon_predicted_type = predicted_type)
     
     result <- result %>%
       dplyr::left_join(operon_types, by = "gene_id")

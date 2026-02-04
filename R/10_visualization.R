@@ -214,7 +214,7 @@ plot_rm_type_distribution <- function(classified_data, output_file = NULL) {
     return(NULL)
   }
 
-  p <- ggplot2::ggplot(type_counts, ggplot2::aes(x = reorder(rm_type, count), y = count)) +
+  p <- ggplot2::ggplot(type_counts, ggplot2::aes(x = stats::reorder(rm_type, count), y = count)) +
     ggplot2::geom_bar(stat = "identity", fill = "#3288BD", width = 0.7) +
     ggplot2::geom_text(ggplot2::aes(label = count), hjust = -0.2, size = 4) +
     ggplot2::coord_flip() +

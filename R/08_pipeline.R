@@ -179,7 +179,7 @@ rmscan_pipeline <- function(input_file,
 
       if (length(query_ids) > 0) {
         query_seqs <- dnmb_data %>%
-          dplyr::filter(.data[[id_col]] %in% query_ids) %>%
+          dplyr::filter(rlang::.data[[id_col]] %in% query_ids) %>%
           dplyr::select(dplyr::all_of(c(id_col, "translation")))
         save_to_env("query_seqs", query_seqs)
 
@@ -372,7 +372,7 @@ rmscan_pipeline <- function(input_file,
 
     if (length(all_candidate_ids) > 0) {
       candidate_seqs <- dnmb_data %>%
-        dplyr::filter(.data[[id_col]] %in% all_candidate_ids) %>%
+        dplyr::filter(rlang::.data[[id_col]] %in% all_candidate_ids) %>%
         dplyr::select(dplyr::all_of(c(id_col, "translation")))
 
       # Detect catalytic motifs
@@ -411,7 +411,7 @@ rmscan_pipeline <- function(input_file,
   if (length(filtered_query_ids) > 0) {
     trd_data <- tryCatch({
       extract_trd_regions(
-        dnmb_data %>% dplyr::filter(.data[[id_col]] %in% filtered_query_ids),
+        dnmb_data %>% dplyr::filter(rlang::.data[[id_col]] %in% filtered_query_ids),
         pfam_col = if (annotation_sources$pfam) NULL else NA,
         product_col = "product",
         seq_col = "translation",
@@ -725,7 +725,7 @@ create_comprehensive_rm_table_v2 <- function(mtase_annotated = NULL,
   # Add "passed_filter" flag
   rm_combined <- rm_combined %>%
     dplyr::mutate(
-      passed_blast_filter = .data[[id_col]] %in% filtered_ids
+      passed_blast_filter = rlang::.data[[id_col]] %in% filtered_ids
     )
 
   # NOTE: scored_data and classified_data joining removed (not needed)
@@ -953,7 +953,7 @@ create_comprehensive_rm_table_v2 <- function(mtase_annotated = NULL,
       operon_id,                            # ★ Same operon_id grouped together
       dplyr::desc(blast_identity),          # Within operon: high identity first
       blast_evalue,                         # Then low evalue
-      .data[[id_col]]                       # Then by locus_tag
+      rlang::.data[[id_col]]                       # Then by locus_tag
     ) %>%
     dplyr::select(-.operon_max_identity, -.operon_has_passed)
 
@@ -1279,7 +1279,7 @@ generate_rm_type_heatmap <- function(rm_data,
   # Create System column (Type + Subunit)
   high_identity <- high_identity %>%
     dplyr::mutate(
-      System = paste0(rm_type_clean, " (", subunit_clean, ")")
+      System = stringr::str_c(rm_type_clean, " (", subunit_clean, ")")
     )
 
   # ★ 전체 시스템 목록 고정 (항상 이 순서로 표시)
@@ -1297,7 +1297,7 @@ generate_rm_type_heatmap <- function(rm_data,
   # 전체 시스템에 대해 0 카운트 추가 (존재하지 않는 시스템도 표시)
   all_systems_df <- dplyr::tibble(
     System = all_systems,
-    rm_type_clean = stringr::str_extract(all_systems, "Type I+V?"),
+    rm_type_clean = stringr::str_extract(all_systems, "Type I{1,3}|Type IV"),
     subunit_clean = stringr::str_extract(all_systems, "(?<=\\()[MRS](?=\\))")
   )
 
@@ -1310,7 +1310,7 @@ generate_rm_type_heatmap <- function(rm_data,
     dplyr::mutate(
       Count = dplyr::if_else(is.na(Count), 0L, Count),
       System = factor(System, levels = all_systems),
-      ColorGroup = paste(rm_type_clean, subunit_clean, sep = ".")
+      subunit_clean = factor(subunit_clean, levels = c("M", "R", "S"))
     )
 
   if (verbose) {
@@ -1320,16 +1320,11 @@ generate_rm_type_heatmap <- function(rm_data,
     message("    Systems: ", paste(all_systems, collapse = ", "))
   }
 
-  # ★ 고정된 색상 (Subunit별)
+  # ★ 고정된 색상 (Subunit별 - Type IV도 R subunit으로 취급)
   subunit_colors <- c(
-    "Type I.M" = "#6A5ACD",
-    "Type I.R" = "#E8B923",
-    "Type I.S" = "#87CEEB",
-    "Type II.M" = "#6A5ACD",
-    "Type II.R" = "#E8B923",
-    "Type III.M" = "#6A5ACD",
-    "Type III.R" = "#E8B923",
-    "Type IV.R" = "#808080"
+    "M" = "#6A5ACD",
+    "R" = "#E8B923",
+    "S" = "#87CEEB"
   )
 
   # ★ 고정된 배경 위치 (Type별)
@@ -1365,30 +1360,26 @@ generate_rm_type_heatmap <- function(rm_data,
     p <- p +
       ggplot2::geom_point(
         data = plot_data,
-        ggplot2::aes(size = Count, fill = ColorGroup),
+        ggplot2::aes(size = Count, fill = subunit_clean),
         shape = 21,
-        stroke = 0
+        stroke = 0.8,
+        color = "black"
       ) +
       ggplot2::scale_size_continuous(
         name = "Count",
-        range = c(3, 12),
-        breaks = seq(1, max_count, by = max(1, floor(max_count/5))),
+        range = c(4, 14),
+        breaks = seq(1, max_count, by = max(1, floor(max_count/4))),
         limits = c(1, max_count)
       ) +
       ggplot2::scale_fill_manual(
         name = "Subunit",
         values = subunit_colors,
         labels = c(
-          "Type I.M" = "M subunit",
-          "Type I.R" = "R subunit",
-          "Type I.S" = "S subunit",
-          "Type II.M" = "M subunit",
-          "Type II.R" = "R subunit",
-          "Type III.M" = "M subunit",
-          "Type III.R" = "R subunit",
-          "Type IV.R" = "Type IV"
+          "M" = "M (Methyltransferase)",
+          "R" = "R (Restriction enzyme)",
+          "S" = "S (Specificity)"
         ),
-        guide = ggplot2::guide_legend(override.aes = list(size = 5))
+        guide = ggplot2::guide_legend(override.aes = list(size = 6, stroke = 0.8))
       )
   }
 
@@ -1414,13 +1405,13 @@ generate_rm_type_heatmap <- function(rm_data,
     ) +
     ggplot2::coord_cartesian(ylim = c(0.5, 1.5))
 
-  # Save plot (8 시스템 고정)
+  # Save plot (8 시스템 고정, 정사각형에 가까운 비율)
   plot_file_pdf <- file.path(output_dir, "RM_system_dotplot.pdf")
   plot_file_png <- file.path(output_dir, "RM_system_dotplot.png")
 
   tryCatch({
-    ggplot2::ggsave(plot_file_pdf, p, width = 7, height = 3.5)
-    ggplot2::ggsave(plot_file_png, p, width = 7, height = 3.5, dpi = 300)
+    ggplot2::ggsave(plot_file_pdf, p, width = 8, height = 2.5)
+    ggplot2::ggsave(plot_file_png, p, width = 8, height = 2.5, dpi = 300)
 
     if (verbose) {
       message("  Saved dotplot: ", plot_file_pdf)

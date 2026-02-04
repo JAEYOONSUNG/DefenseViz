@@ -1,6 +1,6 @@
 Package: DefenseViz
 Title: Restriction-Modification System Analysis and Visualization Pipeline
-Version: 0.1.0
+Version: 1.0.0
 Authors@R: 
     person("Jae-Yoon", "Sung", email = "o3wodbs@gmail.com", role = c("aut", "cre"))
 Description: A comprehensive R package for analyzing Restriction-Modification (R-M) 
@@ -17,6 +17,7 @@ Imports:
     stringr,
     readxl,
     rlang,
+    magrittr,
     Biostrings,
     httr,
     jsonlite,

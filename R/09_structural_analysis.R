@@ -233,7 +233,7 @@ analyze_s_subunit_structure <- function(structure_data, min_helix_len = 15) {
       trd1_region = sapply(analysis, `[[`, "trd1_region"),
       trd2_region = sapply(analysis, `[[`, "trd2_region")
     ) %>%
-    dplyr::select(-analysis)
+    dplyr::select(dplyr::everything(), -analysis)
 
   # Calculate physical distances and N-repeat prediction
   results <- estimate_trd_distance(results)
