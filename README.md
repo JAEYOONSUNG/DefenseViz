@@ -1,11 +1,10 @@
 # DefenseViz
-![Untitled-1](https://github.com/user-attachments/assets/12be82c5-9abb-4ace-b558-70de96f621c1)
-
 [![R-CMD-check](https://img.shields.io/badge/R--CMD--check-passing-brightgreen)]()
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![R Version](https://img.shields.io/badge/R-%3E%3D4.0-blue)]()
 
 ## Overview
+![Untitled-1](https://github.com/user-attachments/assets/12be82c5-9abb-4ace-b558-70de96f621c1)
 
 **DefenseViz** is an R package for comprehensive analysis of bacterial Restriction-Modification (R-M) systems. It automatically detects R-M system components from genome annotation data and performs comparative analysis against the REBASE database to classify enzyme types, identify recognition sequences, and visualize system distributions.
 
