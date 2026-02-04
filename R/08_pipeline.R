@@ -1410,8 +1410,8 @@ generate_rm_type_heatmap <- function(rm_data,
   plot_file_png <- file.path(output_dir, "RM_system_dotplot.png")
 
   tryCatch({
-    ggplot2::ggsave(plot_file_pdf, p, width = 8, height = 2.5)
-    ggplot2::ggsave(plot_file_png, p, width = 8, height = 2.5, dpi = 300)
+    ggplot2::ggsave(plot_file_pdf, p, width = 8, height = 1.5)
+    ggplot2::ggsave(plot_file_png, p, width = 8, height = 1.5, dpi = 300)
 
     if (verbose) {
       message("  Saved dotplot: ", plot_file_pdf)
