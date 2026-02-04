@@ -1,4 +1,5 @@
 # DefenseViz
+![Untitled-1](https://github.com/user-attachments/assets/12be82c5-9abb-4ace-b558-70de96f621c1)
 
 [![R-CMD-check](https://img.shields.io/badge/R--CMD--check-passing-brightgreen)]()
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
