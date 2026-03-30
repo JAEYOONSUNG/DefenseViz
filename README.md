@@ -425,7 +425,8 @@ This project is licensed under the MIT License.
 ## Author
 
 **Jae-Yoon Sung**
-Email: sungjaeyoon92@gmail.com
+Email: o3wodbs@gmail.com
+sungjaeyoon@yonsei.ac.kr
 
 ---
 
