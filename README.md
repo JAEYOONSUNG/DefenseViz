@@ -417,6 +417,7 @@ https://github.com/JAEYOONSUNG/DefenseViz
 ## References
 
 1. Roberts RJ, Vincze T, Posfai J, Macelis D. (2023) REBASE - a database for DNA restriction and modification: enzymes, genes and genomes. *Nucleic Acids Research*, 51(D1):D629-D635. doi: 10.1093/nar/gkac975
+2. Sung, J.Y., Lee, M.H., Park, J.S., Kim, H.B., Ganbat, D., Kim, D.G., Cho, H.W., Suh, M.K., Lee, J.S., Lee, S.J., Kim, S.B.*, and Lee, D.W.*. (2026) Programmable domestication of thermophilic bacteria through removal of non-canonical defense systems. *bioRxiv* 2026.03.21.173436.
 
 ## License
 
