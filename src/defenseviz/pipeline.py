@@ -61,7 +61,7 @@ def software_state() -> dict:
 def provenance_path(path, base):
     """Relative when possible; Windows cross-drive sources stay explicit."""
     try:
-        return os.path.relpath(path, base)
+        return Path(os.path.relpath(path, base)).as_posix()
     except ValueError:
         return Path(path).absolute().as_posix()
 
