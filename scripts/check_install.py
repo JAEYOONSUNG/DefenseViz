@@ -35,12 +35,12 @@ def main():
         run([python, '-m', 'defenseviz', 'demo', '--out', work/'demo'], work)
         run([python, '-m', 'defenseviz', 'validate', work/'demo/inputs/project.json'], work)
         run([python, '-m', 'defenseviz', 'run', work/'demo/inputs/project.json', '--out', work/'rerun'], work)
-        a=json.loads((work/'demo/results/analysis.json').read_text())
-        b=json.loads((work/'rerun/analysis.json').read_text())
+        a=json.loads((work/'demo/results/analysis.json').read_text(encoding='utf-8'))
+        b=json.loads((work/'rerun/analysis.json').read_text(encoding='utf-8'))
         assert a==b, 'Demo and standalone run must be analytically identical'
         assert (work/'rerun/figure2_ab.pdf').stat().st_size>1000
         assert list((work/'rerun').glob('*.svg'))
-        receipt=json.loads((work/'rerun/receipt.json').read_text())
+        receipt=json.loads((work/'rerun/receipt.json').read_text(encoding='utf-8'))
         assert receipt['detector_runs']==0 and receipt['exit_code']==0
         assert receipt['software']['git']['status']=='not_a_source_checkout'
         print('CLEAN_INSTALL_OK')
