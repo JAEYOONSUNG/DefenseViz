@@ -4,6 +4,8 @@
 
 DefenseViz 2 separates native caller output, DNMB evidence decisions, and visualization. It replaces the old folder-dependent `DefenseFinder_Heatmap()` workflow with explicit, portable inputs. Arbitrary sample identifiers, cohort sizes and previously unseen defense families are supported. Figure 2 **a** describes the evidence workflow; **b** shows caller CDS counts, R-M input/retention and components, defense-family profiles and highlighted samples.
 
+![Synthetic Figure 2 a/b example](docs/assets/demo.svg)
+
 ## Install and try
 
 Python 3.10 or newer. Run inside a virtual environment:
