@@ -1,0 +1,36 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "defenseviz"
+version = "2.0.0"
+description = "Source-traceable defense annotation integration, DNMB evidence reevaluation and comparative figures"
+readme = "README.md"
+requires-python = ">=3.10"
+license = {text = "MIT"}
+authors = [{name = "Jae-Yoon Sung"}]
+dependencies = ["matplotlib>=3.7,<4"]
+classifiers = ["Programming Language :: Python :: 3", "Topic :: Scientific/Engineering :: Bio-Informatics"]
+
+[project.optional-dependencies]
+excel = ["openpyxl>=3.1,<4"]
+dev = ["pytest>=7,<10", "build>=1,<2"]
+
+[project.urls]
+Repository = "https://github.com/JAEYOONSUNG/DefenseViz-next"
+Issues = "https://github.com/JAEYOONSUNG/DefenseViz-next/issues"
+
+[project.scripts]
+defenseviz = "defenseviz.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+defenseviz = ["data/*.json"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
+addopts = "--import-mode=importlib"

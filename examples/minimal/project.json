@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "samples": "samples.tsv",
+  "calls": [
+    {
+      "format": "normalized",
+      "path": "calls.tsv"
+    }
+  ],
+  "coverage": "coverage.tsv",
+  "evidence": "evidence.json",
+  "options": {
+    "title": "DefenseViz \u00b7 synthetic demonstration"
+  }
+}

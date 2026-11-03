@@ -1,0 +1,7 @@
+sample_id	caller	status
+isolate-a	DefenseFinder	complete
+isolate-a	PADLOC	complete
+isolate-b	DefenseFinder	complete
+isolate-b	PADLOC	complete
+isolate-c	DefenseFinder	complete
+isolate-c	PADLOC	missing

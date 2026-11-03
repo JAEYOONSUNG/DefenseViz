@@ -1,0 +1,32 @@
+[
+  {
+    "source": "DNMB/R/DefenseFinder_plot.R",
+    "sha256": "6f16bb4931b63bb61b42e6ffb155082b3e5973ea5484ed1a84fd9128b89fd8b3",
+    "source_commit": "976489e9967e9e4dfacc61f7e83e66b1da0f4f2b",
+    "working_tree_state": "clean"
+  },
+  {
+    "source": "DefenseViz-1.0.0/DESCRIPTION",
+    "sha256": "b3f2429560f357a7ce1ddd5cb791d130fa71a42323e99d5272259fb7efeb2116",
+    "source_commit": null,
+    "working_tree_state": "not_git_repository"
+  },
+  {
+    "source": "revision027/pipeline/scoring_extension/dnmb_policy.py",
+    "sha256": "2ade4cfac8162a7cb1db78e3b4f41b1327c3bce75a273b6adbe8d326698360fb",
+    "source_commit": null,
+    "working_tree_state": "not_git_repository"
+  },
+  {
+    "source": "revision027/pipeline/nuclease_registry.py",
+    "sha256": "38a155dd32dc685b4a62c266ebbc2ce59c7f0e18ffe09311fe5afed0b56bdc72",
+    "source_commit": null,
+    "working_tree_state": "not_git_repository"
+  },
+  {
+    "source": "revision026/selected_policy.json",
+    "sha256": "522ec650eaa1f3e25fc8eb9806c920b42822031ce2f0975345c4bcbbd72095a3",
+    "source_commit": null,
+    "working_tree_state": "not_git_repository"
+  }
+]

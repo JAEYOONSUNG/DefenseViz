@@ -1,0 +1,13 @@
+sample_id	gene_id	caller	family	category	system_id	role	rm_type	evidence_kind
+isolate-a	gene-r	DefenseFinder	RM_TypeI	R-M	rm1	R	Type I	final_member
+isolate-a	gene-m	DefenseFinder	RM_TypeI	R-M	rm1	M	Type I	final_member
+isolate-a	gene-s	DefenseFinder	RM_TypeI	R-M	rm1	S	Type I	final_member
+isolate-a	gene-r	PADLOC	RM_TypeI	R-M	rm1	R	Type I	final_member
+isolate-a	gene-m	PADLOC	RM_TypeI	R-M	rm1	M	Type I	final_member
+isolate-a	gene-s	PADLOC	RM_TypeI	R-M	rm1	S	Type I	final_member
+isolate-a	gene-g	PADLOC	Gabija	Nuclease	gab1			final_member
+isolate-a	gene-x	DefenseFinder	Uncatalogued family	Unresolved	novel1			final_member
+isolate-b	gene-c	DefenseFinder	Cas-example	CRISPR-Cas	cas1			final_member
+isolate-b	gene-b	PADLOC	BREX	Modification	brex1			final_member
+isolate-c	gene-z	DefenseFinder	Uncatalogued family	Unresolved	novel2			final_member
+isolate-a	domain-only	DefenseFinder	Gabija	Nuclease				hmm_hit

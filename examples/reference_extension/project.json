@@ -1,0 +1,1 @@
+{"schema_version": 1, "samples": "samples.tsv", "calls": [], "evidence": "evidence.json", "evidence_extension": {"registry": "registry.json", "candidates": "candidates.json", "admission_rules": "rules.json"}}

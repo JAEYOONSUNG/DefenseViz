@@ -1,0 +1,4 @@
+sample_id	label	genus	species	highlight
+isolate-a	Example isolate A	Examplegenus	example A	true
+isolate-b	Example isolate B	Examplegenus	example B	false
+isolate-c	Example isolate C	Othergenus	example C	false

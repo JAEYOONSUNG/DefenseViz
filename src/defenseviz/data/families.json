@@ -1,0 +1,864 @@
+[
+  {
+    "family": "Gabija",
+    "category": "Nuclease"
+  },
+  {
+    "family": "Wadjet I",
+    "category": "Nuclease"
+  },
+  {
+    "family": "Wadjet II",
+    "category": "Nuclease"
+  },
+  {
+    "family": "Wadjet III",
+    "category": "Nuclease"
+  },
+  {
+    "family": "Wadjet other",
+    "category": "Nuclease"
+  },
+  {
+    "family": "Zorya",
+    "category": "Nuclease"
+  },
+  {
+    "family": "Lamassu",
+    "category": "Nuclease"
+  },
+  {
+    "family": "AbiO-Nhi",
+    "category": "Nuclease"
+  },
+  {
+    "family": "DARNA",
+    "category": "Nuclease"
+  },
+  {
+    "family": "Hma",
+    "category": "Nuclease"
+  },
+  {
+    "family": "MazEF",
+    "category": "Nuclease"
+  },
+  {
+    "family": "RloC",
+    "category": "Nuclease"
+  },
+  {
+    "family": "Shlafen Ig-like",
+    "category": "Nuclease"
+  },
+  {
+    "family": "CBASS",
+    "category": "Abortive infection"
+  },
+  {
+    "family": "AbiD",
+    "category": "Abortive infection"
+  },
+  {
+    "family": "AbiE",
+    "category": "Abortive infection"
+  },
+  {
+    "family": "Aristaios",
+    "category": "Abortive infection"
+  },
+  {
+    "family": "DarTG",
+    "category": "Abortive infection"
+  },
+  {
+    "family": "Pycsar",
+    "category": "Abortive infection"
+  },
+  {
+    "family": "Rugutis",
+    "category": "Abortive infection"
+  },
+  {
+    "family": "SoFic",
+    "category": "Abortive infection"
+  },
+  {
+    "family": "Stk2",
+    "category": "Abortive infection"
+  },
+  {
+    "family": "BREX",
+    "category": "Modification"
+  },
+  {
+    "family": "DISARM",
+    "category": "Modification"
+  },
+  {
+    "family": "DMS_other",
+    "category": "Modification"
+  },
+  {
+    "family": "DndABCDE",
+    "category": "Modification"
+  },
+  {
+    "family": "PbeABCD (PT)",
+    "category": "Modification"
+  },
+  {
+    "family": "SspABCD (PT)",
+    "category": "Modification"
+  },
+  {
+    "family": "Ceres",
+    "category": "Unresolved"
+  },
+  {
+    "family": "CoCoNut",
+    "category": "Nuclease"
+  },
+  {
+    "family": "Druantia",
+    "category": "Unresolved"
+  },
+  {
+    "family": "Kiwa",
+    "category": "Other mechanisms"
+  },
+  {
+    "family": "Menshen",
+    "category": "Unresolved"
+  },
+  {
+    "family": "Mokosh",
+    "category": "Nuclease"
+  },
+  {
+    "family": "Ogmios",
+    "category": "Other mechanisms"
+  },
+  {
+    "family": "DndFGH (PT)",
+    "category": "Nuclease"
+  },
+  {
+    "family": "SspFGH (PT)",
+    "category": "Nuclease"
+  },
+  {
+    "family": "dXTPase",
+    "category": "Other mechanisms"
+  },
+  {
+    "family": "gcu233",
+    "category": "Unresolved"
+  },
+  {
+    "family": "ietAS",
+    "category": "Other mechanisms"
+  },
+  {
+    "family": "pAgo LongA",
+    "category": "Nuclease"
+  },
+  {
+    "family": "pAgo LongB-SIRim",
+    "category": "Abortive infection"
+  },
+  {
+    "family": "qatABCD",
+    "category": "Nuclease"
+  },
+  {
+    "family": "CRISPR-Cas",
+    "category": "CRISPR-Cas"
+  },
+  {
+    "family": "Nhi",
+    "category": "Nuclease"
+  },
+  {
+    "family": "SspBCD (PT)",
+    "category": "Modification"
+  },
+  {
+    "family": "SspE / FGH (PT)",
+    "category": "Nuclease"
+  },
+  {
+    "family": "AbiD",
+    "category": "Abortive infection",
+    "caller": "DefenseFinder"
+  },
+  {
+    "family": "AbiE",
+    "category": "Abortive infection",
+    "caller": "DefenseFinder"
+  },
+  {
+    "family": "Aristaios",
+    "category": "Abortive infection",
+    "caller": "DefenseFinder"
+  },
+  {
+    "family": "BREX_I",
+    "category": "Modification",
+    "caller": "DefenseFinder",
+    "display_family": "BREX"
+  },
+  {
+    "family": "BREX_III",
+    "category": "Modification",
+    "caller": "DefenseFinder",
+    "display_family": "BREX"
+  },
+  {
+    "family": "CAS_Class1-Subtype-I-B",
+    "category": "CRISPR-Cas",
+    "caller": "DefenseFinder",
+    "display_family": "CRISPR-Cas"
+  },
+  {
+    "family": "CAS_Class1-Subtype-I-C",
+    "category": "CRISPR-Cas",
+    "caller": "DefenseFinder",
+    "display_family": "CRISPR-Cas"
+  },
+  {
+    "family": "CAS_Class1-Subtype-III-B",
+    "category": "CRISPR-Cas",
+    "caller": "DefenseFinder",
+    "display_family": "CRISPR-Cas"
+  },
+  {
+    "family": "CAS_Class1-Subtype-III-D",
+    "category": "CRISPR-Cas",
+    "caller": "DefenseFinder",
+    "display_family": "CRISPR-Cas"
+  },
+  {
+    "family": "CAS_Class2-Subtype-II-C",
+    "category": "CRISPR-Cas",
+    "caller": "DefenseFinder",
+    "display_family": "CRISPR-Cas"
+  },
+  {
+    "family": "CAS_Cluster",
+    "category": "CRISPR-Cas",
+    "caller": "DefenseFinder",
+    "display_family": "CRISPR-Cas"
+  },
+  {
+    "family": "CBASS_II_HNH",
+    "category": "Abortive infection",
+    "caller": "DefenseFinder",
+    "display_family": "CBASS"
+  },
+  {
+    "family": "CBASS_I_TM",
+    "category": "Abortive infection",
+    "caller": "DefenseFinder",
+    "display_family": "CBASS"
+  },
+  {
+    "family": "Ceres",
+    "category": "Unresolved",
+    "caller": "DefenseFinder"
+  },
+  {
+    "family": "CoCoNut_I-A",
+    "category": "Nuclease",
+    "caller": "DefenseFinder",
+    "display_family": "CoCoNut"
+  },
+  {
+    "family": "CoCoNut_I-B",
+    "category": "Nuclease",
+    "caller": "DefenseFinder",
+    "display_family": "CoCoNut"
+  },
+  {
+    "family": "D12_RM_Type_II_PDDEXK",
+    "category": "R-M",
+    "caller": "DefenseFinder"
+  },
+  {
+    "family": "DARNA",
+    "category": "Nuclease",
+    "caller": "DefenseFinder"
+  },
+  {
+    "family": "DISARM_2",
+    "category": "Modification",
+    "caller": "DefenseFinder",
+    "display_family": "DISARM"
+  },
+  {
+    "family": "DNA_met_RM_Type_II_HATPase",
+    "category": "R-M",
+    "caller": "DefenseFinder"
+  },
+  {
+    "family": "DNA_met_RM_Type_II_PDDEXK",
+    "category": "R-M",
+    "caller": "DefenseFinder"
+  },
+  {
+    "family": "DarTG",
+    "category": "Abortive infection",
+    "caller": "DefenseFinder"
+  },
+  {
+    "family": "Dnd_ABCDE",
+    "category": "Modification",
+    "caller": "DefenseFinder",
+    "display_family": "DndABCDE"
+  },
+  {
+    "family": "Druantia_I",
+    "category": "Unresolved",
+    "caller": "DefenseFinder",
+    "display_family": "Druantia"
+  },
+  {
+    "family": "EcoKMcrA",
+    "category": "R-M",
+    "caller": "DefenseFinder"
+  },
+  {
+    "family": "Gabija",
+    "category": "Nuclease",
+    "caller": "DefenseFinder"
+  },
+  {
+    "family": "GmrSD_RM_Type_IV",
+    "category": "R-M",
+    "caller": "DefenseFinder"
+  },
+  {
+    "family": "Hma",
+    "category": "Nuclease",
+    "caller": "DefenseFinder"
+  },
+  {
+    "family": "Kiwa",
+    "category": "Other mechanisms",
+    "caller": "DefenseFinder"
+  },
+  {
+    "family": "Lamassu_Cap4",
+    "category": "Nuclease",
+    "caller": "DefenseFinder",
+    "display_family": "Lamassu"
+  },
+  {
+    "family": "MazEF",
+    "category": "Nuclease",
+    "caller": "DefenseFinder"
+  },
+  {
+    "family": "McrBC",
+    "category": "R-M",
+    "caller": "DefenseFinder"
+  },
+  {
+    "family": "N6_N4_RM_Type_III",
+    "category": "R-M",
+    "caller": "DefenseFinder"
+  },
+  {
+    "family": "N6_N4_RM_Type_II_PDDEXK",
+    "category": "R-M",
+    "caller": "DefenseFinder"
+  },
+  {
+    "family": "N6_RM_Type_I",
+    "category": "R-M",
+    "caller": "DefenseFinder"
+  },
+  {
+    "family": "N6_RM_Type_IIG",
+    "category": "R-M",
+    "caller": "DefenseFinder"
+  },
+  {
+    "family": "N6_RM_Type_II_PDDEXK",
+    "category": "R-M",
+    "caller": "DefenseFinder"
+  },
+  {
+    "family": "Ogmios",
+    "category": "Other mechanisms",
+    "caller": "DefenseFinder"
+  },
+  {
+    "family": "Other_Type_IV",
+    "category": "R-M",
+    "caller": "DefenseFinder"
+  },
+  {
+    "family": "Pycsar_TM",
+    "category": "Abortive infection",
+    "caller": "DefenseFinder",
+    "display_family": "Pycsar"
+  },
+  {
+    "family": "RloC",
+    "category": "Nuclease",
+    "caller": "DefenseFinder"
+  },
+  {
+    "family": "Rugutis",
+    "category": "Abortive infection",
+    "caller": "DefenseFinder"
+  },
+  {
+    "family": "Shlafen_Ig-like_pSlfn5",
+    "category": "Nuclease",
+    "caller": "DefenseFinder",
+    "display_family": "Shlafen Ig-like"
+  },
+  {
+    "family": "SoFic",
+    "category": "Abortive infection",
+    "caller": "DefenseFinder"
+  },
+  {
+    "family": "Stk2",
+    "category": "Abortive infection",
+    "caller": "DefenseFinder"
+  },
+  {
+    "family": "TagI",
+    "category": "R-M",
+    "caller": "DefenseFinder"
+  },
+  {
+    "family": "Zorya_TypeI",
+    "category": "Nuclease",
+    "caller": "DefenseFinder",
+    "display_family": "Zorya"
+  },
+  {
+    "family": "gcu233",
+    "category": "Unresolved",
+    "caller": "DefenseFinder"
+  },
+  {
+    "family": "AbiD",
+    "category": "Abortive infection",
+    "caller": "PADLOC"
+  },
+  {
+    "family": "AbiE",
+    "category": "Abortive infection",
+    "caller": "PADLOC"
+  },
+  {
+    "family": "AbiO-Nhi_family",
+    "category": "Nuclease",
+    "caller": "PADLOC",
+    "display_family": "AbiO-Nhi"
+  },
+  {
+    "family": "DMS_other",
+    "category": "Modification",
+    "caller": "PADLOC"
+  },
+  {
+    "family": "HEC-05",
+    "category": "Nuclease",
+    "caller": "PADLOC",
+    "display_family": "HEC (pooled)"
+  },
+  {
+    "family": "HEC-06",
+    "category": "Nuclease",
+    "caller": "PADLOC",
+    "display_family": "HEC (pooled)"
+  },
+  {
+    "family": "Lamassu_Family",
+    "category": "Nuclease",
+    "caller": "PADLOC",
+    "display_family": "Lamassu"
+  },
+  {
+    "family": "Menshen_other",
+    "category": "Unresolved",
+    "caller": "PADLOC",
+    "display_family": "Menshen"
+  },
+  {
+    "family": "Mokosh_TypeII",
+    "category": "Nuclease",
+    "caller": "PADLOC",
+    "display_family": "Mokosh"
+  },
+  {
+    "family": "PD-T4-6",
+    "category": "Abortive infection",
+    "caller": "PADLOC",
+    "display_family": "PD (pooled)"
+  },
+  {
+    "family": "PD-T7-3",
+    "category": "Abortive infection",
+    "caller": "PADLOC",
+    "display_family": "PD (pooled)"
+  },
+  {
+    "family": "PDC-M03",
+    "category": "Unresolved",
+    "caller": "PADLOC",
+    "display_family": "PDC-M (pooled)"
+  },
+  {
+    "family": "PDC-M07",
+    "category": "Unresolved",
+    "caller": "PADLOC",
+    "display_family": "PDC-M (pooled)"
+  },
+  {
+    "family": "PDC-M08",
+    "category": "Unresolved",
+    "caller": "PADLOC",
+    "display_family": "PDC-M (pooled)"
+  },
+  {
+    "family": "PDC-M14",
+    "category": "Unresolved",
+    "caller": "PADLOC",
+    "display_family": "PDC-M (pooled)"
+  },
+  {
+    "family": "PDC-M29",
+    "category": "Unresolved",
+    "caller": "PADLOC",
+    "display_family": "PDC-M (pooled)"
+  },
+  {
+    "family": "PDC-M30",
+    "category": "Unresolved",
+    "caller": "PADLOC",
+    "display_family": "PDC-M (pooled)"
+  },
+  {
+    "family": "PDC-M33",
+    "category": "Unresolved",
+    "caller": "PADLOC",
+    "display_family": "PDC-M (pooled)"
+  },
+  {
+    "family": "PDC-M38",
+    "category": "Unresolved",
+    "caller": "PADLOC",
+    "display_family": "PDC-M (pooled)"
+  },
+  {
+    "family": "PDC-M58",
+    "category": "Unresolved",
+    "caller": "PADLOC",
+    "display_family": "PDC-M (pooled)"
+  },
+  {
+    "family": "PDC-M63",
+    "category": "Unresolved",
+    "caller": "PADLOC",
+    "display_family": "PDC-M (pooled)"
+  },
+  {
+    "family": "PDC-S02",
+    "category": "Unresolved",
+    "caller": "PADLOC",
+    "display_family": "PDC-S (pooled)"
+  },
+  {
+    "family": "PDC-S03",
+    "category": "Unresolved",
+    "caller": "PADLOC",
+    "display_family": "PDC-S (pooled)"
+  },
+  {
+    "family": "PDC-S04",
+    "category": "Unresolved",
+    "caller": "PADLOC",
+    "display_family": "PDC-S (pooled)"
+  },
+  {
+    "family": "PDC-S06",
+    "category": "Unresolved",
+    "caller": "PADLOC",
+    "display_family": "PDC-S (pooled)"
+  },
+  {
+    "family": "PDC-S07",
+    "category": "Unresolved",
+    "caller": "PADLOC",
+    "display_family": "PDC-S (pooled)"
+  },
+  {
+    "family": "PDC-S09",
+    "category": "Unresolved",
+    "caller": "PADLOC",
+    "display_family": "PDC-S (pooled)"
+  },
+  {
+    "family": "PDC-S11",
+    "category": "Unresolved",
+    "caller": "PADLOC",
+    "display_family": "PDC-S (pooled)"
+  },
+  {
+    "family": "PDC-S21",
+    "category": "Unresolved",
+    "caller": "PADLOC",
+    "display_family": "PDC-S (pooled)"
+  },
+  {
+    "family": "PDC-S25",
+    "category": "Unresolved",
+    "caller": "PADLOC",
+    "display_family": "PDC-S (pooled)"
+  },
+  {
+    "family": "PDC-S31",
+    "category": "Unresolved",
+    "caller": "PADLOC",
+    "display_family": "PDC-S (pooled)"
+  },
+  {
+    "family": "PDC-S35",
+    "category": "Unresolved",
+    "caller": "PADLOC",
+    "display_family": "PDC-S (pooled)"
+  },
+  {
+    "family": "PDC-S38",
+    "category": "Unresolved",
+    "caller": "PADLOC",
+    "display_family": "PDC-S (pooled)"
+  },
+  {
+    "family": "PDC-S39",
+    "category": "Unresolved",
+    "caller": "PADLOC",
+    "display_family": "PDC-S (pooled)"
+  },
+  {
+    "family": "PDC-S49",
+    "category": "Unresolved",
+    "caller": "PADLOC",
+    "display_family": "PDC-S (pooled)"
+  },
+  {
+    "family": "PDC-S66",
+    "category": "Unresolved",
+    "caller": "PADLOC",
+    "display_family": "PDC-S (pooled)"
+  },
+  {
+    "family": "PDC-S70",
+    "category": "Unresolved",
+    "caller": "PADLOC",
+    "display_family": "PDC-S (pooled)"
+  },
+  {
+    "family": "PT_DndABCDE",
+    "category": "Modification",
+    "caller": "PADLOC",
+    "display_family": "DndABCDE"
+  },
+  {
+    "family": "PT_PbeABCD",
+    "category": "Modification",
+    "caller": "PADLOC",
+    "display_family": "PbeABCD (PT)"
+  },
+  {
+    "family": "PT_SspABCD",
+    "category": "Modification",
+    "caller": "PADLOC",
+    "display_family": "SspABCD (PT)"
+  },
+  {
+    "family": "PT_SspFGH",
+    "category": "Nuclease",
+    "caller": "PADLOC",
+    "display_family": "SspFGH (PT)"
+  },
+  {
+    "family": "RM_type_I",
+    "category": "R-M",
+    "caller": "PADLOC"
+  },
+  {
+    "family": "RM_type_II",
+    "category": "R-M",
+    "caller": "PADLOC"
+  },
+  {
+    "family": "RM_type_IIG",
+    "category": "R-M",
+    "caller": "PADLOC"
+  },
+  {
+    "family": "RM_type_III",
+    "category": "R-M",
+    "caller": "PADLOC"
+  },
+  {
+    "family": "RM_type_IV",
+    "category": "R-M",
+    "caller": "PADLOC"
+  },
+  {
+    "family": "SoFic",
+    "category": "Abortive infection",
+    "caller": "PADLOC"
+  },
+  {
+    "family": "brex_type_I",
+    "category": "Modification",
+    "caller": "PADLOC",
+    "display_family": "BREX"
+  },
+  {
+    "family": "brex_type_III",
+    "category": "Modification",
+    "caller": "PADLOC",
+    "display_family": "BREX"
+  },
+  {
+    "family": "brex_type_V",
+    "category": "Modification",
+    "caller": "PADLOC",
+    "display_family": "BREX"
+  },
+  {
+    "family": "cas_type_I-B1",
+    "category": "CRISPR-Cas",
+    "caller": "PADLOC",
+    "display_family": "CRISPR-Cas"
+  },
+  {
+    "family": "cas_type_I-C",
+    "category": "CRISPR-Cas",
+    "caller": "PADLOC",
+    "display_family": "CRISPR-Cas"
+  },
+  {
+    "family": "cas_type_II-C",
+    "category": "CRISPR-Cas",
+    "caller": "PADLOC",
+    "display_family": "CRISPR-Cas"
+  },
+  {
+    "family": "cas_type_III-B",
+    "category": "CRISPR-Cas",
+    "caller": "PADLOC",
+    "display_family": "CRISPR-Cas"
+  },
+  {
+    "family": "cas_type_III-D",
+    "category": "CRISPR-Cas",
+    "caller": "PADLOC",
+    "display_family": "CRISPR-Cas"
+  },
+  {
+    "family": "cas_type_other",
+    "category": "CRISPR-Cas",
+    "caller": "PADLOC",
+    "display_family": "CRISPR-Cas"
+  },
+  {
+    "family": "cbass_other",
+    "category": "Abortive infection",
+    "caller": "PADLOC",
+    "display_family": "CBASS"
+  },
+  {
+    "family": "cbass_type_I",
+    "category": "Abortive infection",
+    "caller": "PADLOC",
+    "display_family": "CBASS"
+  },
+  {
+    "family": "cbass_type_II",
+    "category": "Abortive infection",
+    "caller": "PADLOC",
+    "display_family": "CBASS"
+  },
+  {
+    "family": "dXTPase",
+    "category": "Other mechanisms",
+    "caller": "PADLOC"
+  },
+  {
+    "family": "darTG",
+    "category": "Abortive infection",
+    "caller": "PADLOC",
+    "display_family": "DarTG"
+  },
+  {
+    "family": "disarm_type_II",
+    "category": "Modification",
+    "caller": "PADLOC",
+    "display_family": "DISARM"
+  },
+  {
+    "family": "druantia_other",
+    "category": "Unresolved",
+    "caller": "PADLOC",
+    "display_family": "Druantia"
+  },
+  {
+    "family": "gabija",
+    "category": "Nuclease",
+    "caller": "PADLOC",
+    "display_family": "Gabija"
+  },
+  {
+    "family": "hma",
+    "category": "Nuclease",
+    "caller": "PADLOC",
+    "display_family": "Hma"
+  },
+  {
+    "family": "ietAS",
+    "category": "Other mechanisms",
+    "caller": "PADLOC"
+  },
+  {
+    "family": "kiwa",
+    "category": "Other mechanisms",
+    "caller": "PADLOC",
+    "display_family": "Kiwa"
+  },
+  {
+    "family": "pycsar_other",
+    "category": "Abortive infection",
+    "caller": "PADLOC",
+    "display_family": "Pycsar"
+  },
+  {
+    "family": "pycsar_unknown",
+    "category": "Abortive infection",
+    "caller": "PADLOC",
+    "display_family": "Pycsar"
+  },
+  {
+    "family": "qatABCD_other",
+    "category": "Nuclease",
+    "caller": "PADLOC",
+    "display_family": "qatABCD"
+  },
+  {
+    "family": "zorya_type_I",
+    "category": "Nuclease",
+    "caller": "PADLOC",
+    "display_family": "Zorya"
+  }
+]

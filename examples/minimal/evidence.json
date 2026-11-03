@@ -1,0 +1,138 @@
+[
+  {
+    "sample_id": "isolate-a",
+    "gene_id": "gene-r",
+    "evidence": {
+      "family": "Type I",
+      "role": "R",
+      "valid_sequence": true,
+      "identity": 0.9,
+      "query_coverage": 0.95,
+      "reference_coverage": 0.95,
+      "evalue": 1e-30,
+      "role_compatible": true,
+      "family_compatible": true,
+      "hmm_role_ambiguous": false,
+      "profiles": [],
+      "raw_nuclease_classes": [],
+      "legacy_nuclease": false,
+      "legacy_motor": false,
+      "legacy_mtase_motif": false,
+      "old_strong": true,
+      "old_moderate": false,
+      "old_profile": false,
+      "annotation": true,
+      "old_motif": true,
+      "old_context": true,
+      "strict_structure": false,
+      "alternative_annotation": false,
+      "conflict": false,
+      "partial": false
+    },
+    "provenance": {
+      "kind": "synthetic_demo_only"
+    }
+  },
+  {
+    "sample_id": "isolate-a",
+    "gene_id": "gene-m",
+    "evidence": {
+      "family": "Type I",
+      "role": "M",
+      "valid_sequence": true,
+      "identity": 0.9,
+      "query_coverage": 0.95,
+      "reference_coverage": 0.95,
+      "evalue": 1e-30,
+      "role_compatible": true,
+      "family_compatible": true,
+      "hmm_role_ambiguous": false,
+      "profiles": [],
+      "raw_nuclease_classes": [],
+      "legacy_nuclease": false,
+      "legacy_motor": false,
+      "legacy_mtase_motif": false,
+      "old_strong": true,
+      "old_moderate": false,
+      "old_profile": false,
+      "annotation": true,
+      "old_motif": true,
+      "old_context": true,
+      "strict_structure": false,
+      "alternative_annotation": false,
+      "conflict": false,
+      "partial": false
+    },
+    "provenance": {
+      "kind": "synthetic_demo_only"
+    }
+  },
+  {
+    "sample_id": "isolate-a",
+    "gene_id": "gene-s",
+    "evidence": {
+      "family": "Type I",
+      "role": "S",
+      "valid_sequence": true,
+      "identity": 0.9,
+      "query_coverage": 0.95,
+      "reference_coverage": 0.95,
+      "evalue": 1e-30,
+      "role_compatible": true,
+      "family_compatible": true,
+      "hmm_role_ambiguous": false,
+      "profiles": [],
+      "raw_nuclease_classes": [],
+      "legacy_nuclease": false,
+      "legacy_motor": false,
+      "legacy_mtase_motif": false,
+      "old_strong": true,
+      "old_moderate": false,
+      "old_profile": false,
+      "annotation": true,
+      "old_motif": true,
+      "old_context": true,
+      "strict_structure": false,
+      "alternative_annotation": false,
+      "conflict": false,
+      "partial": false
+    },
+    "provenance": {
+      "kind": "synthetic_demo_only"
+    }
+  },
+  {
+    "sample_id": "isolate-b",
+    "gene_id": "dnmb-only",
+    "evidence": {
+      "family": "Type II",
+      "role": "M",
+      "valid_sequence": true,
+      "identity": 0.9,
+      "query_coverage": 0.95,
+      "reference_coverage": 0.95,
+      "evalue": 1e-30,
+      "role_compatible": true,
+      "family_compatible": true,
+      "hmm_role_ambiguous": false,
+      "profiles": [],
+      "raw_nuclease_classes": [],
+      "legacy_nuclease": false,
+      "legacy_motor": false,
+      "legacy_mtase_motif": false,
+      "old_strong": true,
+      "old_moderate": false,
+      "old_profile": false,
+      "annotation": true,
+      "old_motif": true,
+      "old_context": true,
+      "strict_structure": false,
+      "alternative_annotation": false,
+      "conflict": false,
+      "partial": false
+    },
+    "provenance": {
+      "kind": "synthetic_demo_only"
+    }
+  }
+]
