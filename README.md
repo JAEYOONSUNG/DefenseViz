@@ -11,8 +11,8 @@ DefenseViz 2 separates native caller output, DNMB evidence decisions, and visual
 Python 3.10 or newer. Run inside a virtual environment:
 
 ```sh
-git clone https://github.com/JAEYOONSUNG/DefenseViz-next.git
-cd DefenseViz-next
+git clone https://github.com/JAEYOONSUNG/DefenseViz.git
+cd DefenseViz
 python -m venv .venv
 # macOS/Linux
 . .venv/bin/activate
@@ -72,5 +72,7 @@ python scripts/check_install.py
 ```
 
 See [source provenance](docs/PROVENANCE.md) and [release validation](docs/VALIDATION.md) for migration, historical parity, independent critique and current limitations. Only synthetic demonstration data belong in this repository. Original analysis projects and frozen evidence are not modified or redistributed.
+
+The original R implementation remains available on the [`master` branch](https://github.com/JAEYOONSUNG/DefenseViz/tree/master); DefenseViz 2, implemented in Python, lives on `main`.
 
 License: MIT. Copyright 2026 Jae-Yoon Sung.

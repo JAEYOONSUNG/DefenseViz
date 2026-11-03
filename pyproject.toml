@@ -18,8 +18,8 @@ excel = ["openpyxl>=3.1,<4"]
 dev = ["pytest>=7,<10", "build>=1,<2"]
 
 [project.urls]
-Repository = "https://github.com/JAEYOONSUNG/DefenseViz-next"
-Issues = "https://github.com/JAEYOONSUNG/DefenseViz-next/issues"
+Repository = "https://github.com/JAEYOONSUNG/DefenseViz"
+Issues = "https://github.com/JAEYOONSUNG/DefenseViz/issues"
 
 [project.scripts]
 defenseviz = "defenseviz.cli:main"

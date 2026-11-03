@@ -97,8 +97,12 @@ class Reader:
         return (p if p.is_absolute() else self.base / p).resolve()
 
     def label(self, p: Path) -> str:
-        """Portable provenance reference; resolved paths stay in the receipt only."""
-        return Path(os.path.relpath(p, self.base)).as_posix()
+        """Prefer project-relative provenance; retain explicit cross-drive paths."""
+        try:
+            return Path(os.path.relpath(p, self.base)).as_posix()
+        except ValueError:
+            # Windows cannot express a relative path between different drives.
+            return p.resolve().as_posix()
 
     def read(self, p: Path) -> bytes:
         if not p.is_file():

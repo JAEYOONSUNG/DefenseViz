@@ -2,7 +2,7 @@
 
 ## Local execution
 
-- **116 automated tests passed** across analysis (45), native IO (45), rendering (19), and end-to-end pipeline/extension integration (7).
+- **119 automated tests passed** across analysis (45), native IO (46), rendering (20), and end-to-end pipeline/extension integration (8).
 - Built wheel installed into a fresh virtual environment, then demo, validate and run executed from outside the source tree. Relocated inputs reproduce the same analysis. The check emits `CLEAN_INSTALL_OK` only after these assertions.
 - Real, read-only native imports: 121 DefenseFinder files, 71 PADLOC files and one DefensePredictor table loaded without import failure. These are file counts, not independent genomes or method-performance estimates.
 - Synthetic examples exercise missing native output, empty calls, unknown families, duplicate/renamed identifiers, corrupt hashes, inconsistent source sequences, coherent versus stitched domains, independent-site-map disagreement, idempotent enrichment, custom-policy labeling and output preservation.

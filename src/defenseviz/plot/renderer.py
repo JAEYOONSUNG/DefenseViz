@@ -517,5 +517,5 @@ def render(result: dict, output_dir: Path, *, title="DefenseViz", max_rows_per_p
                                       "matrix_scope": result.get("cell_scope", "native_final_members"),
                                       "count_semantics": "distinct observed CDSs; overlapping families are not additive",
                                       "system_counts": "Native caller-specific system counts remain in machine-readable output; no pooled system inference",
-                                      "activity_inferred": False}, indent=2, ensure_ascii=False) + "\n")
+                                      "activity_inferred": False}, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
     return outputs

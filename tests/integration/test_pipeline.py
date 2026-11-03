@@ -55,3 +55,11 @@ def test_bad_input_no_partial_result(tmp_path):
 def test_cli_actionable_missing_file(tmp_path):
     p=subprocess.run([sys.executable,'-m','defenseviz','validate',str(tmp_path/'missing.json')],capture_output=True,text=True)
     assert p.returncode==2 and 'defenseviz:' in p.stderr and 'Traceback' not in p.stderr
+
+
+def test_cross_drive_provenance_is_explicit(tmp_path,monkeypatch):
+    import defenseviz.pipeline as pipeline
+    source=tmp_path/'source.json'
+    def different_drive(*args):raise ValueError('path is on mount D:, start on mount C:')
+    monkeypatch.setattr(pipeline.os.path,'relpath',different_drive)
+    assert pipeline.provenance_path(source,tmp_path)==source.absolute().as_posix()

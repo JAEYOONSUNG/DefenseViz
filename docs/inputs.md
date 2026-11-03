@@ -1,6 +1,6 @@
 # Saved input formats
 
-DefenseViz reads local, saved result files. Imports never launch a detector, query a database, or infer sample IDs from filenames. Paths resolve relative to the project JSON, even when the command runs elsewhere. Generated source references are relative to that project; resolved paths and SHA-256 hashes of the bytes actually read remain available for the execution receipt. UTF-8 labels and identifiers are preserved. TSV and CSV are preferred; JSON tables use a list of objects. XLSX requires `pip install 'defenseviz[excel]'` and an explicit `sheet` when a workbook contains multiple sheets. Formula cells must be exported to literal values first.
+DefenseViz reads local, saved result files. Imports never launch a detector, query a database, or infer sample IDs from filenames. Paths resolve relative to the project JSON, even when the command runs elsewhere. Generated source references are relative to that project when possible (Windows inputs on another drive retain an explicit absolute path); resolved paths and SHA-256 hashes of the bytes actually read remain available for the execution receipt. UTF-8 labels and identifiers are preserved. TSV and CSV are preferred; JSON tables use a list of objects. XLSX requires `pip install 'defenseviz[excel]'` and an explicit `sheet` when a workbook contains multiple sheets. Formula cells must be exported to literal values first.
 
 ## Project configuration
 

@@ -19,7 +19,7 @@ def project(tmp_path, calls=None, **extra):
     table(tmp_path/'samples.tsv', ['sample_id','label','highlight'], [['S α','菌株 α','true'],['S/β','Isolate β','false']])
     cfg = {'schema_version':1,'samples':'samples.tsv','calls':calls or [],**extra}
     p = tmp_path/'project.json'
-    p.write_text(json.dumps(cfg, ensure_ascii=False))
+    p.write_text(json.dumps(cfg, ensure_ascii=False), encoding="utf-8")
     return p
 
 
@@ -75,7 +75,7 @@ def test_defensefinder_genes_exact_map(tmp_path):
 
 def test_defensefinder_systems_expand_explicit_members(tmp_path):
     f=table(tmp_path/'systems.tsv',['sys_id','type','subtype','protein_in_syst','genes_count'],[['x','Novel','Novel-A','g1,g2','2']])
-    (tmp_path/f).write_text('# macsyfinder metadata\n'+(tmp_path/f).read_text())
+    (tmp_path/f).write_text('# macsyfinder metadata\n'+(tmp_path/f).read_text(encoding="utf-8"), encoding="utf-8")
     p=project(tmp_path,[{'format':'defensefinder','path':f,'sample_id':'S α'}])
     r=load_project(p)
     assert [x['gene_id'] for x in r['calls']]==['g1','g2']
@@ -161,7 +161,7 @@ def test_complete_source_conflicting_missing_coverage_rejected(tmp_path):
 
 
 def test_dnmb_evidence_explicit_binding_ignores_previous_decision(tmp_path):
-    pth=tmp_path/'e.json'; pth.write_text(json.dumps([{'target_id':'opaque__not_a_sample','evidence':{'family':'Type I'},'decision':{'keep':True}}]))
+    pth=tmp_path/'e.json'; pth.write_text(json.dumps([{'target_id':'opaque__not_a_sample','evidence':{'family':'Type I'},'decision':{'keep':True}}]), encoding="utf-8")
     m=table(tmp_path/'binding.tsv',['target_id','sample_id','gene_id'],[['opaque__not_a_sample','S α','g8']])
     r=load_project(project(tmp_path,evidence={'format':'dnmb','path':'e.json','id_map':m}))
     assert r['evidence_records'][0]['sample_id']=='S α'
@@ -170,17 +170,17 @@ def test_dnmb_evidence_explicit_binding_ignores_previous_decision(tmp_path):
 
 
 def test_target_only_evidence_requires_binding(tmp_path):
-    (tmp_path/'e.json').write_text('[{"target_id":"S α__g1","evidence":{}}]')
+    (tmp_path/'e.json').write_text('[{"target_id":"S α__g1","evidence":{}}]', encoding="utf-8")
     with pytest.raises(ValueError,match='requires id_map'):
         load_project(project(tmp_path,evidence={'format':'dnmb','path':'e.json'}))
 
 
 def test_duplicate_and_nonfinite_json_rejected(tmp_path):
     p=project(tmp_path)
-    p.write_text('{"schema_version":1,"schema_version":1}')
+    p.write_text('{"schema_version":1,"schema_version":1}', encoding="utf-8")
     with pytest.raises(ValueError,match='duplicate JSON key'):
         load_project(p)
-    p.write_text('{"schema_version":NaN}')
+    p.write_text('{"schema_version":NaN}', encoding="utf-8")
     with pytest.raises(ValueError,match='non-finite'):
         load_project(p)
 
@@ -188,7 +188,7 @@ def test_duplicate_and_nonfinite_json_rejected(tmp_path):
 @pytest.mark.parametrize('contents',['sample_id\tsample_id\nA\tB\n','sample_id\tlabel\nA\n',''])
 def test_malformed_table_rejected(tmp_path,contents):
     p=project(tmp_path)
-    (tmp_path/'samples.tsv').write_text(contents)
+    (tmp_path/'samples.tsv').write_text(contents, encoding="utf-8")
     with pytest.raises(ValueError):
         load_project(p)
 
@@ -204,10 +204,10 @@ def test_xlsx_explicit_sheet_and_formula_policy(tmp_path):
     w=openpyxl.Workbook(); w.active.title='samples'; w.active.append(['sample_id','label']);w.active.append(['A','Alpha']);w.create_sheet('other')
     w.save(tmp_path/'samples.xlsx')
     p=project(tmp_path)
-    cfg=json.loads(p.read_text());cfg['samples']='samples.xlsx';p.write_text(json.dumps(cfg))
+    cfg=json.loads(p.read_text(encoding="utf-8"));cfg['samples']='samples.xlsx';p.write_text(json.dumps(cfg), encoding="utf-8")
     with pytest.raises(ValueError,match='specify sheet'):
         load_project(p)
-    cfg['samples']={'path':'samples.xlsx','sheet':'samples'};p.write_text(json.dumps(cfg))
+    cfg['samples']={'path':'samples.xlsx','sheet':'samples'};p.write_text(json.dumps(cfg), encoding="utf-8")
     assert load_project(p)['samples'][0]['sample_id']=='A'
     w['samples']['B2']='=1+1';w.save(tmp_path/'samples.xlsx')
     with pytest.raises(ValueError,match='formulas'):
@@ -224,7 +224,7 @@ def test_raw_dnmb_features_missing_axes_stay_unassessed(tmp_path):
 
 
 def test_normalized_null_evidence_preserved(tmp_path):
-    (tmp_path/'e.json').write_text(json.dumps([{'sample_id':'S α','gene_id':'g1','evidence':None,'provenance':{'reason':'no coordinates'}}]))
+    (tmp_path/'e.json').write_text(json.dumps([{'sample_id':'S α','gene_id':'g1','evidence':None,'provenance':{'reason':'no coordinates'}}]), encoding="utf-8")
     assert load_project(project(tmp_path,evidence='e.json'))['evidence_records'][0]['evidence'] is None
 
 
@@ -266,7 +266,7 @@ def test_declared_feature_missing_boolean_stays_unassessed(tmp_path):
 
 def test_extension_json_inputs_are_tracked(tmp_path):
     for name,data in [('registry.json',{'families':[]}),('candidates.json',[]),('rules.json',{'rules':[]})]:
-        (tmp_path/name).write_text(json.dumps(data))
+        (tmp_path/name).write_text(json.dumps(data), encoding="utf-8")
     extension={'registry':'registry.json','candidates':'candidates.json','admission_rules':'rules.json','source_root':'.'}
     r=load_project(project(tmp_path,evidence_extension=extension))
     assert r['evidence_extension']['registry_dir']==tmp_path
@@ -275,7 +275,7 @@ def test_extension_json_inputs_are_tracked(tmp_path):
 
 
 def test_sparse_json_native_row_gives_actionable_error(tmp_path):
-    (tmp_path/'df.json').write_text(json.dumps([{'hit_id':'g1','sys_id':'s1','type':'Unknown'}, {'hit_id':'g2','type':'Unknown'}]))
+    (tmp_path/'df.json').write_text(json.dumps([{'hit_id':'g1','sys_id':'s1','type':'Unknown'}, {'hit_id':'g2','type':'Unknown'}]), encoding="utf-8")
     with pytest.raises(ValueError,match='sys_id'):
         load_project(project(tmp_path,[{'format':'defensefinder','path':'df.json','sample_id':'S α'}]))
 
@@ -356,7 +356,7 @@ def test_boolean_source_id_is_not_missing_default(tmp_path):
 
 
 def test_dnmb_existing_record_and_mapping_hash_conflict_rejected(tmp_path):
-    (tmp_path/'e.json').write_text(json.dumps([{'target_id':'opaque','sequence_sha256':'a'*64,'evidence':{}}]))
+    (tmp_path/'e.json').write_text(json.dumps([{'target_id':'opaque','sequence_sha256':'a'*64,'evidence':{}}]), encoding="utf-8")
     m=table(tmp_path/'binding.tsv',['target_id','sample_id','gene_id','sequence_sha256'],[['opaque','S α','g1','b'*64]])
     with pytest.raises(ValueError,match='sequence_sha256 conflicts'):
         load_project(project(tmp_path,evidence={'format':'dnmb','path':'e.json','id_map':m}))
@@ -369,7 +369,7 @@ def test_native_feature_hash_is_bound_for_extension(tmp_path):
     from defenseviz.analysis.admission import entry_sha256
     from defenseviz.pipeline import evaluate_project
     sequence='ADCEFGHIKLMN';sha=hashlib.sha256(sequence.encode()).hexdigest()
-    (tmp_path/'proof.txt').write_text('Synthetic evidence only.\n');source_sha=hashlib.sha256((tmp_path/'proof.txt').read_bytes()).hexdigest()
+    (tmp_path/'proof.txt').write_text('Synthetic evidence only.\n', encoding="utf-8");source_sha=hashlib.sha256((tmp_path/'proof.txt').read_bytes()).hexdigest()
     model=dict(accession='TEST.1',source='synthetic',model_sha256='1'*64,evidence_kind='nuclease_domain',role='nuclease',family_specific=True,min_model_coverage=.7)
     reference=dict(accession='REF',sequence=sequence,sequence_sha256=sha,numbering_origin='1-based full reference sequence',independent_mapping_methods=['A','B'],catalytic_sites=[dict(position=2,residue='D',role='nuclease',evidence_source='synthetic'),dict(position=4,residue='E',role='nuclease',evidence_source='synthetic')])
     entry=dict(family_id='Synthetic enzyme',component='nuclease',substrate='DNA',domain_models=[model],references=[reference])
@@ -378,7 +378,7 @@ def test_native_feature_hash_is_bound_for_extension(tmp_path):
     candidate=dict(candidate_id='opaque',sample_id='S α',query_id='g1',sequence=sequence,sequence_sha256=sha,domain_hits=[hit],site_maps=[dict(reference_accession='REF',reference_sequence_sha256=sha,query_sequence_sha256=sha,method=m,positions={'2':2,'4':4},source='proof.txt',source_sha256=source_sha) for m in ['A','B']])
     rule=dict(family_id='Synthetic enzyme',RM_families=['Type II'],roles=['R'],entry_sha256=entry_sha256(entry),model_accession='TEST.1',model_sha256='1'*64,reference_accession='REF',required_anchor_subset=[2,4],source='proof.txt',source_sha256=source_sha)
     for name,data in [('registry.json',registry),('candidates.json',[candidate]),('rules.json',[rule])]:
-        (tmp_path/name).write_text(json.dumps(data))
+        (tmp_path/name).write_text(json.dumps(data), encoding="utf-8")
     row=complete_feature_row();row.update(gene_id='g1',sequence_sha256=sha,sequence_length_aa='12',enzyme_role='R',curated_blast_identity='.9',curated_blast_query_coverage='1',curated_blast_reference_coverage='1',curated_blast_evalue='1e-30',curated_blast_role_compatible='true',curated_blast_family_compatible='true')
     f=table(tmp_path/'features.tsv',list(row),[list(row.values())])
     p=project(tmp_path,evidence={'format':'dnmb_features','path':f,'sample_id':'S α'},evidence_extension={'registry':'registry.json','candidates':'candidates.json','admission_rules':'rules.json'})
@@ -401,3 +401,13 @@ def test_reference_provider_only_becomes_native_caller_with_explicit_coverage(tm
     r=load_project(project(tmp_path,[spec],coverage=cov))
     assert r['coverage'][0]['caller']=='Custom reference provider'
     assert r['coverage'][0]['status']=='complete'
+
+
+def test_cross_drive_provenance_has_explicit_path_fallback(tmp_path, monkeypatch):
+    from defenseviz.io.project import Reader
+    reader=Reader(tmp_path/'project.json')
+    source=(tmp_path/'data.tsv').resolve()
+    def cross_drive(*args, **kwargs):
+        raise ValueError('path is on another drive')
+    monkeypatch.setattr('defenseviz.io.project.os.path.relpath',cross_drive)
+    assert reader.label(source)==source.as_posix()

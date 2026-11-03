@@ -23,6 +23,9 @@ The analysis, IO and rendering components were implemented with separate ownersh
 - Caller headers, long titles and rotated family labels could overlap: measured wrapping and dynamic layout bounds replace fixed assumptions.
 - Dollar signs could activate math parsing in identifiers: text is literal, including malformed math-like strings.
 
+- Windows cross-drive source paths raised relative-path errors: explicit absolute provenance fallback now preserves those sources.
+- Windows legacy locale broke Unicode fixture/layout writes: all affected paths use explicit UTF-8, tested without changing global locale settings.
+
 ## Operational scope
 
 Use a fresh output target for each run. Do not let unrelated programs concurrently write the same destination directory; such external writers are outside the output transaction contract. Clean installation tests use a new virtual environment and a built wheel. No source detector, structure prediction or recognition-specificity code is run by this package. Saved structural/context facts remain upstream inputs; their raw computation is not reconstructed from a bare caller table.

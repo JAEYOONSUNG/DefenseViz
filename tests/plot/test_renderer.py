@@ -26,7 +26,7 @@ def fixture(n=4, f=6, callers=3):
 
 
 def read_layout(out):
-    return json.loads((out / "figure2_layout.json").read_text())
+    return json.loads((out / "figure2_layout.json").read_text(encoding="utf-8"))
 
 
 def test_single_page_live_text_counts_geometry(tmp_path):
@@ -47,7 +47,7 @@ def test_single_page_live_text_counts_geometry(tmp_path):
     assert len(texts) > 50
     assert not xml.findall(".//{http://www.w3.org/2000/svg}image")
     assert any(t.text == "Organism strain 1" for t in texts)
-    assert "#f3bcd2" in (tmp_path / "figure2_ab.svg").read_text()
+    assert "#f3bcd2" in (tmp_path / "figure2_ab.svg").read_text(encoding="utf-8")
 
 
 def test_rectangular_pagination_never_drops_samples_or_families(tmp_path):
@@ -216,3 +216,20 @@ def test_labels_with_dollars_and_latex_are_literal_svg_text(tmp_path):
     layout = read_layout(tmp_path)
     labels = [t['text'] for t in layout['pages'][0]['text'] if t['role'] in {'sample_label', 'family_label', 'title'}]
     assert labels == [title, literal, literal]
+
+
+def test_layout_write_explicit_utf8_under_legacy_default_encoding(tmp_path, monkeypatch):
+    original = Path.write_text
+
+    def legacy_write(path, data, *args, **kwargs):
+        # Emulate Windows' legacy locale default without changing CI globally.
+        kwargs.setdefault('encoding', 'cp1252')
+        return original(path, data, *args, **kwargs)
+
+    monkeypatch.setattr(Path, 'write_text', legacy_write)
+    data = fixture(n=1, f=1)
+    data['samples'][0]['label'] = 'Isolate αβγ'
+    render(data, tmp_path)
+    raw = (tmp_path / 'figure2_layout.json').read_bytes()
+    assert 'Isolate αβγ'.encode('utf-8') in raw
+    assert json.loads(raw.decode('utf-8'))['page_count'] == 1

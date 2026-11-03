@@ -44,7 +44,7 @@ def load_reference(reference: dict, registry_dir: Path) -> str:
     else:
         path = Path(reference['sequence_file'])
         if not path.is_absolute(): path = registry_dir / path
-        lines = path.read_text().splitlines()
+        lines = path.read_text(encoding='utf-8').splitlines()
         if sum(x.startswith('>') for x in lines) > 1:
             raise ValueError('Reference must contain exactly one sequence')
         sequence = ''.join(x.strip() for x in lines if not x.startswith('>'))

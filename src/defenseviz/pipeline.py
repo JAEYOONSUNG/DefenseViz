@@ -58,6 +58,14 @@ def software_state() -> dict:
     return state
 
 
+def provenance_path(path, base):
+    """Relative when possible; Windows cross-drive sources stay explicit."""
+    try:
+        return os.path.relpath(path, base)
+    except ValueError:
+        return Path(path).absolute().as_posix()
+
+
 def portable_provenance(value, base):
     """Use config-relative presentation pointers; receipts retain exact input hashes."""
     if isinstance(value, list):
@@ -67,9 +75,9 @@ def portable_provenance(value, base):
     result = {}
     for key, child in value.items():
         if key == 'source_sha256' and isinstance(child, dict):
-            result[key] = {os.path.relpath(path, base) if Path(path).is_absolute() else path: sha for path, sha in child.items()}
+            result[key] = {provenance_path(path, base) if Path(path).is_absolute() else path: sha for path, sha in child.items()}
         elif key == 'source' and isinstance(child, str) and Path(child).is_absolute():
-            result[key] = os.path.relpath(child, base)
+            result[key] = provenance_path(child, base)
         else:
             result[key] = portable_provenance(child, base)
     return result
@@ -154,7 +162,7 @@ def run(config_path: str | Path, output_dir: str | Path, *, argv: list[str] | No
                    'argv': argv if argv is not None else sys.argv, 'exit_code': 0, 'elapsed_seconds': time.monotonic()-started,
                    'stages': [{'name': 'saved_call_evaluation', 'elapsed_seconds': integration_seconds}, {'name': 'figure_render', 'elapsed_seconds': render_seconds}],
                    'input_path_base': 'directory containing supplied config', 'config_name': config.name,
-                   'inputs': [{'path': os.path.relpath(p, config.parent), 'sha256': source_hashes[str(p)]} for p in source_paths],
+                   'inputs': [{'path': provenance_path(p, config.parent), 'sha256': source_hashes[str(p)]} for p in source_paths],
                    'software': software_state(), 'policy_sha256': hashlib.sha256(json.dumps(policy, sort_keys=True, allow_nan=False).encode()).hexdigest(),
                    'outputs': {str(p.relative_to(stage)): digest(p) for p in sorted(stage.rglob('*')) if p.is_file()},
                    'scientific_scope': 'Annotation evidence only. Missing/unreviewed is unassessed. No biological activity or broad classifier-performance inference.',

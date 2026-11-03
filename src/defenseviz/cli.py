@@ -34,16 +34,16 @@ def main(argv=None):
             from .pipeline import evaluate_project
             data = load_project(args.config)
             result = evaluate_project(data)
-            print(json.dumps({'valid': True, 'samples': len(data['samples']), 'call_rows': len(data['calls']), 'evidence_records': len(data['evidence_records']), 'warnings': result.get('warnings', [])}, ensure_ascii=False))
+            print(json.dumps({'valid': True, 'samples': len(data['samples']), 'call_rows': len(data['calls']), 'evidence_records': len(data['evidence_records']), 'warnings': result.get('warnings', [])}, ensure_ascii=True))
         elif args.command == 'assess':
             from .assessment import assess
-            print(json.dumps(assess(args.registry, args.candidates, args.out, source_root=args.source_root, argv=['defenseviz', *(argv or sys.argv[1:])]), ensure_ascii=False))
+            print(json.dumps(assess(args.registry, args.candidates, args.out, source_root=args.source_root, argv=['defenseviz', *(argv or sys.argv[1:])]), ensure_ascii=True))
         elif args.command == 'demo':
             from .demo import demo
-            print(json.dumps(demo(args.out), ensure_ascii=False))
+            print(json.dumps(demo(args.out), ensure_ascii=True))
         else:
             from .pipeline import run
-            print(json.dumps(run(args.config, args.out, argv=['defenseviz', *(argv or sys.argv[1:])]), ensure_ascii=False))
+            print(json.dumps(run(args.config, args.out, argv=['defenseviz', *(argv or sys.argv[1:])]), ensure_ascii=True))
         return 0
     except (ValueError, OSError, KeyError, TypeError, RuntimeError) as exc:
         print(f'defenseviz: {exc}', file=sys.stderr)
