@@ -174,3 +174,7 @@ and `publication_layout.json` retain the origins and geometry for auditing.
 Evidence-only HMM providers are excluded from manuscript native-source columns.
 The broader legacy summary coverage can remain conservative when an additional
 HMM-only provider is present; this does not create a final call or a zero-hit claim.
+
+Distinct family pools with the same display label retain separate counts and
+identities. Rendering falls back to their exact declared IDs to disambiguate
+those labels consistently in atlas and comparison views; no pools are merged.

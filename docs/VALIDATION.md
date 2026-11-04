@@ -1,3 +1,34 @@
+# Release validation — 2.1.2
+
+## Generic annotations and complete small-cohort figures
+
+The default atlas has no target-strain or transformability legend or phenotype
+stripe. Optional sample markers require an explicit field, label and color;
+only literal `true` values are marked. Highlight keys, taxonomy keys and absence
+keys describe items actually shown on the current page. Distinct family pools
+with colliding display labels fall back to their declared IDs without changing
+memberships, counts or analytical output.
+
+Two and three real DNMBsuite sample folders were imported independently through
+`from-suite`. Each produces three pages: the original five-card a / detailed b
+layout, R-M type tables, and the original/prioritized overlaps with category/family
+comparisons. Imported memberships match the prior saved-source import and all
+consumed input hashes remain unchanged. These older exports contain only
+unassessed retained-decision records; the corresponding R-M cells remain `NA`.
+No later reviewed decisions are invented or copied from the 52-genome cohort.
+
+The separate reviewed 52-genome replay produces four pages, including both
+Letter comparison pages. All 57 comparison rows and 30 before/after intersection
+regions match its saved analysis; integrated CDSs (2,929), effector CDSs (497)
+and priorities (500) are unchanged. Only synthetic examples are distributed.
+
+Independent review caught and verified the small-cohort label-collision fix.
+**481 automated tests passed** on the final local source with unchanged source
+hashes during execution. Installation and input receipts retain exact commands
+and hashes; remote CI is authoritative for the current platform matrix.
+
+---
+
 # Release validation — 2.1.1
 
 ## Original manuscript a/b fidelity
