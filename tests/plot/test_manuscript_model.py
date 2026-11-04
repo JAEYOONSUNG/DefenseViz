@@ -140,8 +140,12 @@ def test_identifier_permutation_preserves_every_numeric_endpoint():
 
 def test_result_only_fallback_does_not_relabel_all_source_intersection():
     result=analyze_saved(fixture());m=build_manuscript_atlas_model(result)
-    assert m["rows"][0]["rm_original"]["intersection_CDS"]is None
+    assert result["sample_summary"][0]["rm_intersection_CDS"]==1
+    assert m["rows"][0]["rm_original"]["intersection_CDS"]==3
     assert m["rows"][0]["compositions"]["I_RMS"]["status"]=="unassessed"
+    for key in ["rm_native_intersection_CDS","rm_native_intersection_status","rm_native_intersection_sources"]:
+        result["sample_summary"][0].pop(key)
+    assert build_manuscript_atlas_model(result)["rows"][0]["rm_original"]["intersection_CDS"]is None
 
 
 def test_source_membership_mismatch_rejected_before_display():

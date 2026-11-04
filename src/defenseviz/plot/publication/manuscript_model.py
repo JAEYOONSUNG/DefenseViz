@@ -166,13 +166,23 @@ def _fallback(result):
             retained_total_status = s.get("current_retained_RM_counts_status",s.get("retained_RM_counts_status",s.get("retained_ratio_status","unassessed")))
         if retained_total is None:
             retained_total_status = "unassessed"
+        native_export_sources = s.get("rm_native_intersection_sources")
+        compatible_native = (not mixed and isinstance(native_export_sources, list)
+                             and len(native_export_sources) == len(source_order)
+                             and set(native_export_sources) == set(source_order))
+        numerator = s.get("rm_native_intersection_CDS") if compatible_native else None
+        numerator_status = (s.get("rm_native_intersection_status", "unassessed")
+                            if numerator is not None else "unassessed")
+        pool_status = s.get("rm_pool_status", "unassessed")
+        fraction_status = (_state([numerator_status, pool_status])
+                           if numerator_status != "unassessed" else "unassessed")
         rows.append(dict(sample, display=deepcopy(sample.get("display", {})),
             rm_original=dict(source_counts={p:None if p in mixed else s.get("rm_source_counts", {}).get(p) for p in source_order},
                 source_status={p:"unassessed" if p in mixed else s.get("rm_source_count_status", {}).get(p, "unassessed") for p in source_order},
                 reference_counts={p:None if p in mixed else s.get("rm_source_counts", {}).get(p) for p in references},
                 reference_status={p:"unassessed" if p in mixed else s.get("rm_source_count_status", {}).get(p,"unassessed") for p in references},input_pool_CDS=s.get("rm_pool_CDS", 0),
-                pool_status=s.get("rm_pool_status", "unassessed"), intersection_CDS=None,
-                intersection_count_status="unassessed", intersection_status="unassessed", intersection_sources=source_order),
+                pool_status=pool_status, intersection_CDS=numerator,
+                intersection_count_status=numerator_status, intersection_status=fraction_status, intersection_sources=source_order),
             rm_roles={}, compositions={name:dict(count=0,status="unassessed",R_support_all=None,R_support_status="unassessed",
                 reference_any=None,reference_status="unassessed",group_ids=[],member_keys=[]) for name in _CLASSES},
             retained=dict(R_CDS=s.get("retained_R_CDS"),total_CDS=retained_total,total_scope=retained_scope,
@@ -425,6 +435,12 @@ def enrich_manuscript_model(bundle, result):
         intersection = set.intersection(*(raw_rm[p] for p in order)) if order else set()
         numerator=sum(k[0]==sid for k in intersection)
         count_status=_intersection_state(source_status.values()); pool_status=summary.get("rm_pool_status","unassessed")
+        native_export_sources = summary.get("rm_native_intersection_sources")
+        if (not set(order) & references and isinstance(native_export_sources,list)
+                and len(native_export_sources) == len(order) and set(native_export_sources) == set(order)):
+            if (summary.get("rm_native_intersection_CDS") != numerator or
+                    summary.get("rm_native_intersection_status") != count_status):
+                raise ValueError("Atlas native intersection disagrees with analysis native endpoint")
         fraction_status=_state([count_status,pool_status]) if count_status!="unassessed" else "unassessed"
         rm_original=dict(source_counts={p:sum(k[0]==sid for k in raw_rm[p]) for p in order},source_status=source_status,
             reference_counts={p:sum(k[0]==sid for k in reference_rm[p]) for p in reference_order},

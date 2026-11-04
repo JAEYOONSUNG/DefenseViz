@@ -173,6 +173,13 @@ observed input pools use their own source coverage. Fraction numerators and
 denominators carry independent states. Historical candidates and superseded
 contexts remain auditable; they do not make unrelated current counts partial.
 
+The legacy `rm_intersection_CDS` is the all-source intersection, including
+configured reference sources. Its assessment state depends on those sources,
+not on classification of additional pool candidates. Explicit native-only and
+all-source intersection fields distinguish the atlas numerator from the legacy
+export; native-only comparisons do not silently include REBASE. Each endpoint
+exports its source list and assessment status.
+
 `rm_candidate_scope.member_keys` preserves the complete selected evaluation
 scope. `typed_member_keys` and `untyped_member_keys` partition it without dropping
 decisions. Only typed current candidates supplement original R-M/reference

@@ -82,6 +82,11 @@ def _status(states):
     return "unassessed"
 
 
+def _intersection_status(states):
+    values = list(states)
+    return _status(values) if values and all(v in {"complete", "partial"} for v in values) else "unassessed"
+
+
 def _registry():
     raw = files("defenseviz").joinpath("data/components.json").read_bytes()
     return json.loads(raw), hashlib.sha256(raw).hexdigest()
@@ -900,9 +905,12 @@ def analyze_saved(data):
         metric_status=dict(inventory=inventory_state,associated=associated_state,effector=role_global,motif=motif_global))
     # Original R-M source membership is never backfilled from current DNMB roles.
     raw_rm_sources = defaultdict(set)
+    native_rm_sources = defaultdict(set)
     for call in calls:
         if call["evidence_kind"] != "hmm_hit" and call.get("selected", True) and (call["evidence_kind"] == "reference_hit" or call.get("category") == "R-M" or _type(call.get("rm_type")) in {"Type I","Type II","Type III","Type IV"}):
             raw_rm_sources[call["caller"]].add(key(call,"original R-M source"))
+            if call["evidence_kind"] == "final_member":
+                native_rm_sources[call["caller"]].add(key(call,"native R-M source"))
     # Keep superseded/broader native candidates in the audit without silently
     # changing the explicitly supplied current R-M evaluation denominator.
     active_candidates = set(saved)
@@ -919,6 +927,25 @@ def analyze_saved(data):
             generic_predictions[call["caller"]].add(key(call,"general defense prediction"))
     for provider,members in generic_predictions.items():
         raw_rm_sources[provider] |= members & raw_rm_pool
+        native_rm_sources[provider] |= members & raw_rm_pool
+    # Keep the legacy all-configured-source endpoint, including references,
+    # separate from the atlas's native-final endpoint. A mixed provider's
+    # reference membership or coverage must not backfill its native channel.
+    native_intersection_sources = [s for s in ("PADLOC", "DefenseFinder", "DefensePredictor")
+                                   if "final_member" in source_kind[s]]
+    native_intersection_sources += [s for s in sources if "final_member" in source_kind[s]
+                                    and s not in native_intersection_sources]
+    native_rm_coverage = {k:v for k,v in cov.items() if source_kind[k[1]] == {"final_member"}}
+    for row in tables["coverage"]:
+        provider = row["caller"]
+        if row.get("endpoint") == "native_calls" or (not row.get("endpoint") and source_kind[provider] == {"final_member"}):
+            native_rm_coverage[(row["sample_id"], provider)] = row["status"]
+    for call in calls:
+        if call["evidence_kind"] == "final_member" and call.get("selected", True):
+            native_rm_coverage.setdefault((call["sample_id"], call["caller"]), "partial")
+    all_rm_intersection = set.intersection(*(raw_rm_sources[s] for s in sources)) if sources else set()
+    native_rm_intersection = (set.intersection(*(native_rm_sources[s] for s in native_intersection_sources))
+                              if native_intersection_sources else set())
     current_rm_pool = category_pools.get("R-M",set())
     sample_summary = []
     for sid in sample_ids:
@@ -966,9 +993,9 @@ def analyze_saved(data):
         rm_pool_state = _status([*(cov.get((sid, source), "missing") for source in pool_sources), *membership_contribution])
         if rm_pool_count and rm_pool_state == "unassessed":
             rm_pool_state = "partial"
-        rm_intersection_state = (rm_pool_state if rm_source_states and
-                                 all(state in {"complete", "partial"} for state in rm_source_states)
-                                 else "unassessed")
+        rm_intersection_state = _intersection_status(rm_source_states)
+        native_intersection_state = _intersection_status(
+            native_rm_coverage.get((sid, source), "missing") for source in native_intersection_sources)
         sample_summary.append(dict(sample_id=sid, integrated_CDS=len(st), native_union_CDS=len(st&native),
             retained_CDS=len(st&retained), reviewed_CDS=len(st&reviewed), rm_CDS=len(st&final_rm),
             retained_counts_status=retained_state,retained_RM_counts_status=retained_rm_state,
@@ -990,15 +1017,20 @@ def analyze_saved(data):
             rm_intersection_broad_assessment_status=(broad_pool_state if rm_source_states and
                 all(state in {"complete", "partial"} for state in rm_source_states) else "unassessed"),
             rm_pool_count_scope="observed native/reference union and explicitly classified current candidates; not exhaustive discovery",
-            rm_intersection_CDS=sum(k[0] == sid for k in (set.intersection(*(raw_rm_sources[source] for source in sources)) if sources else set())),
-            rm_all_source_intersection_CDS=sum(k[0] == sid for k in (set.intersection(*(raw_rm_sources[source] for source in sources)) if sources else set())),
+            rm_intersection_CDS=sum(k[0] == sid for k in all_rm_intersection),
+            rm_intersection_sources=list(sources),
+            rm_all_source_intersection_CDS=sum(k[0] == sid for k in all_rm_intersection),
+            rm_all_source_intersection_status=rm_intersection_state,
+            rm_native_intersection_CDS=sum(k[0] == sid for k in native_rm_intersection),
+            rm_native_intersection_status=native_intersection_state,
+            rm_native_intersection_sources=list(native_intersection_sources),
             retained_R_CDS=len(st & retained & R),retained_RM_CDS=len(st & retained & final_rm),
             noncanonical_CDS=len(st-current_rm_pool),
             noncanonical_source_counts={source:len(st & source_members[source] - current_rm_pool) for source in sources},
             noncanonical_source_count_status=z["source_count_status"],
             complete_saved_contexts=sum(g["sample_id"] == sid and g.get("context_state") in CONTEXT_MET for g in context_assessments) if any(g["sample_id"] == sid and g.get("context_state") is not None for g in context_assessments) else None,
             complete_context_state="observed_saved_assessment" if any(g["sample_id"] == sid and g["membership_kind"] == "saved_context" and g.get("context_state") is not None for g in group_index.values()) else "unassessed",
-            rm_scope_definitions={"rm_pool":"original R-M source/reference union plus explicitly typed current DNMB candidates; untyped and broader historical nominees stay in audit", "intersection":"intersection of original R-M source sets; absent/incomplete sources remain unassessed via status", "general_prediction_RM":"saved general predictions intersect original R-M candidate pool; not a native RM type call", "noncanonical":"current integrated union minus current R-M display-category pool; source counts intersect this same pool"}))
+            rm_scope_definitions={"rm_pool":"original R-M source/reference union plus explicitly typed current DNMB candidates; untyped and broader historical nominees stay in audit", "intersection":"legacy all-configured-source intersection, including reference providers; rm_intersection_CDS and rm_all_source_intersection_CDS are aliases, with status from source coverage only", "native_intersection":"native final R-M members across rm_native_intersection_sources, including selected general predictions projected into the observed R-M pool; reference and HMM-only channels excluded; status from native endpoint coverage only", "general_prediction_RM":"saved general predictions intersect original R-M candidate pool; not a native RM type call", "noncanonical":"current integrated union minus current R-M display-category pool; source counts intersect this same pool"}))
     return dict(schema_version="saved-results-v1",samples=samples,sources=source_out,sample_summary=sample_summary,
         selected_policy=deepcopy(evaluation.get("policy")) if evaluation else None,
         source_sets=[dict(source_id=s,endpoint=source_out[i]["kind"],member_keys=_keys(source_members[s]),count=len(source_members[s]),coverage_status=source_out[i]["coverage_status"]) for i,s in enumerate(sources)],

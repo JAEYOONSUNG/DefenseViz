@@ -287,9 +287,19 @@ def _stage_specs(panels,groups):
             absent.append({"stage_id":stage_id,"title":" ".join(lines),
                            "reason":"no_displayed_column_group"});continue
         left=panels[keys[0]]["left"];right=panels[keys[-1]]["right"]
-        badge_x=min(left+offset,right-2.1) if right-left>=4.2 else (left+right)/2
+        # A clipped right-edge badge puts the entire title over the next group.
+        # Preserve the original anchor only while its leading text remains in
+        # this group; otherwise use a left anchor. A one-column group stacks
+        # the title below its badge so both still start over that actual group.
+        badge_x=left+offset;anchor_mode="original"
+        if badge_x+3.7>=right-.5:
+            badge_x=left+min(2.1,(right-left)/2);anchor_mode="left"
+        title_x=badge_x+3.7;title_dy=0.
+        if title_x>=right-.5:
+            title_x=left+.2;title_dy=5.5;anchor_mode="stacked_left"
         stages.append(dict(stage_id=stage_id,title=" ".join(lines),lines=lines,color=color,
-                           group_keys=keys,group_span_mm=[left,right],badge_x=badge_x,y=64.))
+                           group_keys=keys,group_span_mm=[left,right],badge_x=badge_x,y=64.,
+                           title_x=title_x,title_offset_y_mm=title_dy,anchor_mode=anchor_mode))
     return stages,absent
 
 
@@ -298,7 +308,7 @@ def _draw_stages(c,stages):
         sid=stage["stage_id"];x=stage["badge_x"];y=stage["y"]
         _badge(c,x,y,sid,stage["color"])
         for i,line in enumerate(stage["lines"]):
-            artist=_text(c,x+3.7,y+i*4.7,line,12,bold=True,
+            artist=_text(c,stage["title_x"],y+stage["title_offset_y_mm"]+i*4.7,line,12,bold=True,
                          color="black" if sid==5 else stage["color"],role="stage_title",
                          ref={"stage_id":sid,"line":i})
             artist.set_gid(f"atlas-stage-title-{sid}-{i}")
@@ -339,8 +349,6 @@ def _header_plan(fonts,width,panels,groups,fpos,sources,refs,config):
     leaves=[t["bounds_mm"] for t in measured
             if t["role"] not in ("stage_title","stage_badge") and t["anchor_mm"][1]>60]
     remaining=[panels[k] for k in groups if k not in ("Modification","Nuclease")]
-    if remaining:
-        leaves.append([remaining[0]["left"],72.9,remaining[-1]["right"]-remaining[0]["left"],.2])
     # A tall rotated category title must also stay below the b-title/workflow
     # floor even if its narrow x interval misses every stage-title box.
     dy=max(0.,61.5-min((b[1] for b in leaves),default=61.5))
@@ -349,8 +357,23 @@ def _header_plan(fonts,width,panels,groups,fpos,sources,refs,config):
         collisions=[(a,b) for a in moved for b in settled if _boxes_overlap(a,b)]
         if not collisions:break
         dy+=max(b[1]+b[3]+.8-a[1] for a,b in collisions)
+    bracket=None
+    if remaining:
+        ll=remaining[0]["left"];rr=remaining[-1]["right"]
+        in_span=lambda b: b[0]+b[2]>ll-.1 and b[0]<rr+.1
+        # The bracket is an independent drawing object, not a text box. Its
+        # horizontal stroke must sit below overlapping stage ink and above
+        # every leaf label, including tall rotated category names. Moving it
+        # with the leaf labels would preserve an existing strike-through.
+        bracket_y=max(73.,max((b[1]+b[3]+1. for b in settled if in_span(b)),default=73.))
+        dy=max(dy,bracket_y+.8-min((b[1] for b in leaves if in_span(b)),default=bracket_y+.8))
+        bracket={"stage_id":5,"bounds_mm":[ll,bracket_y,rr-ll,80.+dy-bracket_y],
+                 "segments_mm":[[ll,bracket_y,rr,bracket_y],
+                                [ll,bracket_y,ll,80.+dy],[rr,bracket_y,rr,80.+dy]],
+                 "clearance_mm":.8}
     probe.fig.clear()
     return {"stages":stages,"absent":absent,"body_offset_mm":dy,
+            "bracket":bracket,
             "mode":"group_anchored_staggered" if dy or any(s["tier_offset_mm"] for s in stages) else "original_group_anchors"}
 
 
@@ -366,8 +389,11 @@ def _headers(c,panels,groups,fpos,sources,refs,config,dy=0,plan=None,record=True
     remaining=[panels[k] for k in groups if k not in ("Modification","Nuclease")]
     if remaining:
         ll=remaining[0]["left"];rr=remaining[-1]["right"]
-        c.line(ll,73+dy,rr,73+dy,"#AAB7BC",.5625)
-        c.line(ll,73+dy,ll,80+dy,"#AAB7BC",.5625);c.line(rr,73+dy,rr,80+dy,"#AAB7BC",.5625)
+        bracket=plan.get("bracket") or {"segments_mm":[[ll,73+dy,rr,73+dy],
+            [ll,73+dy,ll,80+dy],[rr,73+dy,rr,80+dy]]}
+        for i,segment in enumerate(bracket["segments_mm"]):
+            c.line(*segment,"#AAB7BC",.5625)
+            c.ax.lines[-1].set_gid(f"atlas-stage-bracket-5-{i}")
     p=panels
     text((p["RM_callers"]["left"]+p["RM_callers"]["right"])/2,80,"R-M CDSs in",9.24,bold=True,ha="center")
     if refs:
@@ -451,7 +477,8 @@ def _headers(c,panels,groups,fpos,sources,refs,config,dy=0,plan=None,record=True
                 "text_bounds_mm":[t["bounds_mm"] for t in measured if t["role"]=="stage_title" and t["source_ref"]["stage_id"]==sid],
                 "font_pt":12,"badge_radius_mm":2.1})
         c.ledger["section_headings"]={"mode":plan["mode"],"heading_count":len(records),
-            "body_offset_mm":dy,"headings":records,"absent":plan["absent"]}
+            "body_offset_mm":dy,"headings":records,"absent":plan["absent"],
+            "bracket":plan.get("bracket")}
 
 
 def _strain_parts(row):
