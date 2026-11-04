@@ -242,6 +242,9 @@ def atlas_pages(result,fonts,config,page_factory):
                             state=summary.get("retained_ratio_status")
                             value=(number(numerator,summary.get("retained_R_counts_status",state))+"/"+
                                    number(denominator,summary.get("retained_RM_counts_status",state))) if numerator is not None and denominator is not None and status_kind(state)!="unassessed" else "NA"
+                        elif field in ("rm_pool_CDS","rm_intersection_CDS"):
+                            value=summary.get(field)
+                            state=summary.get("rm_pool_status" if field=="rm_pool_CDS" else "rm_intersection_status")
                         else:
                             value=summary.get(field)
                             state=summary.get("complete_context_state",summary.get("complete_saved_contexts_status")) if field=="complete_saved_contexts" else summary.get("metric_status",{}).get("inventory")

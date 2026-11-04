@@ -780,6 +780,17 @@ def analyze_saved(data):
                 not any(role in {"R","M","S","RM","Aux","A","C","F"} for _,role in assignments[k])
                 for k in retained_members & final_rm):
             retained_r_state = "partial"
+        # These are original-source R-M endpoints, unlike the native-only
+        # inventory/type pool. Reference coverage and saved candidate records
+        # both participate, and assessment belongs to this sample alone.
+        rm_source_states = [cov.get((sid, source), "missing") for source in sources]
+        rm_pool_count = sum(k[0] == sid for k in raw_rm_pool)
+        rm_pool_state = _status([*rm_source_states, saved_status_by_sample[sid]])
+        if rm_pool_count and rm_pool_state == "unassessed":
+            rm_pool_state = "partial"
+        rm_intersection_state = (rm_pool_state if rm_source_states and
+                                 all(state in {"complete", "partial"} for state in rm_source_states)
+                                 else "unassessed")
         sample_summary.append(dict(sample_id=sid, integrated_CDS=len(st), native_union_CDS=len(st&native),
             retained_CDS=len(st&retained), reviewed_CDS=len(st&reviewed), rm_CDS=len(st&final_rm),
             retained_counts_status=retained_state,retained_RM_counts_status=retained_rm_state,
@@ -788,7 +799,8 @@ def analyze_saved(data):
             source_counts={source:sum(k[0] == sid for k in source_members[source]) for source in sources},
             source_count_status=z["source_count_status"], metric_status=z["metric_status"],
             rm_source_counts={source:sum(k[0] == sid for k in raw_rm_sources[source]) for source in sources},
-            rm_source_count_status=z["source_count_status"],rm_pool_CDS=sum(k[0] == sid for k in raw_rm_pool),
+            rm_source_count_status=z["source_count_status"],rm_pool_CDS=rm_pool_count,
+            rm_pool_status=rm_pool_state,rm_intersection_status=rm_intersection_state,
             rm_intersection_CDS=sum(k[0] == sid for k in (set.intersection(*(raw_rm_sources[source] for source in sources)) if sources else set())),
             rm_all_source_intersection_CDS=sum(k[0] == sid for k in (set.intersection(*(raw_rm_sources[source] for source in sources)) if sources else set())),
             retained_R_CDS=len(st & retained & R),retained_RM_CDS=len(st & retained & final_rm),

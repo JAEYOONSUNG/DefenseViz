@@ -102,7 +102,7 @@ auxiliary component. A context defect does not by itself establish inactivity.
 ## Analysis outputs for the renderer
 
 `analyze_saved` returns `schema_version`, `samples`, `sources`, `source_sets`,
-`global_summary`, `overlap_regions`, `priority_overlap_regions`, `inventory_rows`
+`global_summary`, `sample_summary`, `overlap_regions`, `priority_overlap_regions`, `inventory_rows`
 (with `categories` and `families`), `cells`, `rm_components`, `type_tables`,
 `gene_ledger`, `priority_ledger`, `groups_selected`, `endpoint_definitions`,
 `warnings`, `availability`, and `provenance`.
