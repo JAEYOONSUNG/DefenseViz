@@ -259,6 +259,32 @@ def analyze_saved(data):
         saved_states.append(dict(sample_id=sid,status=state,record_count=len(rows),states=dict(Counter(r["state"] for r in rows))))
     saved_status_by_sample = {r["sample_id"]:r["status"] for r in saved_states}
     saved_availability = _status(r["status"] for r in saved_states)
+    # A declared current selection is a different assessment universe from the
+    # broader native candidate audit. Completeness here describes that exact
+    # observed selection, never the exhaustiveness of discovery.
+    current_scopes = {}
+    for scope in (d.get("rm_evaluation") or {}).get("candidate_scope", []):
+        if "gene_ids" not in scope:
+            continue
+        sid, ids = scope.get("sample_id"), scope["gene_ids"]
+        if (sid not in sample_set or sid in current_scopes or not isinstance(ids, list)
+                or any(not isinstance(g, str) or not g for g in ids) or len(set(ids)) != len(ids)):
+            raise ValueError("Current candidate scope requires unique known samples and gene IDs")
+        members = {(sid, g) for g in ids}
+        if not members <= set(genes):
+            raise ValueError("Current candidate scope contains unknown genes")
+        current_scopes[sid] = members
+    current_saved_states = []
+    for sid in sample_ids:
+        members = current_scopes.get(sid, {k for k in saved if k[0] == sid})
+        known = members & decision_assessed
+        state = ("complete" if known == members else "partial" if known else "unassessed")
+        if sid not in current_scopes:
+            state = saved_status_by_sample[sid]
+        current_saved_states.append(dict(sample_id=sid, status=state, record_count=len(members),
+            member_keys=_keys(members), unassessed_member_keys=_keys(members-known),
+            scope="explicit current observed candidate selection" if sid in current_scopes else "native saved candidate assessment",
+            exhaustive_discovery_claim=False))
     annotation_by_gene = defaultdict(list); reviewed = set(); blocked_effector = set()
     annotation_ids = set()
     for i, r in enumerate(tables["annotations"]):
@@ -880,18 +906,13 @@ def analyze_saved(data):
     # Keep superseded/broader native candidates in the audit without silently
     # changing the explicitly supplied current R-M evaluation denominator.
     active_candidates = set(saved)
-    for scope in evaluation.get("candidate_scope", []):
-        sid = scope["sample_id"]
-        if "gene_ids" not in scope:
-            continue
-        scoped = {(sid, gid) for gid in scope["gene_ids"]}
-        if not scoped <= set(genes):
-            raise ValueError("Current R-M candidate scope includes unknown genes")
+    for sid, scoped in current_scopes.items():
         active_candidates = {k for k in active_candidates if k[0] != sid} | scoped
     typed_candidates = {k for k in active_candidates
                         if _type(saved.get(k, {}).get("rm_type") or saved.get(k, {}).get("family"))
                         in {"Type I", "Type II", "Type III", "Type IV"}}
-    raw_rm_pool = set.union(set(), *raw_rm_sources.values()) | typed_candidates
+    raw_rm_source_members = set.union(set(), *raw_rm_sources.values())
+    raw_rm_pool = raw_rm_source_members | typed_candidates
     generic_predictions = defaultdict(set)
     for call in calls:
         if call["evidence_kind"] == "final_member" and call.get("selected",True) and call.get("family") == "General defense":
@@ -911,12 +932,38 @@ def analyze_saved(data):
                 not any(role in {"R","M","S","RM","Aux","A","C","F"} for _,role in assignments[k])
                 for k in retained_members & final_rm):
             retained_r_state = "partial"
+        retention_assessment_members = current_scopes.get(sid, {k for k in saved if k[0] == sid}) | retained_members
+        retention_assessed = retention_assessment_members & decision_assessed
+        current_retained_state = ("complete" if retention_assessed == retention_assessment_members else
+                                  "partial" if retention_assessed else "unassessed")
+        if sid not in current_scopes:
+            current_retained_state = saved_status_by_sample[sid]
+        current_retained_rm_state = ("partial" if current_retained_state == "complete"
+                                     and retained_members-final_rm else current_retained_state)
+        current_retained_r_state = current_retained_rm_state
+        if current_retained_r_state == "complete" and any(
+                not any(role in {"R","M","S","RM","Aux","A","C","F"} for _,role in assignments[k])
+                for k in retained_members & final_rm):
+            current_retained_r_state = "partial"
         # These are original-source R-M endpoints, unlike the native-only
         # inventory/type pool. Reference coverage and saved candidate records
         # both participate, and assessment belongs to this sample alone.
         rm_source_states = [cov.get((sid, source), "missing") for source in sources]
         rm_pool_count = sum(k[0] == sid for k in raw_rm_pool)
-        rm_pool_state = _status([*rm_source_states, saved_status_by_sample[sid]])
+        broad_pool_state = _status([*rm_source_states, saved_status_by_sample[sid]])
+        if rm_pool_count and broad_pool_state == "unassessed":
+            broad_pool_state = "partial"
+        candidate_members = {k for k in active_candidates if k[0] == sid}
+        # Retention can be unassessed while a bound Type-II candidate's pool
+        # membership is known. An explicitly out-of-scope annotation supplies
+        # no typed membership; this is not a biological-negative assertion.
+        classified = {k for k in candidate_members if k in raw_rm_source_members or
+                      (k in saved and (k in typed_candidates or saved[k]["state"] == "out_of_scope"))}
+        membership_state = ("complete" if classified == candidate_members else
+                            "partial" if classified else "unassessed")
+        pool_sources = [s for s in sources if source_kind[s] & {"final_member", "reference_hit"}]
+        membership_contribution = [membership_state] if candidate_members else []
+        rm_pool_state = _status([*(cov.get((sid, source), "missing") for source in pool_sources), *membership_contribution])
         if rm_pool_count and rm_pool_state == "unassessed":
             rm_pool_state = "partial"
         rm_intersection_state = (rm_pool_state if rm_source_states and
@@ -926,12 +973,23 @@ def analyze_saved(data):
             retained_CDS=len(st&retained), reviewed_CDS=len(st&reviewed), rm_CDS=len(st&final_rm),
             retained_counts_status=retained_state,retained_RM_counts_status=retained_rm_state,
             retained_R_counts_status=retained_r_state,retained_ratio_status=_status([retained_rm_state,retained_r_state]),
+            current_retained_counts_status=current_retained_state,
+            current_retained_RM_counts_status=current_retained_rm_state,
+            current_retained_R_counts_status=current_retained_r_state,
+            current_retained_ratio_status=_status([current_retained_state,current_retained_r_state]),
+            current_retention_scope="declared current candidates plus explicitly retained active decisions outside that selection; not exhaustive discovery" if sid in current_scopes else "native saved candidate assessment",
+            current_retention_assessment_member_keys=_keys(retention_assessment_members),
+            current_retained_outside_candidate_member_keys=_keys(retained_members-current_scopes[sid]) if sid in current_scopes else [],
             associated_CDS=len(st&A), effector_CDS=len(st&E), motif_CDS=len(st&site), priority_CDS=len(st&P),
             source_counts={source:sum(k[0] == sid for k in source_members[source]) for source in sources},
             source_count_status=z["source_count_status"], metric_status=z["metric_status"],
             rm_source_counts={source:sum(k[0] == sid for k in raw_rm_sources[source]) for source in sources},
             rm_source_count_status=z["source_count_status"],rm_pool_CDS=rm_pool_count,
             rm_pool_status=rm_pool_state,rm_intersection_status=rm_intersection_state,
+            rm_pool_broad_assessment_status=broad_pool_state,rm_candidate_membership_status=membership_state,
+            rm_intersection_broad_assessment_status=(broad_pool_state if rm_source_states and
+                all(state in {"complete", "partial"} for state in rm_source_states) else "unassessed"),
+            rm_pool_count_scope="observed native/reference union and explicitly classified current candidates; not exhaustive discovery",
             rm_intersection_CDS=sum(k[0] == sid for k in (set.intersection(*(raw_rm_sources[source] for source in sources)) if sources else set())),
             rm_all_source_intersection_CDS=sum(k[0] == sid for k in (set.intersection(*(raw_rm_sources[source] for source in sources)) if sources else set())),
             retained_R_CDS=len(st & retained & R),retained_RM_CDS=len(st & retained & final_rm),
@@ -959,7 +1017,9 @@ def analyze_saved(data):
             priority_support_qualified="effector OR policy-supported R OR independently accepted reviewed R; narrower evidence tier, not experimental activity",
             motif="graded saved motif/reference-site support; not exhaustive or required for effector annotation"),
         warnings=warnings,availability=dict(coverage=[dict(sample_id=sid,caller=s,status=cov.get((sid,s),"missing")) for sid in sample_ids for s in sources],
-            saved_decisions=saved_availability,saved_decisions_by_sample=saved_states,effector=role_global,motif=motif_global,associated=associated_state),
+            saved_decisions=saved_availability,saved_decisions_by_sample=saved_states,
+            current_saved_decisions_by_sample=current_saved_states,
+            effector=role_global,motif=motif_global,associated=associated_state),
         workflow_capabilities=deepcopy((d.get("suite") or {}).get("capabilities",{})),
         provenance=dict(operation="stored_evidence_evaluation_and_aggregation" if evaluation else "saved_result_import_and_aggregation",detector_runs=0,
             scoring_runs=evaluation.get("scoring_runs", 0),

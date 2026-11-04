@@ -1,4 +1,15 @@
-# Release validation — 2.1.3
+# Release validation
+
+## 2.1.4 correction checks
+
+The regression suite distinguishes current scoped decisions from historical
+candidate coverage, preserves unknown current roles and Type IV evidence, and
+checks exact numerator/denominator status propagation. SVG tests require the
+actual circular section badges, literal titles, group anchors and nonoverlapping
+ink bounds for small and full-width inventories. Numerical agreement alone is
+insufficient to validate these presentation semantics.
+
+## 2.1.3 validation record
 
 ## Saved R-M evidence and complete publication output
 

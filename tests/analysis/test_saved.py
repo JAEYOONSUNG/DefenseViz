@@ -595,14 +595,15 @@ def test_rm_pool_and_shared_use_each_sample_reference_endpoint_coverage():
 
 
 @pytest.mark.parametrize('saved_state,expected',[(None,'partial'),('unassessed','partial'),('retained','complete')])
-def test_rm_pool_status_includes_saved_candidate_contribution(saved_state,expected):
+def test_rm_pool_membership_is_separate_from_broader_retention_assessment(saved_state,expected):
     d=base('a');d['calls']=[call('a',rm_type='Type I'),call('a',caller='ReferenceDB',kind='reference_hit',rm_type='Type I')]
     d['coverage']=[dict(sample_id='s',caller='DefenseFinder',endpoint='native_calls',status='complete'),
                    dict(sample_id='s',caller='ReferenceDB',endpoint='reference_matches',status='complete')]
     if saved_state:d['saved_decisions']=[decision('a',typ='Type I',state=saved_state)]
     row=analyze_saved(d)['sample_summary'][0]
     assert row['rm_pool_CDS']==row['rm_intersection_CDS']==1
-    assert row['rm_pool_status']==row['rm_intersection_status']==expected
+    assert row['rm_pool_status']==row['rm_intersection_status']=='complete'
+    assert row['rm_pool_broad_assessment_status']==row['rm_intersection_broad_assessment_status']==expected
 
 
 def test_rm_complete_zero_and_missing_endpoints_remain_distinct():

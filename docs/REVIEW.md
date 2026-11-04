@@ -1,4 +1,20 @@
-# DefenseViz 2.1.3 native retention and completeness review
+# DefenseViz review
+
+## 2.1.4: atlas scope and heading correction
+
+The 2.1.3 numeric agreement checks did not catch two presentation regressions:
+historical unassessed candidates marked unrelated current R-M counts as partial,
+and short inventories replaced group-anchored numbered headings with a detached
+key. The correction preserves scientific memberships and the broad audit while
+separating current assessment scopes and restoring actual circular badges.
+
+Additional review cases cover retained positives outside a selected evaluation
+scope, roles resolved by source-bound review, result-only rendering and fractions
+with independently missing numerators or denominators. Layout checks inspect
+the actual SVG badges, title ink bounds, group anchors and approved font sizes.
+Genuine unknown current evidence remains partial or unassessed.
+
+## 2.1.3 native retention and completeness review
 
 Actual read-only Claude Opus critique reviewed the implementation, source-bound
 ledgers and all nine final figure pages across separate historical, current and

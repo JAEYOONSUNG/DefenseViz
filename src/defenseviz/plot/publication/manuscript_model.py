@@ -109,13 +109,14 @@ def _channel_coverage(bundle, result, native, reference):
     return channels["native_calls"], channels["reference_matches"]
 
 
-def _retained_role_status(sample_id, typ, retained, saved, saved_status):
+def _retained_role_status(sample_id, typ, retained, assignments, saved_status):
     """Assess the displayed retained endpoint, not the broader native pool."""
     state = saved_status.get(sample_id, "unassessed")
-    rows = [saved[k] for k in retained if k[0] == sample_id and k in saved]
-    unknown = any(_TYPES.get(r.get("rm_type") or r.get("family")) is None or
-                  (_TYPES.get(r.get("rm_type") or r.get("family")) == typ and
-                   r.get("role") not in {"R","M","S","RM","Aux","A","C","F"}) for r in rows)
+    rows = [assignments[k] for k in retained if k[0] == sample_id]
+    unknown = any(not any(t in _TYPES for t, role in rows_for_gene) or
+                  (any(t == typ for t, role in rows_for_gene) and
+                   not any(t == typ and role in {"R","M","S","RM","Aux","A","C","F"}
+                           for t, role in rows_for_gene)) for rows_for_gene in rows)
     return "partial" if state == "complete" and unknown else state
 
 
@@ -158,9 +159,13 @@ def _fallback(result):
         sid = sample["sample_id"]; s = summaries.get(sid, {})
         retained_total = s.get("retained_CDS")
         retained_scope = "all_saved_retained"
+        retained_total_status = s.get("current_retained_counts_status",s.get("retained_counts_status",s.get("retained_ratio_status","unassessed")))
         if retained_total is None:
             retained_total = s.get("retained_RM_CDS")
             retained_scope = "saved_retained_RM_only" if retained_total is not None else "unavailable"
+            retained_total_status = s.get("current_retained_RM_counts_status",s.get("retained_RM_counts_status",s.get("retained_ratio_status","unassessed")))
+        if retained_total is None:
+            retained_total_status = "unassessed"
         rows.append(dict(sample, display=deepcopy(sample.get("display", {})),
             rm_original=dict(source_counts={p:None if p in mixed else s.get("rm_source_counts", {}).get(p) for p in source_order},
                 source_status={p:"unassessed" if p in mixed else s.get("rm_source_count_status", {}).get(p, "unassessed") for p in source_order},
@@ -170,7 +175,11 @@ def _fallback(result):
                 intersection_count_status="unassessed", intersection_status="unassessed", intersection_sources=source_order),
             rm_roles={}, compositions={name:dict(count=0,status="unassessed",R_support_all=None,R_support_status="unassessed",
                 reference_any=None,reference_status="unassessed",group_ids=[],member_keys=[]) for name in _CLASSES},
-            retained=dict(R_CDS=s.get("retained_R_CDS"),total_CDS=retained_total,total_scope=retained_scope,status=s.get("retained_ratio_status","unassessed")),
+            retained=dict(R_CDS=s.get("retained_R_CDS"),total_CDS=retained_total,total_scope=retained_scope,
+                R_status=s.get("current_retained_R_counts_status",s.get("retained_R_counts_status",s.get("retained_ratio_status","unassessed"))) if s.get("retained_R_CDS") is not None else "unassessed",
+                total_status=retained_total_status,
+                status=s.get("current_retained_ratio_status",s.get("retained_ratio_status","unassessed")) if retained_total is not None and s.get("retained_R_CDS") is not None else "unassessed",
+                scope=s.get("current_retention_scope",retained_scope)),
             noncanonical=dict(source_counts={p:None if p in mixed else s.get("noncanonical_source_counts",{}).get(p) for p in source_order},
                 source_status={p:"unassessed" if p in mixed else s.get("noncanonical_source_count_status",{}).get(p,"unassessed") for p in source_order},
                 pool_CDS=s.get("noncanonical_CDS",0),pool_status="unassessed",masks=[],intersection_CDS=None,intersection_status="unassessed"),
@@ -276,8 +285,23 @@ def enrich_manuscript_model(bundle, result):
             if key in context_assessments:
                 raise ValueError("Duplicate atlas current context assessment")
             context_assessments[key] = assessment
+    group_coverage = config.get("group_coverage",{})
+    if not isinstance(group_coverage,dict) or any(k not in sample_ids or v not in {"complete","partial","unassessed"} for k,v in group_coverage.items()):
+        raise ValueError("Invalid atlas saved-group coverage")
+    current_review_members = defaultdict(set)
+    for g in bundle.get("groups", []):
+        members = {(g["sample_id"], m["gene_id"]) for m in g.get("members", [])}
+        if (g.get("provider") == "Review" and g.get("membership_kind") == "saved_context"
+                and members and members <= retained):
+            current_review_members[g["sample_id"], _TYPES.get(g.get("rm_type") or g.get("family"))] |= members
+    unresolved_group_types = set()
+    for r in (bundle.get("suite") or {}).get("unresolved_contexts", []):
+        sid, typ = r["sample_id"], _TYPES.get(r.get("family"))
+        member = sid, r.get("gene_id")
+        if member not in genes or (member in retained and not
+                (group_coverage.get(sid) == "complete" and member in current_review_members[sid,typ])):
+            unresolved_group_types.add((sid,typ))
     group_index = {}; group_rows = []; dedup = {}
-    unresolved_group_samples = {r["sample_id"] for r in (bundle.get("suite") or {}).get("unresolved_contexts", [])}
     skipped_review_groups = []
     for g in bundle.get("groups", []):
         if g.get("membership_kind") != "saved_context" or g.get("provider") not in {"DNMB", "Review"}:
@@ -306,8 +330,12 @@ def enrich_manuscript_model(bundle, result):
         else:
             context_state = g.get("context_state", "unassessed")
         current_composition = not (assessment and assessment.get("assessment_scope") == "pre_retention_context_not_reassessed")
-        if not current_composition:
-            unresolved_group_samples.add(sid)
+        if (not current_composition and members and not
+                (group_coverage.get(sid) == "complete" and members <= current_review_members[sid,typ])):
+            # Keep old boundaries in the audit. Current source-bound review
+            # contexts establish their own scope; this does not merge groups
+            # or assert completeness of a displaced historical boundary.
+            unresolved_group_types.add((sid,typ))
         unknown_member_role = typ is None or any(
             not any(t == typ and role in {"R","M","S","RM","Aux","C","F"}
                     for t,role in assignments[k]) for k in members)
@@ -316,8 +344,8 @@ def enrich_manuscript_model(bundle, result):
         settled_class = ((typ == "Type I" and {"R","M","S"} <= roles) or
                          (typ == "Type III" and {"R","M"} <= roles))
         unknown_composition = unknown_member_role and not settled_class
-        if unknown_composition:
-            unresolved_group_samples.add(sid)
+        if current_composition and unknown_composition and members:
+            unresolved_group_types.add((sid,typ))
         cls = None if unknown_composition else (("I_RMS" if "R" in roles else "I_MS") if typ == "Type I" and {"M","S"} <= roles else ("III_MR" if "R" in roles else "III_M") if typ == "Type III" and "M" in roles else None)
         row = dict(sample_id=sid,group_id=gid,group_ids=[gid],provider=g["provider"],run_id=g.get("run_id"),family=typ,
             composition_class=cls,member_keys=_keys(members),original_member_keys=_keys(original),
@@ -376,14 +404,15 @@ def enrich_manuscript_model(bundle, result):
                 row[name] = _merge_display_state(row[name], state, "group display")
             row["evidence_refs"].extend(refs)
     summaries = {s["sample_id"]:s for s in result.get("sample_summary",[])}
-    saved_status = {s["sample_id"]:s["status"] for s in result.get("availability",{}).get("saved_decisions_by_sample",[])}
+    availability = result.get("availability",{})
+    saved_status = {s["sample_id"]:s["status"] for s in availability.get(
+        "current_saved_decisions_by_sample", availability.get("saved_decisions_by_sample",[]))}
+    saved_status.update({sid:s["current_retained_counts_status"] for sid,s in summaries.items()
+                         if "current_retained_counts_status" in s})
     type_rows = {(s["sample_id"],s["rm_type"]):s for s in result.get("type_tables",[])}
     cells = defaultdict(dict)
     for c in result.get("cells",[]):
         cells[c["sample_id"]][c["family_id"]] = deepcopy(c)
-    group_coverage = config.get("group_coverage",{})
-    if not isinstance(group_coverage,dict) or any(k not in sample_ids or v not in {"complete","partial","unassessed"} for k,v in group_coverage.items()):
-        raise ValueError("Invalid atlas saved-group coverage")
     absence_families = config.get("absence_families",[])
     known_families = {f["id"]for f in result.get("inventory_rows",{}).get("families",[])}
     if not isinstance(absence_families,list) or len(set(absence_families))!=len(absence_families) or any(f not in known_families for f in absence_families):
@@ -409,7 +438,7 @@ def enrich_manuscript_model(bundle, result):
                 role="Aux" if name=="A" else name
                 ks={k for k,aa in assignments.items() if k[0]==sid and (code=="IV" or k in retained) and any(t==typ and (v==role or v=="RM" and role in {"R","M"}) for t,v in aa)}
                 status=(table.get("role_states",{}).get(name,"unassessed") if code=="IV" else
-                        _retained_role_status(sid,typ,retained,saved,saved_status))
+                        _retained_role_status(sid,typ,retained,assignments,saved_status))
                 states=[role_evidence.get(k,"unassessed") for k in ks]
                 evidence_status=_badge(states,"all")[1] if name=="R" and code!="IV" else "not_applicable"
                 if name=="R" and code!="IV" and not ks and status=="complete":evidence_status="complete"
@@ -419,7 +448,10 @@ def enrich_manuscript_model(bundle, result):
         for cls in _CLASSES:
             gs=[g for g in group_rows if g["sample_id"]==sid and g["composition_class"]==cls and g["current_composition"]]
             status=group_coverage.get(sid,"partial" if gs else "unassessed")
-            if sid in unresolved_group_samples and status == "complete":
+            typ = "Type I" if cls.startswith("I_") else "Type III"
+            if ((sid,typ) in unresolved_group_types or (sid,None) in unresolved_group_types) and status == "complete":
+                status="partial"
+            if saved_status.get(sid) in {"partial","unassessed"} and status == "complete":
                 status="partial"
             supported,support_state=_badge([g["rm_R_support"]for g in gs],"all")
             linked,reference_state=_badge([g["rm_reference_link"]for g in gs],"any")
@@ -443,7 +475,11 @@ def enrich_manuscript_model(bundle, result):
         display["absence_family_ids"]=[f for f in absence_families if f in cells[sid] and cells[sid][f]["N"]==0 and cells[sid][f].get("counts_status")=="complete"]
         display["absence_label"]=config.get("absence_label","Observed absence")
         rows.append(dict(sample,display=display,rm_original=rm_original,rm_roles=rm_roles,compositions=comps,
-            retained=dict(R_CDS=summary["retained_R_CDS"],total_CDS=summary["retained_CDS"],status=summary.get("retained_ratio_status","unassessed")),
+            retained=dict(R_CDS=summary["retained_R_CDS"],total_CDS=summary["retained_CDS"],
+                R_status=summary.get("current_retained_R_counts_status",summary.get("retained_R_counts_status","unassessed")),
+                total_status=summary.get("current_retained_counts_status",summary.get("retained_counts_status","unassessed")),
+                status=summary.get("current_retained_ratio_status",summary.get("retained_ratio_status","unassessed")),
+                scope=summary.get("current_retention_scope","native saved candidate assessment")),
             noncanonical=noncanonical_row,cells=cells[sid]))
     families=[deepcopy(f)for f in result.get("inventory_rows",{}).get("families",[])if f.get("category")!="R-M" and (f.get("N",0)>0 or f.get("counts_status")!="complete")]
     model=dict(schema_version="manuscript-atlas-v1",samples=samples,taxonomy_legend=_taxonomy(samples,config),absence_label=config.get("absence_label","saved family"),source_order=list(order),reference_sources=reference_order,
@@ -452,7 +488,7 @@ def enrich_manuscript_model(bundle, result):
             source_metadata=deepcopy(result.get("provenance",{}).get("source_metadata",[])),display_evidence_refs=display_refs),
         warnings=["R-M support and curated reference badges are independent display evidence, not effector or activity assignments.",
                   "Saved composition groups are direct explicit contexts; no proximity pairing or transitive expansion."] +
-                 (["Saved contexts with unresolved type or member role are preserved without guessed classes; composition counts are partial for affected samples."] if unresolved_group_samples else []) +
+                 (["Current saved contexts with unresolved type or member role are preserved without guessed classes; affected composition counts are partial."] if unresolved_group_types else []) +
                  (["Reviewed contexts containing nonretained members are excluded from the retained R-M context panel; their integrated-system evidence is preserved."] if skipped_review_groups else []))
     enriched=deepcopy(result);enriched["manuscript_atlas"]=model
     return enriched
