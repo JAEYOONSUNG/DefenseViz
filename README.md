@@ -1,10 +1,12 @@
 # DefenseViz
 
-**Integrate saved defense annotations, reevaluate DNMB evidence, and draw editable comparative figures.**
+**Turn saved DNMBsuite results into traceable defense inventories and editable publication figures.**
 
-DefenseViz 2 separates native caller output, DNMB evidence decisions, and visualization. It replaces the old folder-dependent `DefenseFinder_Heatmap()` workflow with explicit, portable inputs. Arbitrary sample identifiers, cohort sizes and previously unseen defense families are supported. Figure 2 **a** describes the evidence workflow; **b** shows caller CDS counts, R-M input/retention and components, defense-family profiles and highlighted samples.
+DefenseViz separates original tool output, saved DNMB decisions, component evidence and visualization. Version 2.1 adds direct DNMBsuite folder input and publication views: workflow, defense atlas, R-M type tables, original/prioritized overlaps, and category/family comparisons. Arbitrary sample identifiers, cohort sizes and new defense families are supported. The earlier normalized-project evaluation workflow remains available.
 
-![Synthetic Figure 2 a/b example](docs/assets/demo.svg)
+![Synthetic saved-output comparison](docs/assets/suite-comparison.svg)
+
+[View the synthetic atlas](docs/assets/suite-atlas.svg).
 
 ## Install and try
 
@@ -17,13 +19,29 @@ python -m venv .venv
 # macOS/Linux
 . .venv/bin/activate
 # Windows PowerShell: .venv\Scripts\Activate.ps1
-python -m pip install .
-defenseviz demo --out demo-output
+python -m pip install '.[suite]'
+defenseviz demo --suite --out suite-demo
 ```
 
-Open `demo-output/results/figure2_ab.pdf`. The SVG export preserves text and vector shapes for editing. The demo includes small, entirely synthetic inputs in `demo-output/inputs/`; copy them as a starting point. No databases, detector installation or network access are required after installation.
+Open `suite-demo/results/figures/publication.pdf`; editable SVG pages are alongside
+it. The entirely synthetic inputs in `suite-demo/inputs/` demonstrate completed
+zero outputs, reference-only matches, saved retention and a complete annotated
+effector core. No databases, detector installation or network access are required
+after installation. `defenseviz demo --out demo-output` runs the earlier
+normalized-project example.
 
 ## Use your results
+
+For **DNMBsuite result directories**:
+
+```sh
+defenseviz inspect-suite /path/to/DNMBsuite_outputs
+defenseviz from-suite /path/to/DNMBsuite_outputs --out results
+```
+
+Use a single genome output folder or a parent containing per-genome folders. Optional manifests choose samples, labels and pink highlights. Saved RDS completion metadata can be read with Rscript; it never runs the analysis engine. Native and later reviewed evidence remain distinct. Older exports without saved curation fields stay unassessed rather than receiving invented decisions. See [the DNMBsuite guide](docs/suite.md) and [saved-result contract](docs/SUITE_CONTRACT.md).
+
+For an existing **normalized project**:
 
 ```sh
 defenseviz validate project.json
@@ -55,9 +73,10 @@ See [input formats](docs/inputs.md), [evidence policy](docs/evidence.md), [figur
 
 - Distinct gene-level unions and exact caller overlaps; native system counts remain caller-specific.
 - Fresh evaluation of **supplied evidence** with the versioned DNMB policy. Sequence-related points are capped, motif/context/structure axes remain distinct, and unsupported/missing evidence stays unassessed.
-- Panel a/b PDF and SVG, paginated for larger cohorts; normalized calls, decisions, summary and component tables; a machine-readable analysis and receipt with hashes, software versions, exact command and timing.
+- Saved-result mode preserves DNMB decisions and counts individual effectors separately from required complex cores and motif/site evidence. Explicit source-bound reviews can supplement older results; stale input/protein hashes are rejected.
+- Editable PDF and SVG, paginated for larger cohorts; right-aligned comparison counts with separate associated Total and Effector CDSs columns; machine-readable inventories, priorities, layout measurements and provenance receipts.
 
-The renderer does not run DefenseFinder, PADLOC, DefensePredictor, REBASE searches or structure prediction. Raw HMM hits are evidence records, not selected native system members. Component annotation is not a demonstration of biological activity. Distinct R/M/S counts are not automatically complete systems. Caller agreement is not ground truth, and no broad sensitivity, specificity or precision estimates are emitted.
+DefenseViz does not run DefenseFinder, PADLOC, DefensePredictor, REBASE searches or structure prediction. Raw HMM hits are evidence records, not selected native system members. Component annotation is not a demonstration of biological activity. Distinct R/M/S counts are not automatically complete systems. Tool agreement is not ground truth, and no broad sensitivity, specificity or precision estimates are emitted.
 
 An optional `evidence_extension` links a source-bound family registry, candidate domain/reference evidence and family-level admission rules into the same score evaluation. Run `defenseviz assess --registry registry.json --candidates candidates.json --out assessed` to inspect these evidence layers separately. See [the reference-extension example](examples/reference_extension/README.md).
 
