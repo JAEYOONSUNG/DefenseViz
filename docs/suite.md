@@ -240,8 +240,9 @@ include unhighlighted external samples in that order; use `[]` to omit type tabl
 `max_rows_per_page` and `max_families_per_page` limit atlas pages.
 `atlas_page_size` sets maximum width/height in millimetres (default 506 × 365).
 The manuscript template requires at least 447 × 200; data rows and family blocks
-paginate without changing font sizes. Short inventories place the same five
-section headings in a separate key above the matrix. Long strain labels expand
+paginate without changing font sizes. Short inventories retain the circular section numbers and titles anchored to
+their observed column groups. Measured title collisions move headings to a
+second height tier and expand header space; missing families are not invented. Long strain labels expand
 the page within its configured limit. Labels too long for that limit give an
 actionable error. `atlas_style: "compact"` explicitly selects the earlier compact
 view, whose minimum page limit is 270 × 145. `atlas_title` sets panel b's title.

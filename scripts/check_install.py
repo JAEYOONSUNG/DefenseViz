@@ -31,7 +31,7 @@ def main():
         bindir = work/'venv'/('Scripts' if os.name=='nt' else 'bin')
         python = bindir/('python.exe' if os.name=='nt' else 'python')
         run([python, '-m', 'pip', 'install', '--disable-pip-version-check', str(wheel) + '[suite]'], work)
-        assert 'DefenseViz 2.1.3' in run([python, '-m', 'defenseviz', 'version'], work)
+        assert 'DefenseViz 2.1.4' in run([python, '-m', 'defenseviz', 'version'], work)
         run([python, '-m', 'defenseviz', 'demo', '--out', work/'demo'], work)
         run([python, '-m', 'defenseviz', 'validate', work/'demo/inputs/project.json'], work)
         run([python, '-m', 'defenseviz', 'run', work/'demo/inputs/project.json', '--out', work/'rerun'], work)

@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.1.4
+
+- Correct atlas uncertainty states: original-source intersections, observed R-M pools and current retained counts use their own evidence scopes. Historical unassessed nominees remain in the audit without marking unrelated current counts as partial.
+- Preserve genuine incomplete current evidence, unknown component roles and unassessed Type IV contexts.
+- Restore circular section numbers and group-anchored titles on short inventories; measured title collisions determine vertical spacing.
+
 ## 2.1.3
 
 - Connect complete, source-bound R-M evidence to the DNMBsuite workflow with `--rm-evidence`; export fresh policy decisions and their provenance alongside the figures.

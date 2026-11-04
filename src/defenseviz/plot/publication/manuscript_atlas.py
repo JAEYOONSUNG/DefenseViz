@@ -91,7 +91,8 @@ def _fraction_layout(fonts,records,kind):
                               "noncanonical":(14.49,3.7,.4)}[kind]
     labels=[(number(n,state),number(den,denstate or state))
             for n,den,state,denstate in records
-            if status_kind(state)!="unassessed" and n is not None and den is not None]
+            if (n is not None and status_kind(state) in ("complete","partial"))
+            or (den is not None and status_kind(denstate or state) in ("complete","partial"))]
     numerator=max((fonts.width(n,NUM,kind=="retained") for n,_ in labels),default=0.)
     denominator=max((fonts.width(d,NUM) for _,d in labels),default=0.)
     slash=fonts.width("/",NUM)
@@ -111,7 +112,10 @@ def _fraction_layout(fonts,records,kind):
 
 
 def _fraction(c,x,y,w,n,den,state,kind,scale=None,denstate=None,layout=None):
-    if status_kind(state)=="unassessed" or n is None or den is None:
+    denstate=state if denstate is None else denstate
+    num_known=n is not None and status_kind(state) in ("complete","partial")
+    den_known=den is not None and status_kind(denstate) in ("complete","partial")
+    if not num_known and not den_known:
         _text(c,x+w-.7,y,"NA",ha="right",role="numeric")
         return
     layout=layout or _fraction_layout(c.fonts,[(n,den,state,denstate)],kind)
@@ -120,17 +124,19 @@ def _fraction(c,x,y,w,n,den,state,kind,scale=None,denstate=None,layout=None):
     track=layout["track_width_mm"];left=x+layout["left_padding_mm"]
     if kind=="intersection":
         base="#C8DDDA";fill="#68A19C"
-        bw=track if den else 0;fw=track*n/den if den else 0
+        bw=track if den_known and den else 0;fw=track*n/den if num_known and den_known and den else 0
     elif kind=="retained":
         base=TEAL;fill="#124F4C"
-        bw=track*den/max(scale or den,den,1);fw=track*n/max(scale or den,den,1)
+        bw=track*den/max(scale or den,den,1) if den_known else 0
+        fw=track*n/max(scale or den,den,1) if num_known and den_known else 0
     else:
         base="#F2D6C3";fill=PURPLE
-        bw=track if den else 0;fw=track*n/den if den else 0
+        bw=track if den_known and den else 0;fw=track*n/den if num_known and den_known and den else 0
     if bw:c.rect(left,y-.725,bw,1.45,base)
     if fw:c.rect(left,y-.725,fw,1.45,fill)
     c.ledger["bars"].append({"bounds_mm":[left,y-.725,bw,1.45],"value":n,"denominator":den,
-        "status":status_kind(state),"source_ref":{"endpoint":kind},"kind":"atlas_fraction",
+        "status":status_kind(state),"denominator_status":status_kind(denstate or state),
+        "source_ref":{"endpoint":kind},"kind":"atlas_fraction",
         "track_width_mm":track,"filled_width_mm":fw,"scale":scale if kind=="retained" else den})
     den_right=x+w-layout["right_padding_mm"]
     slash_center=den_right-layout["denominator_width_mm"]-layout["text_gap_mm"]-layout["slash_width_mm"]/2
@@ -257,37 +263,137 @@ def _layout(families,sources,refs,config,fractions=None):
 def _badge(c,x,y,n,color):
     from matplotlib.colors import to_rgba
     c.circle(x,y,2.1,to_rgba(color,.15),color,.6)
-    _text(c,x,y,n,10.5,bold=True,ha="center",color=color)
+    c.ax.patches[-1].set_gid(f"atlas-stage-badge-{n}")
+    artist=_text(c,x,y,n,10.5,bold=True,ha="center",color=color,
+                 role="stage_badge",ref={"stage_id":n})
+    artist.set_gid(f"atlas-stage-number-{n}")
 
 
-def _headers(c,panels,groups,fpos,sources,refs,config,dy=0):
-    # The original five headings share one baseline, independent of leaf labels.
+def _stage_specs(panels,groups):
+    """Approved titles, attached to observed column groups rather than slots."""
+    definitions=[
+        (1,["RM_callers","REBASE","RM_pool","RM_integrated","Retained_summary"],
+         ["R-M evidence and curation"],TEAL,2.1),
+        (2,["NonRM_callers","cases","NonRM_summary"],
+         ["Methylation-associated","evidence"],"#829764",2.1),
+        (3,["Modification"],["Non-canonical","DNA modification","system"],PALETTE["Modification"],2.1),
+        (4,["Nuclease"],["Nuclease-associated","evidence"],PALETTE["Nuclease"],21.5),
+        (5,[k for k in groups if k not in ("Modification","Nuclease")],
+         ["Complementary defense priorities"],"#52626A",17.)]
+    stages=[];absent=[]
+    for stage_id,keys,lines,color,offset in definitions:
+        keys=[k for k in keys if k in panels and panels[k]["right"]>panels[k]["left"]]
+        if not keys:
+            absent.append({"stage_id":stage_id,"title":" ".join(lines),
+                           "reason":"no_displayed_column_group"});continue
+        left=panels[keys[0]]["left"];right=panels[keys[-1]]["right"]
+        # A clipped right-edge badge puts the entire title over the next group.
+        # Preserve the original anchor only while its leading text remains in
+        # this group; otherwise use a left anchor. A one-column group stacks
+        # the title below its badge so both still start over that actual group.
+        badge_x=left+offset;anchor_mode="original"
+        if badge_x+3.7>=right-.5:
+            badge_x=left+min(2.1,(right-left)/2);anchor_mode="left"
+        title_x=badge_x+3.7;title_dy=0.
+        if title_x>=right-.5:
+            title_x=left+.2;title_dy=5.5;anchor_mode="stacked_left"
+        stages.append(dict(stage_id=stage_id,title=" ".join(lines),lines=lines,color=color,
+                           group_keys=keys,group_span_mm=[left,right],badge_x=badge_x,y=64.,
+                           title_x=title_x,title_offset_y_mm=title_dy,anchor_mode=anchor_mode))
+    return stages,absent
+
+
+def _draw_stages(c,stages):
+    for stage in stages:
+        sid=stage["stage_id"];x=stage["badge_x"];y=stage["y"]
+        _badge(c,x,y,sid,stage["color"])
+        for i,line in enumerate(stage["lines"]):
+            artist=_text(c,stage["title_x"],y+stage["title_offset_y_mm"]+i*4.7,line,12,bold=True,
+                         color="black" if sid==5 else stage["color"],role="stage_title",
+                         ref={"stage_id":sid,"line":i})
+            artist.set_gid(f"atlas-stage-title-{sid}-{i}")
+
+
+def _boxes_overlap(a,b,gap=.6):
+    x,y,w,h=a;u,v,s,t=b
+    return min(x+w,u+s)+gap>max(x,u) and min(y+h,v+t)+gap>max(y,v)
+
+
+def _header_plan(fonts,width,panels,groups,fpos,sources,refs,config):
+    """Keep original anchors unless measured ink requires a second tier.
+
+    Family/sample counts do not select a layout. Circle bounds participate in
+    the same clearance test as title ink, including narrow observed groups.
+    """
+    from .drawing import Canvas
+    stages,absent=_stage_specs(panels,groups)
+    probe=Canvas(width,200,fonts,"header_measure","header_measure")
+    _headers(probe,panels,groups,fpos,sources,refs,config,
+             plan={"stages":stages,"absent":absent,"body_offset_mm":0.},record=False)
+    measured=probe.measure()
+    boxes={s["stage_id"]:[[s["badge_x"]-2.1,61.9,4.2,4.2]] for s in stages}
+    for t in measured:
+        if t["role"]=="stage_title":boxes[t["source_ref"]["stage_id"]].append(t["bounds_mm"])
+    settled=[]
+    for stage in stages:
+        original=boxes[stage["stage_id"]];shift=0.
+        while True:
+            moved=[[x,y+shift,w,h] for x,y,w,h in original]
+            collisions=[(a,b) for a in moved for b in settled if _boxes_overlap(a,b)]
+            if not collisions:break
+            shift+=max(b[1]+b[3]+1.-a[1] for a,b in collisions)
+        stage["y"]+=shift;stage["tier_offset_mm"]=shift
+        stage["layout_boxes_mm"]=moved;settled.extend(moved)
+    # Only lower leaf headers/grid. The b title and stage anchors remain tied
+    # to their own group; this avoids a detached full-page numbered key.
+    leaves=[t["bounds_mm"] for t in measured
+            if t["role"] not in ("stage_title","stage_badge") and t["anchor_mm"][1]>60]
+    remaining=[panels[k] for k in groups if k not in ("Modification","Nuclease")]
+    # A tall rotated category title must also stay below the b-title/workflow
+    # floor even if its narrow x interval misses every stage-title box.
+    dy=max(0.,61.5-min((b[1] for b in leaves),default=61.5))
+    while True:
+        moved=[[x,y+dy,w,h] for x,y,w,h in leaves]
+        collisions=[(a,b) for a in moved for b in settled if _boxes_overlap(a,b)]
+        if not collisions:break
+        dy+=max(b[1]+b[3]+.8-a[1] for a,b in collisions)
+    bracket=None
+    if remaining:
+        ll=remaining[0]["left"];rr=remaining[-1]["right"]
+        in_span=lambda b: b[0]+b[2]>ll-.1 and b[0]<rr+.1
+        # The bracket is an independent drawing object, not a text box. Its
+        # horizontal stroke must sit below overlapping stage ink and above
+        # every leaf label, including tall rotated category names. Moving it
+        # with the leaf labels would preserve an existing strike-through.
+        bracket_y=max(73.,max((b[1]+b[3]+1. for b in settled if in_span(b)),default=73.))
+        dy=max(dy,bracket_y+.8-min((b[1] for b in leaves if in_span(b)),default=bracket_y+.8))
+        bracket={"stage_id":5,"bounds_mm":[ll,bracket_y,rr-ll,80.+dy-bracket_y],
+                 "segments_mm":[[ll,bracket_y,rr,bracket_y],
+                                [ll,bracket_y,ll,80.+dy],[rr,bracket_y,rr,80.+dy]],
+                 "clearance_mm":.8}
+    probe.fig.clear()
+    return {"stages":stages,"absent":absent,"body_offset_mm":dy,
+            "bracket":bracket,
+            "mode":"group_anchored_staggered" if dy or any(s["tier_offset_mm"] for s in stages) else "original_group_anchors"}
+
+
+def _headers(c,panels,groups,fpos,sources,refs,config,dy=0,plan=None,record=True):
+    # Leaf labels may move down; the panel title retains its original anchor.
     def text(x,y,*a,**kw):return _text(c,x,y+dy,*a,**kw)
-    text(3,58.2,"b",14,bold=True)
-    text(10,58.2,config.get("atlas_title") or "Comparative defense landscape across genomes",13,bold=True)
-    _badge(c,panels["RM_callers"]["left"]+2.1,64+dy,1,TEAL)
-    text(panels["RM_callers"]["left"]+5.8,64,"R-M evidence and curation",12,bold=True,color=TEAL)
-    nx=panels["NonRM_callers"]["left"]
-    _badge(c,nx+2.1,64+dy,2,"#829764")
-    text(nx+5.8,64,"Methylation-associated",12,bold=True,color="#829764")
-    text(nx+5.8,68.7,"evidence",12,bold=True,color="#829764")
-    if "Modification" in panels:
-        xx=panels["Modification"]["left"]
-        _badge(c,xx+2.1,64+dy,3,PALETTE["Modification"])
-        for k,label in enumerate(("Non-canonical","DNA modification","system")):
-            text(xx+5.8,64+k*4.7,label,12,bold=True,color=PALETTE["Modification"])
-    if "Nuclease" in panels:
-        xx=panels["Nuclease"]["left"]+21.5
-        _badge(c,xx,64+dy,4,PALETTE["Nuclease"])
-        text(xx+3.7,64,"Nuclease-associated",12,bold=True,color=PALETTE["Nuclease"])
-        text(xx+3.7,68.7,"evidence",12,bold=True,color=PALETTE["Nuclease"])
+    _text(c,3,58.2,"b",14,bold=True)
+    _text(c,10,58.2,config.get("atlas_title") or "Comparative defense landscape across genomes",13,bold=True)
+    if plan is None:
+        stages,absent=_stage_specs(panels,groups)
+        plan={"stages":stages,"absent":absent,"body_offset_mm":dy,"mode":"original_group_anchors"}
+    _draw_stages(c,plan["stages"])
     remaining=[panels[k] for k in groups if k not in ("Modification","Nuclease")]
     if remaining:
         ll=remaining[0]["left"];rr=remaining[-1]["right"]
-        c.line(ll,73+dy,rr,73+dy,"#AAB7BC",.5625)
-        c.line(ll,73+dy,ll,80+dy,"#AAB7BC",.5625);c.line(rr,73+dy,rr,80+dy,"#AAB7BC",.5625)
-        _badge(c,ll+17,64+dy,5,"#52626A")
-        text(ll+20.7,64,"Complementary defense priorities",12,bold=True)
+        bracket=plan.get("bracket") or {"segments_mm":[[ll,73+dy,rr,73+dy],
+            [ll,73+dy,ll,80+dy],[rr,73+dy,rr,80+dy]]}
+        for i,segment in enumerate(bracket["segments_mm"]):
+            c.line(*segment,"#AAB7BC",.5625)
+            c.ax.lines[-1].set_gid(f"atlas-stage-bracket-5-{i}")
     p=panels
     text((p["RM_callers"]["left"]+p["RM_callers"]["right"])/2,80,"R-M CDSs in",9.24,bold=True,ha="center")
     if refs:
@@ -363,6 +469,16 @@ def _headers(c,panels,groups,fpos,sources,refs,config,dy=0):
         for left,right in zip(fs,fs[1:]):
             if left.get("partner_group") and left.get("partner_group")==right.get("partner_group"):
                 c.line(fpos[left["id"]]+.15,86.7+dy,fpos[right["id"]]+CELL-.15,86.7+dy,"#9AA9AA",.375)
+    if record:
+        measured=c.measure();records=[]
+        for stage in plan["stages"]:
+            sid=stage["stage_id"]
+            records.append({**stage,"badge_bounds_mm":[stage["badge_x"]-2.1,stage["y"]-2.1,4.2,4.2],
+                "text_bounds_mm":[t["bounds_mm"] for t in measured if t["role"]=="stage_title" and t["source_ref"]["stage_id"]==sid],
+                "font_pt":12,"badge_radius_mm":2.1})
+        c.ledger["section_headings"]={"mode":plan["mode"],"heading_count":len(records),
+            "body_offset_mm":dy,"headings":records,"absent":plan["absent"],
+            "bracket":plan.get("bracket")}
 
 
 def _strain_parts(row):
@@ -504,11 +620,13 @@ def manuscript_atlas_pages(result,fonts,config,page_factory):
     allrows=model.get("rows",[])
     fractions={}
     for kind,record_key,nkey,dkey,skey,dskey in (
-        ("intersection","rm_original","intersection_CDS","input_pool_CDS","intersection_status","pool_status"),
-        ("retained","retained","R_CDS","total_CDS","status","status"),
+        ("intersection","rm_original","intersection_CDS","input_pool_CDS","intersection_count_status","pool_status"),
+        ("retained","retained","R_CDS","total_CDS","R_status","total_status"),
         ("noncanonical","noncanonical","intersection_CDS","pool_CDS","intersection_status","pool_status")):
         records=[row.get(record_key,{}) for row in allrows]
-        fractions[kind]=_fraction_layout(fonts,[(r.get(nkey),r.get(dkey),r.get(skey),r.get(dskey)) for r in records],kind)
+        fallback="intersection_status" if kind=="intersection" else "status"
+        fractions[kind]=_fraction_layout(fonts,[(r.get(nkey),r.get(dkey),
+            r.get(skey,r.get(fallback)),r.get(dskey,r.get(fallback))) for r in records],kind)
     # Reserve adjacent inter-panel whitespace for headings as well as numbers.
     # A wider fallback font must not overlap the separate reference heading.
     fractions["intersection"]["width_mm"] = max(
@@ -526,10 +644,8 @@ def manuscript_atlas_pages(result,fonts,config,page_factory):
     pages=[]
     for fs in family_pages:
         panels,groups,fpos,masks,sampleleft,width=_layout(fs,sources,refs,config,fractions)
-        # Preserve original header grammar. Small inventories use an explicit
-        # heading key above the matrix rather than colliding five long headings.
-        small=any(len(groups.get(k,[]))<v for k,v in (("Modification",7),("Nuclease",17)))
-        dy=max(15.,max((fonts.width("Other" if k=="Other mechanisms" else k,9.6,True)-12.8 for k in groups),default=0.)) if small else 0.
+        heading_plan=_header_plan(fonts,width,panels,groups,fpos,sources,refs,config)
+        dy=heading_plan["body_offset_mm"]
         maxrows=max(1,min(config["max_rows_per_page"],int((config["atlas_page_size"][1]-BODY_TOP-dy-55)/ROW)))
         labelwidth=max((sum(fonts.width(part,NUM,bool(r.get("highlight"))) for part in _strain_parts(r))+2 for r in allrows),default=58.)
         width=max(width,min(maxwidth,sampleleft+labelwidth+8))
@@ -547,10 +663,7 @@ def manuscript_atlas_pages(result,fonts,config,page_factory):
             c.ledger["fraction_layout"]=fractions
             c.ledger["model_provenance"]=model.get("provenance",{})
             draw_manuscript_workflow(c,result,config,[0,0,447.,55.53])
-            if small:
-                # Render the same headings in full-span slots; no data columns removed.
-                _headers_small(c,panels,groups,fpos,sources,refs,config,dy)
-            else:_headers(c,panels,groups,fpos,sources,refs,config)
+            _headers(c,panels,groups,fpos,sources,refs,config,dy,heading_plan)
             _text(c,sampleleft,85+dy,"Strains",9.45,bold=True)
             scale_rm=max([25]+[n for r in allrows for n in r.get("rm_original",{}).get("source_counts",{}).values() if isinstance(n,int)])
             scale_ref=max([40]+[n for r in allrows for n in r.get("rm_original",{}).get("reference_counts",{}).values() if isinstance(n,int)])
@@ -591,8 +704,8 @@ def manuscript_atlas_pages(result,fonts,config,page_factory):
                         x=panels[name]["left"]+j*7.56;_cell(c,x,y,7.56,ROW)
                         _mini_bar(c,x,cy,7.56,data.get(source),status.get(source),scale,color,{"sample_id":sid,"source":source,"panel":name},reservations[name])
                 pp=panels["RM_pool"];_cell(c,pp["left"],y,pp["right"]-pp["left"],ROW)
-                _fraction(c,pp["left"],cy,pp["right"]-pp["left"],raw.get("intersection_CDS"),raw.get("input_pool_CDS"),raw.get("intersection_status"),"intersection",denstate=raw.get("pool_status"),layout=fractions["intersection"])
-                for field,value,state in (("rm_pool_CDS",raw.get("input_pool_CDS"),raw.get("pool_status")),("rm_intersection_CDS",raw.get("intersection_CDS"),raw.get("intersection_status"))):
+                _fraction(c,pp["left"],cy,pp["right"]-pp["left"],raw.get("intersection_CDS"),raw.get("input_pool_CDS"),raw.get("intersection_count_status",raw.get("intersection_status")),"intersection",denstate=raw.get("pool_status"),layout=fractions["intersection"])
+                for field,value,state in (("rm_pool_CDS",raw.get("input_pool_CDS"),raw.get("pool_status")),("rm_intersection_CDS",raw.get("intersection_CDS"),raw.get("intersection_count_status",raw.get("intersection_status")))):
                     c.ledger["cells"].append({"kind":"atlas_evidence","sample_id":sid,"field":field,"value":value,"status":state,"bounds_mm":[pp["left"],y,pp["right"]-pp["left"],ROW]})
                 x=panels["RM_integrated"]["left"]
                 for key,kind,typ,label,units in ROLE_COLUMNS:
@@ -601,7 +714,7 @@ def manuscript_atlas_pages(result,fonts,config,page_factory):
                     _role_glyph(c,x,cy,w,rec,key,kind);x+=w
                     if key in ("I_RMS","II_M","III_MR","IV_A"):c.line(x,y,x,y+ROW,"#8C999E",.4875)
                 pp=panels["Retained_summary"];ret=row.get("retained",{});_cell(c,pp["left"],y,pp["right"]-pp["left"],ROW)
-                _fraction(c,pp["left"],cy,pp["right"]-pp["left"],ret.get("R_CDS"),ret.get("total_CDS"),ret.get("status"),"retained",scale_ret,layout=fractions["retained"])
+                _fraction(c,pp["left"],cy,pp["right"]-pp["left"],ret.get("R_CDS"),ret.get("total_CDS"),ret.get("R_status",ret.get("status")),"retained",scale_ret,denstate=ret.get("total_status",ret.get("status")),layout=fractions["retained"])
                 rowmasks=_remap_masks(row,model.get("source_order",[]),sources)
                 for j,mask in enumerate(masks[:-1]):
                     x=panels["cases"]["left"]+j*CELL;_cell(c,x,y,CELL,ROW)
@@ -650,31 +763,3 @@ def manuscript_atlas_pages(result,fonts,config,page_factory):
             c.ledger["workflow"]={"operation":"saved_result_import_and_aggregation","new_engine_runs":False,"activity_assessed":False}
             pages.append(c)
     return pages
-
-
-def _headers_small(c,panels,groups,fpos,sources,refs,config,dy):
-    # A page with fewer observed families cannot fit the original group-anchored
-    # long headings. Retain the complete five headings in a fixed legend row.
-    before=len(c.text_artists);_headers(c,panels,groups,fpos,sources,refs,config,dy)
-    # Reposition only stage headings/badges through a separately measured key.
-    stage_texts=[]
-    for artist,meta in c.text_artists[before:]:
-        y=meta["anchor_mm"][1]
-        if abs(y-(58.2+dy))<1e-7:
-            artist.set_y(artist.get_position()[1]-dy);meta["anchor_mm"][1]=58.2
-            if "baseline_mm" in meta:meta["baseline_mm"][1]-=dy
-        if 62+dy<=y<=74+dy and (meta["font_pt"]==12 or meta["text"] in ("1","2","3","4","5")):
-            stage_texts.append((artist,meta))
-    titles=[("1 R-M evidence and curation",TEAL),("2 Methylation-associated evidence","#829764"),
-            ("3 Non-canonical DNA modification system",PALETTE["Modification"]),
-            ("4 Nuclease-associated evidence",PALETTE["Nuclease"]),("5 Complementary defense priorities","black")]
-    for artist,meta in stage_texts:artist.remove();c.text_artists.remove((artist,meta))
-    # Remove circular stage-badge patches from their displaced anchored row.
-    from matplotlib.patches import Circle
-    for patch in list(c.ax.patches):
-        if isinstance(patch,Circle) and abs(patch.radius-2.1)<1e-6 and abs(patch.center[1]-(64+dy))<1e-6:patch.remove()
-    slot=(c.width-12)/5
-    for i,(title,color) in enumerate(titles):
-        label=c.fonts.wrap(title,slot-3,10.5,True)
-        _text(c,6+i*slot,65,label,10.5,bold=True,color=color)
-    c.ledger["section_headings"]={"mode":"section_key","heading_count":5}

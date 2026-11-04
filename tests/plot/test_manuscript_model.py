@@ -53,7 +53,8 @@ def test_original_sources_and_three_source_intersection_are_not_reference_inters
     assert row["rm_original"]["input_pool_CDS"]==4
     assert row["rm_original"]["intersection_CDS"]==3
     assert result["sample_summary"][0]["rm_intersection_CDS"]==1
-    assert row["retained"]==dict(R_CDS=1,total_CDS=3,status="complete")
+    assert row["retained"]==dict(R_CDS=1,total_CDS=3,status="complete",R_status="complete",total_status="complete",
+                                 scope="native saved candidate assessment")
     assert row["rm_roles"]["IV_R"]["count"]==1
 
 
@@ -139,8 +140,12 @@ def test_identifier_permutation_preserves_every_numeric_endpoint():
 
 def test_result_only_fallback_does_not_relabel_all_source_intersection():
     result=analyze_saved(fixture());m=build_manuscript_atlas_model(result)
-    assert m["rows"][0]["rm_original"]["intersection_CDS"]is None
+    assert result["sample_summary"][0]["rm_intersection_CDS"]==1
+    assert m["rows"][0]["rm_original"]["intersection_CDS"]==3
     assert m["rows"][0]["compositions"]["I_RMS"]["status"]=="unassessed"
+    for key in ["rm_native_intersection_CDS","rm_native_intersection_status","rm_native_intersection_sources"]:
+        result["sample_summary"][0].pop(key)
+    assert build_manuscript_atlas_model(result)["rows"][0]["rm_original"]["intersection_CDS"]is None
 
 
 def test_source_membership_mismatch_rejected_before_display():
@@ -352,7 +357,8 @@ def test_unknown_current_context_member_role_or_type_never_guesses_composition(g
     m=model(d);row=m['rows'][0]
     assert row['compositions']['I_MS']['count']==0
     assert row['compositions']['I_RMS']['count']==0
-    assert all(c['status']=='partial'for c in row['compositions'].values())
+    assert all(row['compositions'][c]['status']=='partial'for c in ['I_MS','I_RMS'])
+    assert all(row['compositions'][c]['status']=='complete'for c in ['III_M','III_MR'])
     g=m['group_records'][0]
     assert g['composition_class']is None and g['composition_status']=='unassessed'
     assert len(g['member_keys'])==3
