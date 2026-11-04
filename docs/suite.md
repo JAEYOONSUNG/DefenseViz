@@ -44,13 +44,18 @@ defenseviz from-suite . --manifest cohort.json --out selected-results
 
 Manifest paths are relative to the manifest. Optional `cohort` metadata records
 primary/external scope without adding automatic cohort labels to the figure.
+The values `external` and `external_validation` select the external type-case
+header color. Include a short scope label in `label` when readers need that role
+explicitly stated; color alone does not explain the sampling design.
 IDs are opaque: the importer does not parse accessions, guess species, or merge
 different loci because their proteins have the same sequence.
 
 Optional sample `genus`, `species` and `display` metadata control taxonomy strips
 and labels. For example, `display: {"taxon_label": "Example species",
 "strain_label": "isolate A", "genus_color": "#537C83", "species_color": "#B29BCB"}`
-keeps the taxon italic and the strain upright. No study-specific target or
+keeps the taxon italic and the strain upright when these parts match `label`.
+Update both `label` and its display parts when adding a suffix such as
+`(external)`; inconsistent parts fall back to the literal label. No study-specific target or
 transformability key is drawn by default. Sample highlights still use `highlight`
 without assigning a biological meaning. An optional layout `highlight_label`
 names the pink highlight only when highlighted samples are shown.
