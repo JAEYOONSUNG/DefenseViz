@@ -71,7 +71,12 @@ def test_literal_dollars_stay_editable_text_and_italic_font_is_recorded(tmp_path
     root=ET.parse(out).getroot();texts=[e for e in root.iter() if e.tag.endswith('text')]
     assert any(''.join(e.itertext())=='$R$' for e in texts)
     assert t.get_usetex() is False
-    assert any('Italic' in row['path'] or 'Oblique' in row['path'] for row in c.fonts.used.values())
+    # Windows Arial uses ariali.ttf; filename words do not identify its face.
+    from matplotlib import font_manager
+    resolved=font_manager.findfont(t.get_fontproperties())
+    record=next(row for row in c.fonts.used.values() if row['path']==resolved)
+    face=font_manager.get_font(record['path']).style_name.lower()
+    assert 'italic' in face or 'oblique' in face
 
 
 def test_fallback_metrics_are_used_and_invalid_inputs_rejected():
