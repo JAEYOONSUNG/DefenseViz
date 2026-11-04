@@ -113,7 +113,8 @@ def analyze_saved(data):
     options = d.get("options") or {}
     if not isinstance(options, dict):
         raise ValueError("options must be an object")
-    warnings = ["Saved-result import and aggregation; no detector or scoring run.",
+    warnings = [("Stored R-M evidence reevaluated with the selected DNMB policy; no detector run."
+                 if d.get("rm_evaluation") else "Saved-result import and aggregation; no detector or scoring run."),
                 "Annotation evidence does not establish activity. Missing evidence is unassessed.",
                 "Family/category rows can overlap; sums are not a unique CDS union."]
 
@@ -236,6 +237,8 @@ def analyze_saved(data):
             raise ValueError("Invalid saved decision state")
         if r.get("role") is not None and r["role"] not in ROLES:
             raise ValueError("Unsupported saved decision role")
+        if "integrated_R_component_support" in r and type(r["integrated_R_component_support"]) is not bool:
+            raise ValueError("integrated_R_component_support must be an explicit boolean")
         saved[k] = r
         if r["state"] != "unassessed":
             decision_assessed.add(k)
@@ -493,8 +496,20 @@ def analyze_saved(data):
         complex_out.append(dict(c, individual_catalysis="unassigned_for_complex_core"))
     E = individual | cores
     site &= E
+    evaluation = d.get("rm_evaluation") or {}
+    prior_unassessed = {(r["sample_id"], r["gene_id"]) for r in evaluation.get("native_saved_decisions", [])
+                        if r.get("state") == "unassessed"}
+    replaced_samples = ({s["sample_id"] for s in evaluation.get("candidate_scope", [])}
+                        if evaluation.get("decision_mode") == "replace_scoped" else set())
+    pre_retention_groups = {gid for gid, g in group_index.items() if
+        g.get("provider") == "DNMB" and g.get("membership_kind") == "saved_context" and bool(evaluation)
+        and (g["sample_id"] in replaced_samples or bool(group_original[gid] & prior_unassessed))}
     selected_groups = []; G = set()
     for gid, g in group_index.items():
+        if gid in pre_retention_groups and gid not in module_groups:
+            # Old candidate context is retained in the audit, but cannot expand
+            # a current nuclease-associated set without an explicit new review.
+            continue
         own = group_current[gid] & individual
         if not own and gid not in module_groups:
             continue
@@ -530,7 +545,84 @@ def analyze_saved(data):
             raise ValueError("Contradictory saved/reviewed role or type assignments require explicit resolution")
     R = {k for k, a in assignments.items() if any(role in {"R", "RM"} for _, role in a)}
     final_rm = {k for k, a in assignments.items() if any(t in {"Type I", "Type II", "Type III", "Type IV"} for t, _ in a)}
+    # Annotation-based triage and the narrower nuclease-route support predicate
+    # are distinct endpoints. An unmet route is not a negative R annotation.
+    unmet_R = {k for k in R if saved.get(k, {}).get("integrated_R_component_support") is False}
+    policy_supported_R = {k for k in R if saved.get(k, {}).get("integrated_R_component_support") is True}
+    independently_reviewed_R = {k for k in R if any(
+        r["status"] in SUPPORTED and r["assignment_kind"] == "reviewed_RM_component"
+        and _role(r.get("role")) in {"R", "RM"} for r in annotation_by_gene[k])}
+    support_qualified_R = policy_supported_R | independently_reviewed_R
+    support_qualified_P = E | support_qualified_R
     P = E | R
+
+    # A saved context describes its original membership. If filtering removes
+    # members, its original positive assessment cannot silently describe a new
+    # retained context. Explicit review contexts already bind the current union.
+    # Preserve both states rather than rewriting the imported source artifact.
+    context_assessments = []
+    current_context_state = {}
+    unique_contexts = {}
+    for gid, g in group_index.items():
+        if g["membership_kind"] != "saved_context":
+            continue
+        typ = _type(g.get("rm_type") or g.get("family"))
+        original_state = g.get("context_state")
+        state = original_state
+        removed = group_original[gid] - group_current[gid]
+        pre_retention = gid in pre_retention_groups
+        requirements = g.get("required_roles")
+        if requirements is not None:
+            if (not isinstance(requirements, (list, tuple)) or not requirements
+                    or any(r not in ROLES - {"unknown", "Unknown"} for r in requirements)):
+                raise ValueError("Saved context required_roles must name known roles")
+            requirements = set().union(*({"R", "M"} if r == "RM" else {_role(r)} for r in requirements))
+        else:
+            requirements = {"Type I": {"R", "M", "S"}, "Type III": {"R", "M"}}.get(typ)
+        if pre_retention:
+            state = "unassessed"
+        elif removed and original_state in CONTEXT_MET and g.get("provider") != "Review":
+            # Type IV has no inferred methylation-partner requirement.
+            if typ != "Type IV" or requirements is not None:
+                current_roles = set()
+                unknown = False
+                for k in group_current[gid]:
+                    own = {role for family, role in assignments[k] if family == typ
+                           and role in ROLES - {"unknown", "Unknown"}}
+                    unknown |= not own
+                    current_roles |= set().union(*({"R", "M"} if r == "RM" else {r} for r in own))
+                if requirements is not None and requirements <= current_roles:
+                    pass
+                elif requirements is not None and not unknown:
+                    state = "missing_retained_partner_in_saved_context"
+                else:
+                    state = "unassessed"
+        current_context_state[gid] = state
+        record = dict(sample_id=g["sample_id"], group_id=g["group_id"],
+            group_ids=[g["group_id"]], provider=g["provider"], run_id=g.get("run_id"),
+            family=typ, original_context_state=original_state, context_state=state,
+            required_roles=sorted(requirements) if requirements is not None else None,
+            original_member_keys=_keys(group_original[gid]), member_keys=_keys(group_current[gid]),
+            removed_member_keys=_keys(removed), source_refs=_refs(g, "saved context"),
+            assessment_scope=("pre_retention_context_not_reassessed" if pre_retention else
+                "explicit_reviewed_current_context" if g.get("provider") == "Review" else "current_retained_context"))
+        # Reciprocal exported rows describe one context only when their source
+        # run, original boundary and type are identical. Different boundaries
+        # remain distinct even if filtering leaves the same retained members.
+        ident = (g["sample_id"], g["provider"], g.get("run_id"), typ,
+                 tuple(sorted(group_original[gid]))) if g.get("run_id") and group_original[gid] else gid
+        if ident in unique_contexts:
+            previous = unique_contexts[ident]
+            if any(previous[field] != record[field] for field in
+                   ("original_context_state", "context_state", "member_keys", "required_roles")):
+                raise ValueError("Contradictory exact saved-context assessments")
+            previous["group_ids"].append(g["group_id"])
+            for ref in record["source_refs"]:
+                if ref not in previous["source_refs"]:
+                    previous["source_refs"].append(ref)
+        else:
+            unique_contexts[ident] = record
+            context_assessments.append(record)
     # Explicit family catalog and identity mappings are presentation membership.
     # They must not establish any of E, R, site, or activity above.
     catalog = list(_rows(options.get("family_catalog"), "family_catalog"))
@@ -579,7 +671,7 @@ def analyze_saved(data):
             category = r.get("category") or "Unresolved"
             if fid in {"General defense","Unresolved","Unknown"}:
                 generic.add(k); continue
-            mapped = aliases.get((r["caller"],fid),aliases.get((None,fid)))
+            mapped = None if r.get("category_source") == "family_map" else aliases.get((r["caller"],fid),aliases.get((None,fid)))
             if mapped:
                 fid,category = mapped
             if category == "R-M" or _type(r.get("rm_type")) in {"Type I","Type II","Type III","Type IV"}:
@@ -686,14 +778,27 @@ def analyze_saved(data):
             pool_status = _status(cov.get((sid, s), "missing") for s in native_sources)
             if pool and pool_status == "unassessed":
                 pool_status = "partial"
+            # The shared-pool table conditions on these explicitly observed,
+            # assigned-type members. Unassessed candidates outside this pool
+            # still affect the broader retention endpoint, not this subset.
+            within_pool_counts_status = ("complete" if disposition_known == pool and pool_status == "complete"
+                                         else "partial" if disposition_known or not pool and pool_status == "partial"
+                                         else "unassessed")
+            within_pool_role_status = (within_pool_counts_status if roles_known else
+                                       "partial" if st else "unassessed")
             applicable_roles = {"Type I":{"R","M","S"},"Type II":{"R","M"},"Type III":{"R","M"},"Type IV":{"R","A"}}.get(typ,{"R","M","S","A"})
             role_states = {r:("not_applicable" if r not in applicable_roles and not roles["Aux" if r == "A" else r] else row_assessment) for r in ("R","M","S","A")}
+            within_pool_role_states = {r:("not_applicable" if role_states[r] == "not_applicable" else within_pool_role_status) for r in role_states}
             context_values = {}; orphan_values = defaultdict(list)
             for k in st:
                 states = {r.get("context_state") for r in role_records[k] if (typ == "Total" or _type(r.get("rm_type") or r.get("family")) == typ) and r.get("context_state")}
                 for gid,g in group_index.items():
-                    if g["membership_kind"] == "saved_context" and k in group_current[gid] and _type(g.get("family")) in {t for t,_ in assignments[k]} and g.get("context_state") in CONTEXT_MET:
-                        states.add("met")
+                    if g["membership_kind"] == "saved_context" and k in group_current[gid] and _type(g.get("rm_type") or g.get("family")) in {t for t,_ in assignments[k]}:
+                        state = current_context_state.get(gid)
+                        if state in CONTEXT_MET:
+                            states.add("met")
+                        elif state in CONTEXT_MISSING:
+                            states.add("missing")
                 if states & CONTEXT_MET and states & CONTEXT_MISSING:
                     raise ValueError("Conflicting context assessments")
                 if k in roles["R"]:
@@ -728,12 +833,14 @@ def analyze_saved(data):
             z = aggregate(pool,[sid])
             type_tables.append(dict(sample_id=sid,rm_type=typ,is_total=typ=="Total",unique_CDS=len(st),member_keys=_keys(st),pool_CDS=len(pool),pool_member_keys=_keys(pool),type_disagreement_CDS=sum(type_disagreement[k] for k in pool),
                 counts_status=counts_status,pool_status=pool_status,
+                within_pool_counts_status=within_pool_counts_status,within_pool_role_states=within_pool_role_states,
+                count_scope="observed assigned-type pool; broader candidate retention coverage remains separate",
                 source_counts=z["source_counts"],source_count_status=z["source_count_status"],
                 R=len(roles["R"]),M=len(roles["M"]),S=len(roles["S"]),A=len(roles["Aux"]),
                 role_states=role_states,
                 context_applicability="saved_I_III_context" if applicable else "not_assessed_by_I_III_rule",
                 context_state=context_state,context_R_denominator=context_denominator if applicable else None,incomplete_R_context=count_missing,orphan_M=orphan_counts["M"],orphan_S=orphan_counts["S"],orphan_state=orphan_state,
-                complete_contexts=sum(g["sample_id"] == sid and g["membership_kind"] == "saved_context" and (typ == "Total" or _type(g.get("family")) == typ) and g.get("context_state") in CONTEXT_MET for g in group_index.values()) if any(g["sample_id"] == sid and g["membership_kind"] == "saved_context" and g.get("context_state") is not None for g in group_index.values()) else None,
+                complete_contexts=sum(g["sample_id"] == sid and (typ == "Total" or g["family"] == typ) and g.get("context_state") in CONTEXT_MET for g in context_assessments) if any(g["sample_id"] == sid and g.get("context_state") is not None for g in context_assessments) else None,
                 activity="unassessed"))
             for role,ks in roles.items():
                 components.append(dict(sample_id=sid,rm_type=typ,role=role,count=len(ks),member_keys=_keys(ks),scope="saved retained or explicit reviewed annotation roles"))
@@ -741,7 +848,9 @@ def analyze_saved(data):
     for k in sorted(U):
         r = dict(sample_id=k[0],gene_id=k[1],protein_sha256=genes[k].get("protein_sha256"),
             native_member=k in native,retained=k in retained,reviewed_annotation_member=k in reviewed,
-            final_RM=k in final_rm,restriction_role=k in R,individual_effector=k in individual,
+            final_RM=k in final_rm,restriction_role=k in R,support_qualified_restriction_role=k in support_qualified_R,
+            priority_support_qualified=k in support_qualified_P,
+            policy_R_component_support=saved.get(k, {}).get("integrated_R_component_support"),individual_effector=k in individual,
             complex_core=k in cores,effector=k in E,motif_site_supported=k in site,motif_grades=site_grades[k],
             associated=k in A,selected_group_member=k in G,ungrouped_effector=k in ungrouped,priority=k in P,
             source_membership={s:k in source_members[s] for s in sources},
@@ -750,20 +859,39 @@ def analyze_saved(data):
             activity="unassessed",individual_catalysis="unassigned_complex_core" if k in cores-individual else "not_experimentally_assessed")
         if k in P:
             r["selection_route"] = "R_and_effector" if k in R&E else "R_only" if k in R else "effector_only"
+            r["R_policy_support_state"] = ("supported" if k in policy_supported_R else
+                "policy_nuclease_route_not_met" if k in unmet_R else "unassessed") if k in R else "not_applicable"
         ledger.append(r)
     source_out = [dict(id=s,label=s,kind="hmm_evidence" if not source_kind[s] else "mixed" if len(source_kind[s])>1 else "reference_annotation" if source_kind[s]=={"reference_hit"} else "native_final_member",coverage_status=_status(cov.get((sid,s),"missing") for sid in sample_ids)) for s in sources]
     global_summary = dict(integrated_CDS=len(U),native_union_CDS=len(native),retained_CDS=len(retained),reviewed_CDS=len(reviewed),
         DNMB_only_CDS=len(U-native),retained_only_CDS=len(retained-native),reviewed_only_CDS=len(reviewed-(native|retained)),
         final_RM_CDS=len(final_rm),restriction_role_CDS=len(R),individual_effector_CDS=len(individual),complex_core_CDS=len(cores),
         effector_CDS=len(E),motif_CDS=len(site),associated_CDS=len(A),system_member_CDS=len(G),ungrouped_effector_CDS=len(ungrouped),
-        priority_CDS=len(P),R_and_effector_CDS=len(R&E),R_only_CDS=len(R-E),source_union_CDS=len(set.union(set(),*source_members.values())),
+        priority_CDS=len(P),R_and_effector_CDS=len(R&E),R_only_CDS=len(R-E),
+        priority_support_qualified_CDS=len(support_qualified_P),policy_nuclease_route_unmet_R_CDS=len(unmet_R),
+        R_only_policy_unmet_CDS=len(unmet_R-E),
+        source_union_CDS=len(set.union(set(),*source_members.values())),
         metric_status=dict(inventory=inventory_state,associated=associated_state,effector=role_global,motif=motif_global))
     # Original R-M source membership is never backfilled from current DNMB roles.
     raw_rm_sources = defaultdict(set)
     for call in calls:
-        if call["evidence_kind"] != "hmm_hit" and call.get("selected", True) and (call.get("category") == "R-M" or _type(call.get("rm_type")) in {"Type I","Type II","Type III","Type IV"}):
+        if call["evidence_kind"] != "hmm_hit" and call.get("selected", True) and (call["evidence_kind"] == "reference_hit" or call.get("category") == "R-M" or _type(call.get("rm_type")) in {"Type I","Type II","Type III","Type IV"}):
             raw_rm_sources[call["caller"]].add(key(call,"original R-M source"))
-    raw_rm_pool = set.union(set(), *raw_rm_sources.values()) | set(saved)
+    # Keep superseded/broader native candidates in the audit without silently
+    # changing the explicitly supplied current R-M evaluation denominator.
+    active_candidates = set(saved)
+    for scope in evaluation.get("candidate_scope", []):
+        sid = scope["sample_id"]
+        if "gene_ids" not in scope:
+            continue
+        scoped = {(sid, gid) for gid in scope["gene_ids"]}
+        if not scoped <= set(genes):
+            raise ValueError("Current R-M candidate scope includes unknown genes")
+        active_candidates = {k for k in active_candidates if k[0] != sid} | scoped
+    typed_candidates = {k for k in active_candidates
+                        if _type(saved.get(k, {}).get("rm_type") or saved.get(k, {}).get("family"))
+                        in {"Type I", "Type II", "Type III", "Type IV"}}
+    raw_rm_pool = set.union(set(), *raw_rm_sources.values()) | typed_candidates
     generic_predictions = defaultdict(set)
     for call in calls:
         if call["evidence_kind"] == "final_member" and call.get("selected",True) and call.get("family") == "General defense":
@@ -810,22 +938,30 @@ def analyze_saved(data):
             noncanonical_CDS=len(st-current_rm_pool),
             noncanonical_source_counts={source:len(st & source_members[source] - current_rm_pool) for source in sources},
             noncanonical_source_count_status=z["source_count_status"],
-            complete_saved_contexts=sum(g["sample_id"] == sid and g["membership_kind"] == "saved_context" and g.get("context_state") in CONTEXT_MET for g in group_index.values()) if any(g["sample_id"] == sid and g["membership_kind"] == "saved_context" and g.get("context_state") is not None for g in group_index.values()) else None,
+            complete_saved_contexts=sum(g["sample_id"] == sid and g.get("context_state") in CONTEXT_MET for g in context_assessments) if any(g["sample_id"] == sid and g.get("context_state") is not None for g in context_assessments) else None,
             complete_context_state="observed_saved_assessment" if any(g["sample_id"] == sid and g["membership_kind"] == "saved_context" and g.get("context_state") is not None for g in group_index.values()) else "unassessed",
-            rm_scope_definitions={"rm_pool":"original R-M source union plus saved DNMB candidate records", "intersection":"intersection of original R-M source sets; absent/incomplete sources remain unassessed via status", "general_prediction_RM":"saved general predictions intersect original R-M candidate pool; not a native RM type call", "noncanonical":"current integrated union minus current R-M display-category pool; source counts intersect this same pool"}))
+            rm_scope_definitions={"rm_pool":"original R-M source/reference union plus explicitly typed current DNMB candidates; untyped and broader historical nominees stay in audit", "intersection":"intersection of original R-M source sets; absent/incomplete sources remain unassessed via status", "general_prediction_RM":"saved general predictions intersect original R-M candidate pool; not a native RM type call", "noncanonical":"current integrated union minus current R-M display-category pool; source counts intersect this same pool"}))
     return dict(schema_version="saved-results-v1",samples=samples,sources=source_out,sample_summary=sample_summary,
+        selected_policy=deepcopy(evaluation.get("policy")) if evaluation else None,
         source_sets=[dict(source_id=s,endpoint=source_out[i]["kind"],member_keys=_keys(source_members[s]),count=len(source_members[s]),coverage_status=source_out[i]["coverage_status"]) for i,s in enumerate(sources)],
         global_summary=global_summary,overlap_regions=overlap(),priority_overlap_regions=overlap(P),
         inventory_rows=dict(categories=category_rows,families=family_rows),cells=cells,rm_components=components,type_tables=type_tables,
         gene_ledger=ledger,priority_ledger=[r for r in ledger if r["priority"]],groups_selected=selected_groups,complex_assignments=complex_out,
+        context_assessments=context_assessments,
+        rm_candidate_scope=dict(member_keys=_keys(active_candidates), historical_member_keys=_keys(saved),
+            typed_member_keys=_keys(typed_candidates),untyped_member_keys=_keys(active_candidates-typed_candidates),
+            unselected_historical_member_keys=_keys(set(saved)-active_candidates),
+            selection="source_bound_evaluation_scope" if evaluation else "native_saved_candidates"),
         endpoint_definitions=dict(integrated="native final union OR saved retained OR explicitly included reviewed annotations",
             effector="individual putative nuclease-effector OR required complete reviewed restriction-complex core; not individual catalytic validation",
             associated="directly selected explicit group members within integrated union OR ungrouped effectors; no transitive expansion",
-            priority="effector OR retained/reviewed restriction role; activity unassessed",
+            priority="effector OR retained/reviewed restriction role; annotation-based triage, activity unassessed",
+            priority_support_qualified="effector OR policy-supported R OR independently accepted reviewed R; narrower evidence tier, not experimental activity",
             motif="graded saved motif/reference-site support; not exhaustive or required for effector annotation"),
         warnings=warnings,availability=dict(coverage=[dict(sample_id=sid,caller=s,status=cov.get((sid,s),"missing")) for sid in sample_ids for s in sources],
             saved_decisions=saved_availability,saved_decisions_by_sample=saved_states,effector=role_global,motif=motif_global,associated=associated_state),
         workflow_capabilities=deepcopy((d.get("suite") or {}).get("capabilities",{})),
-        provenance=dict(operation="saved_result_import_and_aggregation",detector_runs=0,scoring_runs=0,
+        provenance=dict(operation="stored_evidence_evaluation_and_aggregation" if evaluation else "saved_result_import_and_aggregation",detector_runs=0,
+            scoring_runs=evaluation.get("scoring_runs", 0),
             component_registry_version=registry["version"],component_registry_sha256=registry_sha,
             automatic_component_assignments=automatic,source_metadata=tables["source_metadata"],input_sha256=d.get("input_sha256",{})))

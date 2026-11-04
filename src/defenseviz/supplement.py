@@ -85,6 +85,8 @@ def apply_supplement(data: dict, path: str | Path) -> dict:
 
     result = deepcopy(data)
     native_group_keys = {(g["sample_id"], g["group_id"]) for g in data.get("groups", [])}
+    native_groups = {(g["sample_id"], g["group_id"]): g for g in data.get("groups", [])}
+    superseded = {}
     added_group_keys = set()
     for table in ("annotations", "effector_evidence", "groups", "complexes"):
         records = doc.get(table, [])
@@ -126,6 +128,23 @@ def apply_supplement(data: dict, path: str | Path) -> dict:
                     if "retained" in member:
                         raise ValueError(f"{where}: review members cannot claim native retention")
                     check_gene(sid, member.get("gene_id"), member.get("protein_sha256"), f"{where}.members[{j}]")
+                if "supersedes_group_ids" in row:
+                    previous = row["supersedes_group_ids"]
+                    if (not isinstance(previous, list) or not previous or
+                            any(not isinstance(g, str) or not g for g in previous) or len(set(previous)) != len(previous)):
+                        raise ValueError(f"{where}: supersedes_group_ids must contain distinct group IDs")
+                    current_members = {m["gene_id"] for m in members}
+                    for old_id in previous:
+                        old_key = (sid, old_id)
+                        old = native_groups.get(old_key)
+                        if old is None or old.get("membership_kind") != "saved_context" or old.get("provider") != "DNMB":
+                            raise ValueError(f"{where}: only an existing DNMB saved context can be superseded")
+                        if old_key in superseded:
+                            raise ValueError(f"{where}: saved context is superseded more than once")
+                        if not current_members <= {m["gene_id"] for m in old.get("members", [])}:
+                            raise ValueError(f"{where}: reviewed members exceed the superseded context boundary")
+                        superseded[old_key] = {"group": deepcopy(old), "replacement_group_id": gid,
+                                              "supplement_path": str(path), "supplement_sha256": reader.hashes[str(path)]}
             else:
                 core = row.get("core_gene_ids")
                 hashes = row.pop("core_protein_sha256", None)
@@ -148,6 +167,11 @@ def apply_supplement(data: dict, path: str | Path) -> dict:
                 raise ValueError(f"{where}: a hashed source reference is required")
             row["supplement_source"] = {"path": str(path), "sha256": reader.hashes[str(path)], "table": table, "index": i}
             result.setdefault(table, []).append(row)
+    if superseded:
+        result["groups"] = [g for g in result["groups"] if (g["sample_id"], g["group_id"]) not in superseded]
+        result.setdefault("suite", {}).setdefault("superseded_context_groups", []).extend(superseded.values())
+        if any((c["sample_id"], c["group_id"]) in superseded for c in result.get("complexes", [])):
+            raise ValueError("A superseded context is still referenced by a complex; select a consistent review run")
     result["inputs"] = sorted({Path(p).resolve() for p in data.get("inputs", [])} | set(reader.inputs))
     result["input_sha256"] = {**imported, **reader.hashes}
     # Recheck bound files after all reads, including shared references.

@@ -275,8 +275,8 @@ def _type_display(r,field):
     subset=None
     if field=="Type":return str(r["rm_type"]),r["rm_type"],"complete",None
     if field=="Pool":value=r.get("pool_CDS");state=r.get("pool_status")
-    elif field=="DNMB":value=r.get("unique_CDS");state=r.get("counts_status")
-    elif field in ("R","M","S","A"):value=r.get(field);state=r.get("role_states",{}).get(field)
+    elif field=="DNMB":value=r.get("unique_CDS");state=r.get("within_pool_counts_status",r.get("counts_status"))
+    elif field in ("R","M","S","A"):value=r.get(field);state=r.get("within_pool_role_states",r.get("role_states",{})).get(field)
     else:value=r.get("source_counts",{}).get(field);state=r.get("source_count_status",{}).get(field)
     display=number(value,state)
     if field=="R":
@@ -293,11 +293,38 @@ def _type_display(r,field):
     return display,value,state,subset
 
 
+def _type_case_label(c, x, y, width, height, sample, wrapped):
+    """Honor explicit taxon/strain typography without guessing from a name."""
+    display=sample.get("display",{})
+    runs=display.get("label_runs")
+    if runs is None and display.get("taxon_label"):
+        runs=[{"text":display["taxon_label"],"italic":True}]
+        if display.get("strain_label"):runs.append({"text":display["strain_label"],"italic":False})
+    if (isinstance(runs,list) and runs and "\n" not in wrapped
+            and all(isinstance(r,dict) and isinstance(r.get("text"),str) for r in runs)
+            and " ".join(r["text"] for r in runs)==wrapped):
+        from matplotlib.font_manager import FontProperties
+        from matplotlib.textpath import TextToPath
+        from .manuscript_text import draw_manuscript_text
+        widths=[TextToPath().get_text_width_height_descent(r["text"],FontProperties(
+            family=c.fonts.pick(r["text"],True),size=9,weight="bold",
+            style="italic" if r.get("italic") else "normal"),False)[0]*25.4/72 for r in runs]
+        total=sum(widths)+.75*(len(runs)-1)
+        if total<=width-4:
+            cursor=x+(width-total)/2
+            for r,w in zip(runs,widths):
+                draw_manuscript_text(c,cursor,y+height/2,r["text"],9,bold=True,
+                    italic=bool(r.get("italic")),owner=[x,y,width,height])
+                cursor+=w+.75
+            return
+    c.text(x+width/2,y+height/2,wrapped,9,bold=True,ha="center",owner=[x,y,width,height])
+
+
 def type_pages(result,fonts,config,page_factory):
     rows=result.get("type_tables",[])
     samples={s["sample_id"]:s for s in result.get("samples",[])}
     selected=config.get("type_samples")
-    caseids=[s for s in samples if any(r["sample_id"]==s for r in rows) and (selected is None or s in selected)]
+    caseids=[s for s in (samples if selected is None else selected) if any(r["sample_id"]==s for r in rows)]
     if selected is None:
         highlighted=[sid for sid in caseids if samples[sid].get("highlight")]
         if highlighted:caseids=highlighted
@@ -320,12 +347,12 @@ def type_pages(result,fonts,config,page_factory):
             c.ledger["sample_ids"]=cases
             c.ledger["sample_selection"]="explicit" if selected is not None else "highlighted_default" if any(samples[sid].get("highlight") for sid in cases) else "all_typed_default"
             c.text(8.45,9,"c  CDS inclusion by assigned R-M type",11,bold=True)
-            c.text(8.45,16,"R(n): incomplete retained context; M/S(n): orphan · NA: unassessed · +: lower bound · -: not applicable",7.8)
+            c.text(8.45,16,"R(n): incomplete retained context; M/S(n): orphan · NA: unassessed · +: partial · -: not applicable",7.8)
             for ci,sid in enumerate(cases):
                 case=samples[sid];rr=[r for r in rows if r["sample_id"]==sid]
                 x=8.45+ci*(casew+gap)
                 c.rect(x,23,casew,strainh,"#F3EFE4" if case.get("cohort") in ("external","external_validation") else "#F8E9EF")
-                c.text(x+casew/2,23+strainh/2,labels[sid],9,bold=True,ha="center",owner=[x,23,casew,strainh])
+                _type_case_label(c,x,23,casew,strainh,case,labels[sid])
                 rolesw=sum(widths[f] for f in ("R","M","S","A"));groupy=23+strainh
                 c.rect(x,groupy,casew-rolesw,4,"#F1F4F5");c.rect(x+casew-rolesw,groupy,rolesw,4,"#E4E8EB")
                 c.text(x+(casew-rolesw)/2,groupy+2,"Shared-pool CDSs",8,bold=True,ha="center")

@@ -31,7 +31,7 @@ def main():
         bindir = work/'venv'/('Scripts' if os.name=='nt' else 'bin')
         python = bindir/('python.exe' if os.name=='nt' else 'python')
         run([python, '-m', 'pip', 'install', '--disable-pip-version-check', str(wheel) + '[suite]'], work)
-        assert 'DefenseViz 2.1.2' in run([python, '-m', 'defenseviz', 'version'], work)
+        assert 'DefenseViz 2.1.3' in run([python, '-m', 'defenseviz', 'version'], work)
         run([python, '-m', 'defenseviz', 'demo', '--out', work/'demo'], work)
         run([python, '-m', 'defenseviz', 'validate', work/'demo/inputs/project.json'], work)
         run([python, '-m', 'defenseviz', 'run', work/'demo/inputs/project.json', '--out', work/'rerun'], work)
@@ -58,6 +58,16 @@ def main():
         native_receipt=json.loads((work/'suite-rerun/receipt.json').read_text(encoding='utf-8'))
         assert native_receipt['software']['git']['status']=='not_a_source_checkout'
         assert native_receipt['detector_runs']==0 and native_receipt['exit_code']==0
+        run([python, ROOT/'examples/suite_rm_evidence/make_example.py', work/'legacy-inputs'], work)
+        legacy = work/'legacy-inputs'
+        run([python, '-m', 'defenseviz', 'from-suite', legacy/'runs', '--manifest', legacy/'cohort.json',
+             '--rm-evidence', legacy/'rm-evidence.json', '--out', work/'reevaluated'], work)
+        evaluated = json.loads((work/'reevaluated/rm_evaluation.json').read_text(encoding='utf-8'))
+        assert evaluated['scoring_runs'] == 1 and evaluated['policy_evaluations'] == 5
+        assert sum(r['state'] == 'retained' for r in evaluated['records']) == 5
+        eval_receipt = json.loads((work/'reevaluated/receipt.json').read_text(encoding='utf-8'))
+        assert eval_receipt['detector_runs'] == 0 and eval_receipt['scoring_runs'] == 1
+        assert eval_receipt['software']['git']['status'] == 'not_a_source_checkout'
         print('CLEAN_INSTALL_OK')
 
 if __name__=='__main__':main()

@@ -27,6 +27,7 @@ def parser():
         s.add_argument('root', type=Path, help='One completed suite folder or a parent containing per-genome folders')
         s.add_argument('--manifest', type=Path, help='Explicit sample paths, identities and display metadata')
         s.add_argument('--supplement', type=Path, help='Optional source-bound saved reviews')
+        s.add_argument('--rm-evidence', type=Path, help='Source-bound complete R-M evidence for fresh DNMB policy evaluation')
         s.add_argument('--rscript', help='Rscript executable for saved RDS completion metadata')
         s.add_argument('--strict-inputs', action='store_true', help='Reject conflicting saved artifact/run metadata')
         if name == 'from-suite':
@@ -45,6 +46,7 @@ def main(argv=None):
         if args.command in {'from-suite', 'inspect-suite'}:
             from .suite_pipeline import prepare_suite, run_suite, suite_warnings
             kwargs = dict(manifest=args.manifest, supplement=args.supplement,
+                          rm_evidence=args.rm_evidence,
                           rscript=args.rscript, strict_inputs=args.strict_inputs)
             if args.command == 'from-suite':
                 response = run_suite(args.root, args.out, **kwargs, title=args.title,
@@ -56,6 +58,9 @@ def main(argv=None):
                 response = {'valid': True, 'samples': len(data['samples']),
                             'summary': result.get('global_summary', {}),
                             'availability': result.get('availability', {}),
+                            'rm_evaluation': ({k: data['rm_evaluation'][k] for k in
+                                ('operation', 'policy_evaluations', 'policy_sha256', 'scoring_runs', 'thresholds_changed')}
+                                if data.get('rm_evaluation') else None),
                             'warnings': suite_warnings(data, result),
                             'conflicts': data.get('suite', {}).get('conflicts', [])}
             print(json.dumps(response, ensure_ascii=True, allow_nan=False))

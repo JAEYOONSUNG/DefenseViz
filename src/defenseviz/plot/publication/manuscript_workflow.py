@@ -8,6 +8,8 @@ This is a schematic: it neither executes nor assesses any biological workflow.
 from __future__ import annotations
 
 import math
+import re
+from collections import defaultdict
 
 from matplotlib.colors import to_rgba
 from matplotlib.patches import PathPatch, Polygon
@@ -16,7 +18,7 @@ from matplotlib.text import Text
 from matplotlib.textpath import TextPath, TextToPath
 from matplotlib.transforms import Bbox
 
-from .drawing import alias
+from .drawing import alias, display_label
 
 NATIVE_WIDTH = 447.0
 NATIVE_HEIGHT = 55.53
@@ -377,6 +379,97 @@ def _draw_provider_label(a, providers):
     a.meta["provider_label_bounds_mm"] = [left, top, right-left, bottom-top]
 
 
+def _pt_display_label(row):
+    """Compact only editorial display text; retain original family identities."""
+    return re.sub(r"\s*\(PT\)\s*$", "", display_label(row), flags=re.IGNORECASE).strip()
+
+
+def _workflow_pt_pairs(result, options, fonts):
+    """Select authored display pairs, without claiming biological co-membership."""
+    meta = {"origin": "observed_family_display_metadata", "selected": [], "omitted": [],
+            "scope": "Illustrative labels from explicit display metadata; not system membership or activity."}
+    if "pt_pairs" in options or "workflow_pt_pairs" in result:
+        configured = "pt_pairs" in options
+        pairs = options["pt_pairs"] if configured else result["workflow_pt_pairs"]
+        meta["origin"] = "configuration" if configured else "result.workflow_pt_pairs"
+        if not isinstance(pairs, list) or len(pairs) > 2 or any(not isinstance(p, (list, tuple)) or len(p) != 2
+                or any(not isinstance(v, str) or not v.strip() for v in p) for p in pairs):
+            raise ValueError("Workflow pt_pairs must contain at most two explicit label pairs")
+        candidates = [{"labels": list(pair), "display_labels": [_pt_display_label({"label": value}) for value in pair],
+                       "source_ref": {"origin": meta["origin"], "pair_index": i}} for i, pair in enumerate(pairs)]
+    else:
+        inventory = result.get("inventory_rows") or {}
+        families = inventory.get("families", []) if isinstance(inventory, dict) else []
+        if not isinstance(families, list):
+            raise ValueError("Workflow inventory families must be a list")
+        groups = defaultdict(list)
+        for row in families:
+            if not isinstance(row, dict):
+                raise ValueError("Workflow inventory families must be objects")
+            group = row.get("partner_group")
+            if isinstance(group, str) and group.strip():
+                groups[group].append(row)
+        candidates = []
+        def group_order(item):
+            orders = [r.get("display_order") for r in item[1]]
+            known = [v for v in orders if not isinstance(v, bool) and isinstance(v, (int, float)) and math.isfinite(v)]
+            return min(known, default=math.inf), item[0]
+        for group, rows in sorted(groups.items(), key=group_order):
+            record = {"partner_group": group, "family_ids": [r.get("id") for r in rows],
+                      "labels": [display_label(r) for r in rows]}
+            observed = [r for r in rows if r.get("visible") is not False and
+                        isinstance(r.get("N"), (int, float)) and not isinstance(r.get("N"), bool) and
+                        math.isfinite(r["N"]) and r["N"] > 0 and float(r["N"]).is_integer()]
+            if len(observed) != 2:
+                meta["omitted"].append({**record, "reason": "requires_two_observed_visible_families",
+                                        "observed_family_ids": [r.get("id") for r in observed]})
+                continue
+            orders = [r.get("partner_order") for r in observed]
+            if any(isinstance(v, bool) or not isinstance(v, (int, float)) or not math.isfinite(v) for v in orders) or orders[0] == orders[1]:
+                meta["omitted"].append({**record, "reason": "missing_or_ambiguous_partner_order"})
+                continue
+            if not all(r.get("display_group") == "Modification" or r.get("category") == "Modification" or
+                       isinstance(r.get("category_tags"), list) and "Modification" in r["category_tags"] for r in observed):
+                meta["omitted"].append({**record, "reason": "not_declared_modification_display_pair"})
+                continue
+            ordered = sorted(observed, key=lambda r: r["partner_order"])
+            if any(not isinstance(r.get("id"), str) or not r["id"].strip() for r in ordered):
+                meta["omitted"].append({**record, "reason": "missing_family_identity"})
+                continue
+            if ordered[0]["id"] == ordered[1]["id"]:
+                meta["omitted"].append({**record, "reason": "duplicate_family_identity"})
+                continue
+            if any(not isinstance(r.get("_display_label", r.get("label", r.get("id"))), str) for r in ordered):
+                meta["omitted"].append({**record, "reason": "missing_display_label"})
+                continue
+            labels = [_pt_display_label(r) for r in ordered]
+            if any(not label for label in labels):
+                meta["omitted"].append({**record, "reason": "missing_display_label"})
+                continue
+            candidates.append({"partner_group": group, "family_ids": [r["id"] for r in ordered],
+                "partner_orders": [r["partner_order"] for r in ordered], "observed_CDS": [r["N"] for r in ordered],
+                "labels": [display_label(r) for r in ordered], "display_labels": labels,
+                "source_ref": {"table": "inventory_rows.families", "family_ids": [r["id"] for r in ordered]}})
+        if len(candidates) > 2:
+            meta["omitted"].extend({**record, "reason": "more_than_two_display_pairs_no_subset_selected"} for record in candidates)
+            candidates = []
+    selected = []
+    # Physical widths at the native scale; all geometry and typography scale
+    # together. Preserve the 21/25-unit boxes and their original 7.3pt type.
+    available = [(width-1.6)*447/417.5 for width in (21, 25)]
+    for record in candidates:
+        widths = [fonts.width(label, 7.3, True) for label in record["display_labels"]]
+        if any(width > limit for width, limit in zip(widths, available)):
+            if meta["origin"] != "observed_family_display_metadata":
+                raise ValueError("Workflow pt_pairs labels exceed the template; provide shorter explicit display labels")
+            meta["omitted"].append({**record, "reason": "labels_exceed_mini_boxes", "widths_mm": widths,
+                                    "available_widths_mm": available})
+            continue
+        selected.append(record["display_labels"])
+        meta["selected"].append({**record, "widths_mm": widths, "available_widths_mm": available})
+    return selected, meta
+
+
 def draw_manuscript_workflow(c, result, config, bounds):
     """Draw the five-card original in ``[left, top, width, height]`` mm.
 
@@ -386,21 +479,20 @@ def draw_manuscript_workflow(c, result, config, bounds):
     authoritative; config may fill missing criteria or repeat matching values.
     Conflicting values are rejected. Missing criteria retain saved-review labels.
     Providers come from the enriched model or declared source identities. An
-    empty result renders the reference schematic. No assay outcome is inferred.
+    empty result renders the reference schematic. Without explicit pt_pairs,
+    observed family partner display metadata may supply two mini-box pairs.
+    No biological pairing or assay outcome is inferred.
     """
     options = config.get("manuscript_workflow", {})
     if not isinstance(options, dict):
         raise ValueError("manuscript_workflow must be an object")
     parameters, parameter_origins = _workflow_parameters(result, options)
     providers, provider_origin = _workflow_providers(result, config)
-    pairs = options.get("pt_pairs", result.get("workflow_pt_pairs", []))
-    if not isinstance(pairs, list) or len(pairs) > 2 or any(not isinstance(p, (list, tuple)) or len(p) != 2
-            or any(not isinstance(v, str) or not v.strip() for v in p) for p in pairs):
-        raise ValueError("Workflow pt_pairs must contain at most two explicit label pairs")
+    pairs, pair_meta = _workflow_pt_pairs(result, options, c.fonts)
     a = _Artwork(c, bounds)
     a.meta.update(parameters={k: parameters.get(k) for k in ("structure", "max_divergent_gap_bp", "retain_cutoff")},
                   parameter_origins=parameter_origins, providers=providers, provider_origin=provider_origin,
-                  pt_pairs=pairs, illustrative_validation_route=True)
+                  pt_pairs=pairs, pt_pair_selection=pair_meta, illustrative_validation_route=True)
     text, line, arrow = a.text, a.line, a.arrow
     def criterion(key, prefix, suffix, absent):
         return f"{prefix}{parameters[key]:g}{suffix}" if parameters.get(key) is not None else absent
@@ -483,12 +575,17 @@ def draw_manuscript_workflow(c, result, config, bounds):
     text(215, 54, "Component / context review", 7.2, True)
     arrow([254.3, 256.5], [54, 54], modification, .85, .8, name="context_to_nuclease")
     if pairs:
-        a.rect(199, 58.3, 21, 7.6, _alpha(modification, .13), modification, .65)
-        a.rect(226, 58.3, 25, 7.6, _alpha(nuclease, .13), nuclease, .65)
-        for yy, (left, right) in zip([62.05] if len(pairs) == 1 else [60.2, 63.9], pairs):
+        left_box = a.rect(199, 58.3, 21, 7.6, _alpha(modification, .13), modification, .65)
+        right_box = a.rect(226, 58.3, 25, 7.6, _alpha(nuclease, .13), nuclease, .65)
+        a.meta["pt_pair_label_boxes_mm"] = [left_box, right_box]
+        for i, (yy, (left, right)) in enumerate(zip([62.05] if len(pairs) == 1 else [60.2, 63.9], pairs)):
             text(209.5, yy, left, 7.3, True, "center")
+            c.text_artists[-1][1].update(owner_bounds_mm=left_box,
+                source_ref={"panel": "a", **pair_meta["selected"][i]["source_ref"], "pair_side": "left"})
             line(220.6, yy, 225.4, yy, "#65777B", .7, True)
             text(238.5, yy, right, 7.3, True, "center")
+            c.text_artists[-1][1].update(owner_bounds_mm=right_box,
+                source_ref={"panel": "a", **pair_meta["selected"][i]["source_ref"], "pair_side": "right"})
 
     card(4, 257, 50, _alpha(nuclease, .06), nuclease, "Nuclease evidence", badge_x=259)
     a.dna(261, 38, 17, nuclease); a.domain(295, 37.5, 11, nuclease)

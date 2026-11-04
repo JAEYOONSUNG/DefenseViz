@@ -236,13 +236,22 @@ def enrich_manuscript_model(bundle, result):
         kind = c.get("evidence_kind", "final_member")
         if kind == "final_member":
             native_sets[provider].add(k)
-        if c.get("category") == "R-M" or (c.get("rm_type") in _TYPES):
-            (raw_rm if kind == "final_member" else reference_rm)[provider].add(k)
+        if kind == "reference_hit":
+            # The separate REBASE channel is original reference coverage;
+            # an untyped reference is not silently reclassified as an R-M call.
+            reference_rm[provider].add(k)
+        elif c.get("category") == "R-M" or (c.get("rm_type") in _TYPES):
+            raw_rm[provider].add(k)
         if kind == "final_member" and c.get("family") == "General defense":
             generic[provider].add(k)
     if any(observed[s] != source_sets.get(s,set()) for s in sources):
         raise ValueError("Atlas original source memberships disagree with analysis")
-    raw_pool = set(saved) | set().union(*raw_rm.values(), *reference_rm.values())
+    scope = result.get("rm_candidate_scope", {})
+    candidate_scope = {tuple(k) for k in scope.get("typed_member_keys", scope.get("member_keys", saved))
+                       if (saved.get(tuple(k), {}).get("rm_type") or saved.get(tuple(k), {}).get("family")) in _TYPES}
+    if not candidate_scope <= set(genes):
+        raise ValueError("Atlas current R-M candidate scope contains unknown identities")
+    raw_pool = candidate_scope | set().union(*raw_rm.values(), *reference_rm.values())
     for provider, keys in generic.items():
         raw_rm[provider] |= keys & raw_pool
     current_rm = set().union(*(set(map(tuple,r["member_keys"])) for r in result.get("inventory_rows",{}).get("categories",[]) if r.get("category") == "R-M"))
@@ -257,19 +266,48 @@ def enrich_manuscript_model(bundle, result):
             role = {"R_component":"R","A":"Aux"}.get(a.get("role"),a.get("role"))
             if typ:
                 assignments[k].add((typ,role))
-    group_index = {}; group_rows = []; dedup = {}; unresolved_group_samples = set()
+    context_assessments = {}
+    for assessment in result.get("context_assessments", []):
+        ids = assessment.get("group_ids", [assessment.get("group_id")])
+        if not isinstance(ids, list) or not ids or len(set(ids)) != len(ids):
+            raise ValueError("Atlas context assessment requires unique group_ids")
+        for gid in ids:
+            key = assessment.get("sample_id"), gid
+            if key in context_assessments:
+                raise ValueError("Duplicate atlas current context assessment")
+            context_assessments[key] = assessment
+    group_index = {}; group_rows = []; dedup = {}
+    unresolved_group_samples = {r["sample_id"] for r in (bundle.get("suite") or {}).get("unresolved_contexts", [])}
+    skipped_review_groups = []
     for g in bundle.get("groups", []):
-        if g.get("membership_kind") != "saved_context" or g.get("provider") != "DNMB":
+        if g.get("membership_kind") != "saved_context" or g.get("provider") not in {"DNMB", "Review"}:
             continue
         sid = g["sample_id"]; gid = g["group_id"]; gkey = sid,gid
         if gkey in group_index:
             raise ValueError("Duplicate atlas saved context identity")
         original = {(sid,m["gene_id"]) for m in g.get("members",[])}
+        if g.get("provider") == "Review" and (not original or not original <= retained):
+            # The retained R-M panel cannot turn a general reviewed integrated
+            # context into a DNMB-retained context by silently dropping members.
+            skipped_review_groups.append(gkey)
+            continue
         members = {(sid,m["gene_id"]) for m in g.get("members", [])
                    if m.get("retained") is True or ("retained" not in m and (sid,m["gene_id"]) in retained)}
         if not members <= retained:
             raise ValueError("Atlas saved context retained member conflicts with saved decision")
         typ = _TYPES.get(g.get("rm_type") or g.get("family"))
+        assessment = context_assessments.get(gkey)
+        if assessment is not None:
+            if (assessment.get("provider") != g["provider"] or assessment.get("run_id") != g.get("run_id")
+                    or set(map(tuple, assessment.get("original_member_keys", []))) != original
+                    or set(map(tuple, assessment.get("member_keys", []))) != members):
+                raise ValueError("Atlas current context assessment differs from exact saved group")
+            context_state = assessment.get("context_state", "unassessed")
+        else:
+            context_state = g.get("context_state", "unassessed")
+        current_composition = not (assessment and assessment.get("assessment_scope") == "pre_retention_context_not_reassessed")
+        if not current_composition:
+            unresolved_group_samples.add(sid)
         unknown_member_role = typ is None or any(
             not any(t == typ and role in {"R","M","S","RM","Aux","C","F"}
                     for t,role in assignments[k]) for k in members)
@@ -283,9 +321,12 @@ def enrich_manuscript_model(bundle, result):
         cls = None if unknown_composition else (("I_RMS" if "R" in roles else "I_MS") if typ == "Type I" and {"M","S"} <= roles else ("III_MR" if "R" in roles else "III_M") if typ == "Type III" and "M" in roles else None)
         row = dict(sample_id=sid,group_id=gid,group_ids=[gid],provider=g["provider"],run_id=g.get("run_id"),family=typ,
             composition_class=cls,member_keys=_keys(members),original_member_keys=_keys(original),
-            composition_status="unassessed" if unknown_composition else "complete",
+            current_composition=bool(current_composition),
+            composition_status="unassessed" if unknown_composition or not current_composition else "complete",
             member_role_status="partial" if unknown_member_role else "complete",
-            context_state=g.get("context_state","unassessed"),rm_R_support="unassessed",rm_reference_link="unassessed",
+            context_state=context_state,original_context_state=g.get("context_state","unassessed"),
+            context_origin="reviewed_context" if g.get("provider") == "Review" else "native_saved_context",
+            origin=g.get("origin"),rm_R_support="unassessed",rm_reference_link="unassessed",
             source_refs=deepcopy(g.get("source_refs",[])),evidence_refs=[])
         # Reciprocal exported partner rows can describe the same exact context.
         # Require known run and identical ORIGINAL members; do not merge merely
@@ -324,6 +365,8 @@ def enrich_manuscript_model(bundle, result):
             if gkey not in group_index or list(k) not in group_index[gkey]["member_keys"]:
                 raise ValueError("Atlas group evidence must bind an exact retained group member")
             row = group_index[gkey]
+            if not row["current_composition"] and any(a.get(n) == "supported" for n in names):
+                raise ValueError("Pre-retention context cannot receive a current support/reference badge")
             if row["composition_class"] not in {"I_RMS","III_MR"} and any(a.get(n)=="supported" for n in names):
                 raise ValueError("Complete R-M support/reference badge cannot extend to M/MS-only composition")
             if a.get("rm_reference_link") == "supported" and row["context_state"] not in {"complete","met","met_in_saved_context"}:
@@ -374,7 +417,7 @@ def enrich_manuscript_model(bundle, result):
                     status_scope="saved_retained_or_reviewed_TypeIV_roles" if code=="IV" else "saved_retained_roles")
         comps={}
         for cls in _CLASSES:
-            gs=[g for g in group_rows if g["sample_id"]==sid and g["composition_class"]==cls]
+            gs=[g for g in group_rows if g["sample_id"]==sid and g["composition_class"]==cls and g["current_composition"]]
             status=group_coverage.get(sid,"partial" if gs else "unassessed")
             if sid in unresolved_group_samples and status == "complete":
                 status="partial"
@@ -409,6 +452,7 @@ def enrich_manuscript_model(bundle, result):
             source_metadata=deepcopy(result.get("provenance",{}).get("source_metadata",[])),display_evidence_refs=display_refs),
         warnings=["R-M support and curated reference badges are independent display evidence, not effector or activity assignments.",
                   "Saved composition groups are direct explicit contexts; no proximity pairing or transitive expansion."] +
-                 (["Saved contexts with unresolved type or member role are preserved without guessed classes; composition counts are partial for affected samples."] if unresolved_group_samples else []))
+                 (["Saved contexts with unresolved type or member role are preserved without guessed classes; composition counts are partial for affected samples."] if unresolved_group_samples else []) +
+                 (["Reviewed contexts containing nonretained members are excluded from the retained R-M context panel; their integrated-system evidence is preserved."] if skipped_review_groups else []))
     enriched=deepcopy(result);enriched["manuscript_atlas"]=model
     return enriched

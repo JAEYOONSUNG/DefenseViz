@@ -8,7 +8,7 @@ from math import isfinite
 
 # Exact scientific predicate provenance; adapter validation is in evidence.py.
 ORIGINAL_SOURCE = "revision027/pipeline/scoring_extension/dnmb_policy.py"
-ORIGINAL_SOURCE_SHA256 = "38a155dd32dc685b4a62c266ebbc2ce59c7f0e18ffe09311fe5afed0b56bdc72"
+ORIGINAL_SOURCE_SHA256 = "2ade4cfac8162a7cb1db78e3b4f41b1327c3bce75a273b6adbe8d326698360fb"
 # The published selected preset overrides the historical class default (0.70).
 CALIBRATION_STATUS = "historically_calibrated_candidate_not_independent_validation"
 

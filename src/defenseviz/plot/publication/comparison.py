@@ -3,9 +3,54 @@ from __future__ import annotations
 
 from collections import Counter
 
+from matplotlib import font_manager
+
 from .drawing import (TEAL, ASSOCIATED, EFFECTOR, alias, category_color,
                       number, source_color, status_kind, display_label)
 from .overlap import draw_flow, intersection_pages
+from .manuscript_text import (MM_PER_POINT, _cap_height, _literal_path,
+                              draw_manuscript_text)
+
+
+def _line_ink(fonts, value, pt):
+    """Visible top/bottom relative to the live text's cap-height anchor."""
+    family=fonts.pick(value)
+    path=font_manager.findfont(font_manager.FontProperties(family=family),fallback_to_default=False)
+    outline=_literal_path(path,value)
+    if outline is None:return (0.,0.)
+    bounds=outline.get_extents()
+    factor=pt*MM_PER_POINT/100
+    cap=_cap_height(path)*pt*MM_PER_POINT/2
+    return cap-bounds.y1*factor,cap-bounds.y0*factor
+
+
+def _row_metrics(row, geom, fonts, config):
+    """One consistent baseline for ordinary rows; grow for actual extra ink.
+
+    The reference line includes capitals, descenders, comma and partial marks.
+    Every actual label/number is measured too, including its selected fallback
+    font. Multiline labels retain independent baselines and expand only their
+    own row. Font size and the validation tolerances are unchanged.
+    """
+    pt=config["body_font_size"]
+    label_start=max(1.7,len(_tag_colors(row,config))*.8+.4)
+    label=fonts.wrap(display_label(row),geom["label_width"]-label_start-1.3,pt)
+    lines=label.split("\n")
+    spans=[_line_ink(fonts,line,pt) for line in lines]
+    step=max(pt*MM_PER_POINT*1.12,max((b-a for a,b in spans),default=0)+.12)
+    offsets=[(i-(len(lines)-1)/2)*step for i in range(len(lines))]
+    extents=[_line_ink(fonts,"Agjpq 0123456789,+()-",pt)]
+    extents.extend((a+d,b+d) for (a,b),d in zip(spans,offsets))
+    values=[(row.get("G",row.get("genome_count")),metric_state(row,"inventory")),
+            (row.get("N"),metric_state(row,"inventory")),
+            (row.get("associated_CDS"),metric_state(row,"associated")),
+            (row.get("effector_CDS"),metric_state(row,"effector"))]
+    values.extend((row.get("source_counts",{}).get(col["source"]),
+                   row.get("source_count_status",{}).get(col["source"])) for col in geom["source_cols"])
+    extents.extend(_line_ink(fonts,number(value,state),pt) for value,state in values)
+    top=min(a for a,b in extents);bottom=max(b for a,b in extents)
+    return {"height":bottom-top+.12,"anchor_offset":.06-top,
+            "label_lines":lines,"line_offsets":offsets,"label_start":label_start}
 
 
 def source_order(result, config):
@@ -64,8 +109,15 @@ def layout(width, fonts, rows, sources, config):
             number_width=max(number_width,fonts.width(number(r.get("source_counts",{}).get(source),r.get("source_count_status",{}).get(source)),body)+1.2)
     source_width=12+1.2+number_width+8.8
     label_width=32.;genome_width=15.;dnmb_width=max(12.,number_width+3.)
-    nuc_width=max(45.,12+1.2+number_width+5.+number_width+4.2)
+    nuc_width=max(45.,12+1.2+number_width+5.+number_width+4.2,
+                  18.9+number_width+fonts.width("Effector CDSs",7.5)+3.,
+                  fonts.width("Putative nuclease-associated CDSs",7.8,True)+.8)
     required=label_width+genome_width+dnmb_width+nuc_width+len(sources)*source_width
+    if required>available and sources:
+        # Use spare space after each number bank before adding source pages.
+        # Neither the 12-mm tracks nor text/count widths are reduced.
+        reduction=min(2.,(required-available)/len(sources))
+        source_width-=reduction;required-=reduction*len(sources)
     if required>available+.01:
         return None
     label_width+=available-required
@@ -108,24 +160,27 @@ def draw_table(c, rows, sources, config, y, name, *, row_height=2.7, header=True
     cursor=y
     for i,r in enumerate(rows):
         rh=row_height[i] if isinstance(row_height,list) else row_height
+        metrics=_row_metrics(r,geom,c.fonts,config)
+        if rh+1e-8<metrics["height"]:
+            raise ValueError("Comparison family label needs a larger row height")
         top=cursor;yy=top+rh/2;cursor+=rh
+        text_y=top+metrics["anchor_offset"]+(rh-metrics["height"])/2
         bounds=[x,top,w,rh]
-        c.rect(x,top,w,rh,"#FAFBFB" if i%2 else "white")
+        shade="#EEF1F3" if r.get("category")=="Unresolved" else ("#FAFBFB" if i%2 else "white")
+        c.rect(x,top,w,rh,shade)
         c.rect(geom["nuc_x"]-1.5,top,geom["nuc_width"],rh,"#F4F9F6")
         colors=_tag_colors(r,config)
         for j,color in enumerate(colors):c.rect(x+j*.8,top+.1,.65,rh-.2,color)
-        label=display_label(r)
-        label_start=max(1.7,len(colors)*.8+.4)
-        label=c.fonts.wrap(label,geom["label_width"]-label_start-1.3,pt)
-        if "\n" in label:
-            # Caller must select a larger row for long labels, never crop them.
-            if c.fonts.height(label,pt)>rh+.1:
-                raise ValueError("Comparison family label needs a larger row height")
-        c.text(x+label_start,yy,label,pt,owner=[x,top,geom["label_width"],rh],ref={"row_id":r["id"],"field":"label"})
+        for line,offset in zip(metrics["label_lines"],metrics["line_offsets"]):
+            draw_manuscript_text(c,x+metrics["label_start"],text_y+offset,line,pt,
+                color="#24393B",owner=[x,top,geom["label_width"],rh],
+                ref={"row_id":r["id"],"field":"label"})
         ref={"table":name,"row_id":r["id"]}
         for val,state,anchor,field in ((r.get("G",r.get("genome_count")),metric_state(r,"inventory"),geom["genome_right"],"genomes"),
                   (r.get("N"),metric_state(r,"inventory"),geom["dnmb_right"],"DNMB")):
-            c.text(anchor,yy,number(val,state),pt,ha="right",owner=bounds,role="numeric",ref=dict(ref,field=field,value=val,status=state))
+            draw_manuscript_text(c,anchor,text_y,
+                number(val,state),pt,ha="right",color="#24393B",owner=bounds,
+                role="numeric",ref=dict(ref,field=field,value=val,status=state))
         a,e=r.get("associated_CDS"),r.get("effector_CDS")
         ast,est=metric_state(r,"associated"),metric_state(r,"effector")
         segments=None
@@ -133,14 +188,20 @@ def draw_table(c, rows, sources, config, y, name, *, row_height=2.7, header=True
             segments=[(e,EFFECTOR),(a-e,ASSOCIATED)]
         c.bar(geom["nuc_x"],yy,a,r.get("N"),ast,ASSOCIATED,segments=segments,ref=dict(ref,field="associated"))
         for val,state,anchor,field in ((a,ast,geom["nuc_total"],"associated"),(e,est,geom["nuc_effector"],"effector")):
-            c.text(anchor,yy,number(val,state),pt,ha="right",role="numeric",owner=bounds,ref=dict(ref,field=field,value=val,status=state))
+            draw_manuscript_text(c,anchor,text_y,
+                number(val,state),pt,ha="right",color="#24393B",role="numeric",
+                owner=bounds,ref=dict(ref,field=field,value=val,status=state))
         for col in geom["source_cols"]:
             source=col["source"];val=r.get("source_counts",{}).get(source);state=r.get("source_count_status",{}).get(source)
             c.bar(col["track"],yy,val,r.get("N"),state,source_color(source,config),ref=dict(ref,field=source))
-            c.text(col["number"],yy,number(val,state),pt,ha="right",role="numeric",owner=bounds,ref=dict(ref,field=source,value=val,status=state))
+            draw_manuscript_text(c,col["number"],text_y,
+                number(val,state),pt,ha="right",color="#24393B",role="numeric",
+                owner=bounds,ref=dict(ref,field=source,value=val,status=state))
         c.line(x,top+rh,x+w,top+rh)
         c.ledger["cells"].append({"kind":"comparison_row","table":name,"row_id":r["id"],"bounds_mm":bounds,
             "count":r.get("N"),"genomes":r.get("G",r.get("genome_count")),"associated":a,"effector":e,
+            "row_height_basis":"visible_glyph_ink","label_lines":metrics["label_lines"],
+            "text_anchor_y_mm":text_y,
             "source_counts":{s:r.get("source_counts",{}).get(s) for s in sources},"source_order":sources,
             "numeric_anchors":{ "DNMB":geom["dnmb_right"],"Total":geom["nuc_total"],"Effector CDSs":geom["nuc_effector"],
               **{col["source"]:col["number"] for col in geom["source_cols"]}},"source_ref":ref})
@@ -148,10 +209,7 @@ def draw_table(c, rows, sources, config, y, name, *, row_height=2.7, header=True
 
 
 def _row_height(rows, geom, fonts, config):
-    pt=config["body_font_size"]
-    heights=[fonts.height("Hg 0123456789 NA+",pt)]
-    heights.extend(fonts.height(fonts.wrap(display_label(r),geom["label_width"]-max(1.7,len(_tag_colors(r,config))*.8+.4)-1.3,pt),pt) for r in rows)
-    return max(heights)+.12
+    return max((_row_metrics(r,geom,fonts,config)["height"] for r in rows),default=0.)
 
 
 def comparison_pages(result, fonts, config, page_factory):
@@ -159,6 +217,7 @@ def comparison_pages(result, fonts, config, page_factory):
     categories=ordered_families(visible_rows(result.get("inventory_rows",{}).get("categories",[])),config)
     families=ordered_families(visible_rows(result.get("inventory_rows",{}).get("families",[])),config)
     sources=source_order(result,config)
+    legend_sources=list(dict.fromkeys([*before.get("source_order",[]),*after.get("source_order",[]),*sources]))
     # Whole source groups repeat across independent source-column pages.
     chunks=[];current=[]
     for source in sources:
@@ -195,7 +254,7 @@ def comparison_pages(result, fonts, config, page_factory):
                 if not allrows:capacity=1
                 if capacity<1:
                     if top==19:raise ValueError("A comparison label cannot fit a single page at the requested font size")
-                    _footer(c,config);pages.append(c);c=page_factory(215.9,279.4,"comparison")
+                    _footer(c,config,legend_sources);pages.append(c);c=page_factory(215.9,279.4,"comparison")
                     c.text(8.45,9,config["title"]+" - continued",11,bold=True);top=19;continue
                 take=rows[:capacity]
                 title="Defense categories" if name=="categories" else "Defense families"
@@ -204,16 +263,22 @@ def comparison_pages(result, fonts, config, page_factory):
                 if not allrows:
                     c.text(10,top+17,"No observed inventory supplied",7.8)
                     end=top+20
-                rows=rows[len(take):];part+=1;top=end+5.5
+                rows=rows[len(take):];part+=1;top=end+3.5
                 if not rows:break
-                _footer(c,config);pages.append(c);c=page_factory(215.9,279.4,"comparison")
+                _footer(c,config,legend_sources);pages.append(c);c=page_factory(215.9,279.4,"comparison")
                 c.text(8.45,9,config["title"]+" - continued",11,bold=True);top=19
-        _footer(c,config);pages.append(c)
+        _footer(c,config,legend_sources);pages.append(c)
     return pages
 
 
-def _footer(c,config):
+def _footer(c,config,sources=()):
     c.rect(8.45,266.1,2,1.4,ASSOCIATED);c.text(11.4,266.8,"Putative nuclease-associated CDSs",7.0)
     c.rect(65,266.1,2,1.4,EFFECTOR);c.text(68,266.8,"Effector CDSs",7.0)
     c.text(c.width-8.45,266.8,"Rows overlap",7.0,ha="right")
-    c.text(8.45,271,"Track: row union · NA: unassessed · +: observed lower bound · Activity untested",7.0)
+    c.text(8.45,271,"Track: row union · NA: unassessed · +: partial · Activity untested",7.0)
+    labels=[f"{alias(s,config)}: {s}" for s in sources if alias(s,config)!=s]
+    if labels:
+        text="; ".join(labels)
+        if c.fonts.width(text,7.0)>c.width-16.9:
+            text="Source abbreviations: see publication caption"
+        c.text(8.45,275.3,text,7.0,role="source_abbreviations")

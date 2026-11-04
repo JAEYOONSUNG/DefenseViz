@@ -1,5 +1,6 @@
 """Synthetic checks for the original five-card vector workflow contract."""
 import math
+from copy import deepcopy
 import xml.etree.ElementTree as ET
 
 import matplotlib
@@ -186,3 +187,132 @@ def test_invalid_explicit_criteria_are_rejected(parameters):
 def test_invalid_bounds_are_rejected(bounds):
     with pytest.raises(ValueError, match="bounds"):
         draw_manuscript_workflow(canvas(), {}, {}, bounds)
+
+
+def pair_rows(group="Explicit pair", left="Modifier (PT)", right="Effector (PT)"):
+    return [{"id": group + "-left", "label": left, "N": 2, "visible": True,
+             "category": "Modification", "display_group": "Modification", "partner_group": group, "partner_order": 0},
+            {"id": group + "-right", "label": right, "N": 1, "visible": True,
+             "category": "Nuclease", "display_group": "Modification", "partner_group": group, "partner_order": 1}]
+
+
+def result_with_families(rows):
+    return {"sources": [], "inventory_rows": {"families": rows}}
+
+
+def test_observed_canonical_pt_display_metadata_restores_original_mini_boxes():
+    rows = pair_rows("PT Ssp", "SspBCD (PT)", "SspE / SspFGH (PT)")
+    rows[0]["id"], rows[1]["id"] = "SspABCD (PT)", "SspFGH (PT)"
+    absent = pair_rows("PT Dnd", "DndABCDE", "DndFGH (PT)")
+    absent[1].update(N=0, visible=False)
+    result = result_with_families([rows[1], *absent, rows[0]])
+    before = deepcopy(result)
+    c = canvas()
+    meta = draw_manuscript_workflow(c, result, {}, [0, 0, 447, 55.53])
+    assert result == before
+    assert meta["pt_pairs"] == [["SspBCD", "SspE / SspFGH"]]
+    selection = meta["pt_pair_selection"]
+    assert selection["origin"] == "observed_family_display_metadata"
+    assert selection["selected"][0]["family_ids"] == ["SspABCD (PT)", "SspFGH (PT)"]
+    assert selection["selected"][0]["labels"] == ["SspBCD (PT)", "SspE / SspFGH (PT)"]
+    assert selection["omitted"][0]["partner_group"] == "PT Dnd"
+    assert not any("Dnd" in label["text"] for label in meta["labels"])
+    assert [box[2] for box in meta["pt_pair_label_boxes_mm"]] == pytest.approx([21*447/417.5, 25*447/417.5])
+    for label in selection["selected"]:
+        assert all(w <= available for w, available in zip(label["widths_mm"], label["available_widths_mm"]))
+    assert not meta["activity_assessed"] and not meta["sample_counts_displayed"]
+    c.validate()
+
+
+def test_default_pairing_requires_authored_metadata_not_familiar_family_names():
+    rows = [{"id": "SspBCD (PT)", "label": "SspBCD (PT)", "N": 3, "category": "Modification"},
+            {"id": "SspFGH (PT)", "label": "SspE / SspFGH (PT)", "N": 2, "category": "Nuclease"}]
+    meta = draw_manuscript_workflow(canvas(), result_with_families(rows), {}, [0, 0, 447, 55.53])
+    assert meta["pt_pairs"] == []
+
+
+@pytest.mark.parametrize("value", [0, None, math.nan, -1, True])
+def test_default_pairing_never_invents_zero_or_unobserved_partner(value):
+    rows = pair_rows()
+    rows[1]["N"] = value
+    meta = draw_manuscript_workflow(canvas(), result_with_families(rows), {}, [0, 0, 447, 55.53])
+    assert meta["pt_pairs"] == []
+    assert meta["pt_pair_selection"]["omitted"][0]["reason"] == "requires_two_observed_visible_families"
+
+
+@pytest.mark.parametrize("edit,reason", [
+    ({"visible": False}, "requires_two_observed_visible_families"),
+    ({"partner_order": None}, "missing_or_ambiguous_partner_order"),
+    ({"partner_order": 0}, "missing_or_ambiguous_partner_order"),
+    ({"display_group": "Other mechanisms"}, "not_declared_modification_display_pair"),
+    ({"label": None}, "missing_display_label"),
+])
+def test_incomplete_or_ambiguous_display_pairs_are_omitted_with_reason(edit, reason):
+    rows = pair_rows(); rows[1].update(edit)
+    meta = draw_manuscript_workflow(canvas(), result_with_families(rows), {}, [0, 0, 447, 55.53])
+    assert meta["pt_pairs"] == []
+    assert meta["pt_pair_selection"]["omitted"][0]["reason"] == reason
+
+
+def test_two_arbitrary_authored_pairs_fit_original_template_without_function_inference():
+    result = result_with_families(pair_rows("A", "Markase (PT)", "Cutase (PT)") +
+                                  pair_rows("B", "Modifier B", "Partner B"))
+    c = canvas()
+    meta = draw_manuscript_workflow(c, result, {}, [0, 0, 279.4, 55.53*279.4/447])
+    assert meta["pt_pairs"] == [["Markase", "Cutase"], ["Modifier B", "Partner B"]]
+    assert "not system membership or activity" in meta["pt_pair_selection"]["scope"]
+    c.validate()
+
+
+def test_pair_group_order_follows_explicit_display_order_before_lexical_order():
+    first = pair_rows("Z", "First mark", "First partner")
+    second = pair_rows("A", "Next mark", "Next partner")
+    for row in first: row["display_order"] = 1
+    for row in second: row["display_order"] = 2
+    meta = draw_manuscript_workflow(canvas(), result_with_families(second + first), {}, [0, 0, 447, 55.53])
+    assert meta["pt_pairs"] == [["First mark", "First partner"], ["Next mark", "Next partner"]]
+
+
+def test_duplicate_family_identity_cannot_make_a_pair_with_itself():
+    rows = pair_rows(); rows[1]["id"] = rows[0]["id"]
+    meta = draw_manuscript_workflow(canvas(), result_with_families(rows), {}, [0, 0, 447, 55.53])
+    assert meta["pt_pairs"] == []
+    assert meta["pt_pair_selection"]["omitted"][0]["reason"] == "duplicate_family_identity"
+
+
+def test_more_than_two_authored_groups_does_not_select_a_silent_subset():
+    rows = sum((pair_rows(group) for group in ("A", "B", "C")), [])
+    result = result_with_families(rows); before = deepcopy(result)
+    meta = draw_manuscript_workflow(canvas(), result, {}, [0, 0, 447, 55.53])
+    assert result == before and meta["pt_pairs"] == []
+    assert len(meta["pt_pair_selection"]["omitted"]) == 3
+    assert {r["reason"] for r in meta["pt_pair_selection"]["omitted"]} == {"more_than_two_display_pairs_no_subset_selected"}
+    assert "pt_pair_label_boxes_mm" not in meta
+
+
+@pytest.mark.parametrize("config,result_pairs,expected,origin", [
+    ({"pt_pairs": []}, [["Result left", "Result right"]], [], "configuration"),
+    ({}, [], [], "result.workflow_pt_pairs"),
+    ({"pt_pairs": [["Configured", "Partner"]]}, [["Result left", "Result right"]], [["Configured", "Partner"]], "configuration"),
+    ({}, [["Result left", "Result right"]], [["Result left", "Result right"]], "result.workflow_pt_pairs"),
+])
+def test_explicit_pairs_and_empty_disable_precede_default_metadata(config, result_pairs, expected, origin):
+    result = result_with_families(pair_rows()); result["workflow_pt_pairs"] = result_pairs
+    meta = draw_manuscript_workflow(canvas(), result, {"manuscript_workflow": config}, [0, 0, 447, 55.53])
+    assert meta["pt_pairs"] == expected and meta["pt_pair_selection"]["origin"] == origin
+
+
+def test_derived_long_labels_are_not_truncated_or_drawn_outside_boxes():
+    rows = pair_rows(left="A deliberately long unshortened modification-family label (PT)")
+    meta = draw_manuscript_workflow(canvas(), result_with_families(rows), {}, [0, 0, 447, 55.53])
+    assert meta["pt_pairs"] == []
+    omitted = meta["pt_pair_selection"]["omitted"][0]
+    assert omitted["reason"] == "labels_exceed_mini_boxes"
+    assert omitted["labels"][0] == rows[0]["label"]
+    assert omitted["display_labels"][0] == rows[0]["label"].removesuffix(" (PT)")
+
+
+def test_explicit_labels_that_cannot_fit_require_shorter_display_configuration():
+    with pytest.raises(ValueError, match="pt_pairs labels exceed.*shorter explicit display labels"):
+        draw_manuscript_workflow(canvas(), {}, {"manuscript_workflow": {
+            "pt_pairs": [["An explicitly configured label much too long for the miniature box", "Partner"]]}}, [0, 0, 447, 55.53])
