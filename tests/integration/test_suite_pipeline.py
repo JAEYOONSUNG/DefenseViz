@@ -136,9 +136,59 @@ def test_failed_suite_publication_leaves_no_partial_output(tmp_path, monkeypatch
 
 def test_suite_cli_options_are_explicit():
     from defenseviz.cli import parser
-    args = parser().parse_args(['from-suite', 'native', '--out', 'result', '--strict-inputs', '--supplement', 'review.json'])
+    args = parser().parse_args(['from-suite', 'native', '--out', 'result', '--strict-inputs', '--supplement', 'review.json', '--rm-evidence', 'evidence.json'])
     assert args.root == Path('native') and args.strict_inputs
     assert args.supplement == Path('review.json')
+    assert args.rm_evidence == Path('evidence.json')
+
+
+def context_supplement_fixture(tmp_path):
+    data, doc, path = binding_fixture(tmp_path)
+    members = [{'gene_id': 'a', 'protein_sha256': data['genes'][0]['protein_sha256']}]
+    data['groups'] = [{'sample_id': 's', 'group_id': 'old', 'membership_kind': 'saved_context',
+                       'provider': 'DNMB', 'members': members, 'source_refs': doc['annotations'][0]['source_refs']}]
+    doc['groups'] = [{'sample_id': 's', 'group_id': 'current', 'membership_kind': 'saved_context',
+                      'members': members, 'supersedes_group_ids': ['old'],
+                      'source_refs': doc['annotations'][0]['source_refs']}]
+    path.write_text(json.dumps(doc))
+    return data, doc, path
+
+
+def test_explicit_current_context_replaces_only_bound_saved_context(tmp_path):
+    data, _, path = context_supplement_fixture(tmp_path)
+    before = copy.deepcopy(data)
+    result = apply_supplement(data, path)
+    assert data == before
+    assert [g['group_id'] for g in result['groups']] == ['current']
+    assert result['suite']['superseded_context_groups'][0]['group'] == data['groups'][0]
+    assert result['groups'][0]['provider'] == 'Review'
+
+
+@pytest.mark.parametrize('mutation', ['unknown', 'native_system', 'outside_boundary', 'duplicate', 'complex'])
+def test_current_context_cannot_hide_unrelated_or_still_referenced_groups(tmp_path, mutation):
+    data, doc, path = context_supplement_fixture(tmp_path)
+    if mutation == 'unknown': doc['groups'][0]['supersedes_group_ids'] = ['absent']
+    if mutation == 'native_system': data['groups'][0]['membership_kind'] = 'native_system'
+    if mutation == 'outside_boundary': data['groups'][0]['members'] = []
+    if mutation == 'duplicate':
+        second = copy.deepcopy(doc['groups'][0]); second['group_id'] = 'other'
+        doc['groups'].append(second)
+    if mutation == 'complex': data['complexes'] = [{'sample_id': 's', 'group_id': 'old'}]
+    path.write_text(json.dumps(doc))
+    with pytest.raises(ValueError): apply_supplement(data, path)
+
+
+def test_suite_reevaluation_is_reported_separately_from_engine_run(tmp_path, monkeypatch):
+    data, _, _ = binding_fixture(tmp_path)
+    data['rm_evaluation'] = {'operation': 'fresh_evaluation_of_stored_RM_evidence', 'scoring_runs': 1, 'records': []}
+    fake_stages(monkeypatch, data)
+    run_suite(tmp_path, tmp_path / 'result', rm_evidence=tmp_path / 'evidence.json')
+    receipt = json.loads((tmp_path / 'result/receipt.json').read_text())
+    assert receipt['operation'] == 'saved_suite_evidence_reevaluation_aggregation_and_render'
+    assert receipt['scoring_runs'] == 1 and receipt['detector_runs'] == 0
+    assert (tmp_path / 'result/rm_evaluation.json').is_file()
+    analyzed = json.loads((tmp_path / 'result/analysis.json').read_text())
+    assert analyzed['provenance']['scoring_runs'] == 1
 
 
 def test_import_warnings_reach_cli_and_receipt(tmp_path, monkeypatch, capsys):

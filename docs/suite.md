@@ -69,6 +69,19 @@ For nonstandard locations, sample-level `genes` and `fasta` paths can be supplie
 `profiles`, `workbook`, `systems`, `fasta`) and a saved `status` when needed.
 All such paths are relative to the manifest. Preserve the actual run status;
 declaring completion is not a way to fill missing output with zeros.
+For multipart DefenseFinder runs, `modules.defensefinder.calls` also accepts a
+nonempty list of files sharing the sample's exact ID map. Each file and row
+retains its provenance. Replicon-specific systems stay distinct and repeated
+memberships do not inflate the unique CDS union.
+
+DefensePredictor's saved `predicted_general_defense` flag is authoritative when
+present. For score-only exports, declare `score_threshold` and `score_operator`
+(`>` or `>=`), or point `decision_metadata` to the producer's JSON containing
+`threshold` and `operator`. Conflicting explicit rules are rejected; a saved
+flag/rule disagreement is recorded and rejected under `--strict-inputs`.
+Legacy exports with neither flag nor rule use the historical inclusive `>= 4`
+fallback, explicitly marked as an assumption in provenance. Missing saved flags
+never become negative calls.
 
 ## What is preserved
 
@@ -77,6 +90,13 @@ predictions, raw REBASE matches and saved DNMB decisions remain distinct.
 Repeated system memberships do not inflate gene totals. HMM hits are evidence,
 not final system members. Original native source counts never acquire DNMB-only
 additions. Native system identifiers remain scoped to their sample and source.
+
+Known source taxonomy names normalize to common display families, including
+CAS/CBASS subtypes and numbered PADLOC PDC families. Exact native family names,
+model IDs and system memberships remain in the audit. This mapping supplies no
+retention or effector evidence. Ambiguous Argonaute exports remain untyped;
+unknown family names are preserved. An explicit user `family_map` takes
+precedence over built-in display aliases.
 
 The importer supports version-dependent augmented REBASE tables and legacy
 workbooks. Explicit saved `curation_keep` and final role/type fields are preserved
@@ -93,10 +113,48 @@ Consequently, older outputs without explicit functional reviews do not reproduce
 the expanded manuscript review automatically. Supply those saved reviews when
 available; unsupported endpoints remain unassessed or observed lower bounds.
 
+Candidate binding and reference-match completeness are separate endpoints.
+An unbound no-hit candidate stays quarantined without implying a lost reference
+match. An unbound or incomplete reference observation keeps reference coverage
+partial. Broader historical candidates remain in the audit; an explicit current
+evaluation scope is preserved in full. The displayed R-M input pool combines
+original R-M annotations, reference hits and explicitly typed current candidates.
+Untyped no-hit nominees remain evaluated/audited without inflating this denominator.
+
 Current exported tables take precedence over cached tables. If live artifacts and
 saved run metadata disagree, the conflict is reported rather than merged away.
 Use `--strict-inputs` to reject these conflicts. A saved completion sentinel proves
 run completion, not that an export was never subsequently edited.
+
+## Restore R-M evaluation for legacy exports
+
+An old REBASE workbook or augmented table may contain candidates but no final
+`curation_keep` field. Importing that file alone cannot supply a retained count.
+When complete DNMB evidence is available separately, evaluate it in the same
+publication workflow:
+
+```sh
+defenseviz from-suite runs --manifest cohort.json \
+  --rm-evidence rm-evidence.json --out evaluated-results
+```
+
+The evidence file binds native input hashes, exact sample/gene identities and
+whole-protein SHA-256 values. Each record supplies all required evidence axes;
+missing boolean assessments are errors, not false values. The selected policy
+and per-CDS decisions are exported in `rm_evaluation.json`. This is fresh
+evaluation of stored evidence, with zero detector runs. Original DF/PAD/DP and
+REBASE memberships are preserved. Unassessed legacy candidates outside the
+evaluated scope remain visible in the exported assessment coverage; partial
+counts display `+` instead of pretending to be complete.
+
+Use the versioned evidence contract in [SUITE_CONTRACT.md](SUITE_CONTRACT.md).
+It does not infer function from a raw homology match or synthesize missing
+motif/context assessments. A contradictory existing saved decision requires an
+explicit choice of the active input run (`decision_mode: "replace_scoped"` in
+the evidence file). Omitted previous candidates remain unassessed and original
+decisions are archived. Later reviewed Type IV components can
+be supplied through the separate review supplement and stay distinguishable
+from policy-retained CDSs.
 
 ## Include saved reviews
 
@@ -145,8 +203,9 @@ detailed landscape: original R-M source mini-bars, the native-source intersectio
 exclusive-membership symbols, family glyphs and taxonomy legends. The main atlas
 orders native columns **PAD, DF, DP**; REB stays a separate reference channel.
 Rings on R-M groups describe supplied support, independently of effector glyphs.
-The intersection excludes the reference channel and never gains later DNMB-only
-additions. Unavailable original-context evidence remains NA.
+The separate reference column counts original reference hits, including untyped
+subjects; it does not assign them an R-M type. The intersection excludes the
+reference channel and never gains later DNMB-only additions. Unavailable original-context evidence remains NA.
 
 Category colors, purple evidence glyphs and optional pink sample highlights match
 the manuscript grammar. Comparative tables separate putative nuclease-associated
@@ -170,7 +229,9 @@ Use `--title "Defense comparison" --layout layout.json` to configure presentatio
 }
 ```
 
-Omit `type_samples` for the default selection; use `[]` to omit type tables.
+Omit `type_samples` to select highlighted typed samples, or all typed samples
+when none are highlighted. Explicitly list every desired comparison sample to
+include unhighlighted external samples in that order; use `[]` to omit type tables.
 `max_rows_per_page` and `max_families_per_page` limit atlas pages.
 `atlas_page_size` sets maximum width/height in millimetres (default 506 × 365).
 The manuscript template requires at least 447 × 200; data rows and family blocks
@@ -192,8 +253,13 @@ Workflow thresholds are supplied presentation provenance, not new evaluation
 parameters. `manuscript_workflow.parameters` accepts saved `retain_cutoff`,
 `max_divergent_gap_bp` and `structure` values; omitted values use qualified saved
 criteria wording. Result-bound values are authoritative; layout may fill a missing
-value or repeat it, but conflicting values are rejected. `manuscript_workflow.pt_pairs` optionally lists displayed
-modification/restriction partners. A layout setting never changes classification.
+value or repeat it, but conflicting values are rejected. Fresh source-bound R-M
+evaluation supplies its actual policy metadata to this schematic.
+`manuscript_workflow.pt_pairs` optionally lists displayed modification/restriction
+partners; an explicit empty list disables them. Otherwise, observed families with
+explicit partner display metadata supply up to two unambiguous examples. Absent
+or ambiguous pairs are not invented, and omission reasons are recorded in the
+layout. A layout setting never changes classification.
 
 The native pipeline automatically attaches `analysis.manuscript_atlas`, a display
 projection built from exact original memberships and saved groups. Python users

@@ -1,6 +1,6 @@
 """Import saved DNMBsuite folders, retaining native identities and decisions.
 
-No detector, scoring predicate or recognition transfer is invoked here. Native
+No detector, model scoring or recognition transfer is invoked here. Native
 completion metadata is separate from the consistency of the selected live files.
 """
 from __future__ import annotations
@@ -9,6 +9,7 @@ import csv
 import hashlib
 import json
 import math
+import re
 import shutil
 import subprocess
 import time
@@ -38,6 +39,25 @@ RM.update({name: "Type II" for name in ("RM_Type_IIG", "RM_type_IIG", "Type IIG"
 # This legacy model is defined in the official tagged DefenseFinder 2.0.2 tree.
 DF_RM_ALIASES = {"RM_Type_IV_1": "Type IV"}
 DF_RM_ALIAS_REFERENCE = "https://github.com/mdmparis/defense-finder-models/blob/2.0.2/definitions/RM/RM/RM_Type_IV_1.xml"
+# Named native systems whose taxonomy is not spelled out by the parent label.
+# This is model taxonomy only: it confers neither a CDS catalytic role nor a
+# retained DNMB annotation. McrBC/GmrSD XML explicitly use Type IV profiles;
+# EcoKMcrA is a modification-dependent restriction system (linked primary work).
+DF_NAMED_TYPE_IV_MODELS = {
+    "McrBC": ("defense-finder-models/RM/McrBC/McrBC", "definitions/RM/McrBC/McrBC.xml"),
+    "GmrSD_RM_Type_IV": ("defense-finder-models/RM/GmrSD_RM_Type_IV/GmrSD_RM_Type_IV",
+                        "definitions/RM/GmrSD_RM_Type_IV/GmrSD_RM_Type_IV.xml"),
+    "EcoKMcrA": ("defense-finder-models/DefenseFinder/EcoKMcrA/EcoKMcrA",
+                "definitions/DefenseFinder/EcoKMcrA/EcoKMcrA.xml"),
+}
+DF_NAMED_TYPE_IV_SOURCE = "https://github.com/mdmparis/defense-finder-models/blob/afb0e5a8b466be53586b13266f5d38d98c3ac268/"
+DF_ECOKMCRA_REFERENCE = "https://doi.org/10.1093/nar/gky731"
+REFERENCE_PAIRS = (
+    ("original_raw", "raw_hit_label", "raw_blast_identity", ("raw_family_id", "family_id", "rm_type", "final_family")),
+    ("legacy_blast", "blast_match", "blast_identity", ("family_id", "rm_type", "final_family")),
+    ("native_blast", "hit_label", "blast_identity", ("family_id", "rm_type", "final_family")),
+    ("curated_blast", "curated_blast_match", "curated_blast_identity", ("curated_blast_family", "family_id", "rm_type", "final_family")),
+)
 
 
 def _value(v):
@@ -75,6 +95,95 @@ def _protein(sequence, where):
     return hashlib.sha256(sequence.encode("ascii")).hexdigest(), len(sequence)
 
 
+def _native_context_label(row, label):
+    """Recognize DNMB's reserved non-BLAST candidate labels, not free text."""
+    if row.get("source") != "rebasefinder" or not isinstance(label, str):
+        return False
+    if row.get("evidence_mode") == "operon_context":
+        parts = label.split(":", 2)
+        return (len(parts) == 3 and parts[0] in {"typeI_context", "typeII_context", "typeIII_context"}
+                and parts[1] in {"R", "M", "S"} and bool(parts[2]))
+    return (row.get("evidence_mode") == "annotation_motif_candidate"
+            and label == "typeIV_context:Mrr_or_modified_DNA_REase")
+
+
+def _reference_pair(row, where):
+    """Use one coherent exported subject/measurement pair, without borrowing."""
+    for origin, subject_key, identity_key, family_keys in REFERENCE_PAIRS:
+        subject, identity = _value(row.get(subject_key)), _value(row.get(identity_key))
+        if subject is not None and identity is not None and not _native_context_label(row, subject):
+            return origin, subject, _number(identity, f"{where} {identity_key}"), family_keys
+    return None
+
+
+def _reference_observation_state(row, pair):
+    """Missing BLAST measurements are unresolved observations, not no-hit rows."""
+    if pair is not None:
+        return "coherent"
+    explicit_subjects = ("raw_hit_label", "blast_match", "curated_blast_match")
+    explicit_identities = ("raw_blast_identity", "blast_identity", "curated_blast_identity")
+    if (any(_value(row.get(k)) is not None and not _native_context_label(row, row[k]) for k in explicit_subjects)
+            or any(_value(row.get(k)) is not None for k in explicit_identities)):
+        return "incomplete"
+    # Generic hit_label is also used by explicitly HMM-only native exports.
+    hmm_only = (str(row.get("source", "")).lower() in {"hmm", "hmmer", "hmm_only"}
+                or row.get("evidence_kind") == "hmm_hit")
+    if _value(row.get("hit_label")) is not None and not hmm_only and not _native_context_label(row, row["hit_label"]):
+        return "incomplete"
+    return "absent"
+
+
+def _native_family_display(provider, family, native, evidence_kind):
+    """Bounded producer taxonomy for display, never catalytic-role inference."""
+    if evidence_kind != "final_member":
+        return None
+    display = category = rule = None
+    reference = None
+    if provider == "DefenseFinder":
+        parent, fqn = _value(native.get("type")), _value(native.get("model_fqn"))
+        lineage = fqn.split("/") if isinstance(fqn, str) else []
+        cas_namespace = len(lineage) == 2 and lineage[0] == "CasFinder" and lineage[-1] == family
+        cas_legacy = (fqn is None and parent in {None, "CAS", "CRISPR-Cas", family}
+                      and (family == "CAS_Cluster" or re.fullmatch(
+                          r"CAS_(?:Class1-Subtype-(?:I|III|IV)|Class2-Subtype-(?:II|V|VI))(?:-[A-Z][0-9]*)?", family)))
+        if cas_namespace or cas_legacy or (fqn is None and parent in {"CAS", "CRISPR-Cas"}):
+            display, category, rule = "CRISPR-Cas", "CRISPR-Cas", "defensefinder_cas_family_display_v1"
+            reference = "https://github.com/macsy-models/CasFinder/tree/3.1.0"
+        cbass_namespace = lineage == ["defense-finder-models", "DefenseFinder", "CBASS", family]
+        cbass_name = re.fullmatch(r"CBASS_(?:I|II|III|IV)(?:_(?:Cap4|Endonuclease|HNH|Other|PNP|Phospholipase|TIR|TM))?", family)
+        if cbass_name and ((parent == "CBASS" and fqn is None) or cbass_namespace):
+            if parent not in {None, "CBASS", family}:
+                raise ValueError("DefenseFinder CBASS namespace contradicts native parent")
+            display, category, rule = "CBASS", "Abortive infection", "defensefinder_cbass_family_display_v1"
+            reference = "https://github.com/mdmparis/defense-finder-models/tree/2.0.2/definitions/DefenseFinder/CBASS"
+        pago = {"pAgo_LongA": ("pAgo LongA", "Nuclease"),
+                "pAgo_LongB_SIRim": ("pAgo LongB-SIRim", "Abortive infection")}
+        if family in pago and ((fqn is None and parent in {"pAgo", family}) or
+                               lineage == ["defense-finder-models", "DefenseFinder", "pAgo", family]):
+            if parent not in {None, "pAgo", family}:
+                raise ValueError("DefenseFinder pAgo namespace contradicts native parent")
+            display, category = pago[family]
+            rule = "defensefinder_exact_pago_family_display_v1"
+            reference = DF_NAMED_TYPE_IV_SOURCE + "definitions/DefenseFinder/pAgo/" + family + ".xml"
+    elif provider == "PADLOC":
+        if re.fullmatch(r"cas_type_(?:(?:I|II|III|IV|V|VI)(?:-[A-Z][0-9]*)?|arrays|other)", family):
+            display, category, rule = "CRISPR-Cas", "CRISPR-Cas", "padloc_cas_family_display_v1"
+        elif re.fullmatch(r"cbass_(?:type_(?:I|II|III|IV|IIs)|other)", family):
+            display, category, rule = "CBASS", "Abortive infection", "padloc_cbass_family_display_v1"
+        elif match := re.fullmatch(r"PDC-([MS])[0-9]{2}", family):
+            display, category, rule = f"PDC-{match[1]} (pooled)", "Unresolved", "padloc_pdc_family_display_v1"
+        elif family == "argonaute_solo":
+            # This native model accepts several pAgo/PIWI classes. It is not
+            # equivalent to DefenseFinder's specific LongA model.
+            display, category, rule = "Argonaute", "Unresolved", "padloc_untyped_argonaute_display_v1"
+        if rule:
+            reference = "https://github.com/padlocbio/padloc-db/blob/v2.0.0/sys/" + family + ".yaml"
+    if rule is None:
+        return None
+    return dict(display_family=display, category=category, rule=rule, reference=reference,
+                inputs={k: native[k] for k in ("type", "subtype", "model_fqn", "system") if k in native})
+
+
 def _sheets(path):
     import zipfile
     import xml.etree.ElementTree as ET
@@ -94,7 +203,7 @@ class SuiteReader:
                                      "effector_evidence", "groups", "complexes", "source_metadata", "evidence_records")}
         self.raw = {k: [] for k in ("sources", "identity_maps", "coverage", "features", "contexts", "motifs",
                                     "structures", "profiles", "scores", "annotations", "reference_matches", "conflicts",
-                                    "capabilities", "warnings", "commands", "unmapped_records", "software_resources")}
+                                    "capabilities", "warnings", "commands", "unmapped_records", "unresolved_contexts", "software_resources")}
         self.raw.update(schema_version=1, source_mode="saved_native_import")
         self.data["suite"] = self.raw
         self.genes = {}
@@ -179,7 +288,8 @@ class SuiteReader:
 
     def conflict(self, sample, module, code, observed, expected, ref=None):
         action = {"malformed_gene_tsv_fallback": "valid_native_workbook_selected", "unbound_native_candidate": "unbound_record_quarantined",
-                  "unbound_eggnog_query": "unbound_record_quarantined", "conflicting_eggnog_query": "all_raw_observations_preserved"}.get(code, "selected_live_artifact_preserved")
+                  "unbound_eggnog_query": "unbound_record_quarantined", "conflicting_eggnog_query": "all_raw_observations_preserved",
+                  "saved_dp_flag_score_rule_mismatch": "native_saved_flag_preserved"}.get(code, "selected_live_artifact_preserved")
         c = dict(sample_id=sample, module=module, code=code, severity="warning", observed=observed,
                  expected=expected, action=action, source_ref=ref)
         self.raw["conflicts"].append(c)
@@ -422,6 +532,7 @@ class SuiteReader:
         category = "R-M" if rm_type else None
         mapping_rule = "native_exact_rm_type_v1" if rm_type else None
         mapping_reference = None
+        mapping_references = None
         if provider == "DefenseFinder":
             parent = _value(native.get("type"))
             fqn = _value(native.get("model_fqn"))
@@ -445,6 +556,16 @@ class SuiteReader:
                         raise ValueError(f"{ref['path']}: contradictory DefenseFinder R-M subtype alias")
                     mapping_rule = "defensefinder_2.0.2_exact_rm_subtype_v1"
                     mapping_reference = DF_RM_ALIAS_REFERENCE
+            named = DF_NAMED_TYPE_IV_MODELS.get(family) if evidence_kind == "final_member" else None
+            if named is not None and (fqn is None or fqn == named[0]):
+                if parent not in {None, "RM", family, "Type IV", "RM_Type_IV", "RM_type_IV"} or (rm_type and rm_type != "Type IV"):
+                    raise ValueError(f"{ref['path']}: named DefenseFinder Type IV model contradicts native taxonomy")
+                category, rm_type = "R-M", "Type IV"
+                mapping_rule = "defensefinder_exact_named_type_iv_model_v1"
+                mapping_reference = DF_NAMED_TYPE_IV_SOURCE + named[1]
+                mapping_references = [mapping_reference]
+                if family == "EcoKMcrA":
+                    mapping_references.append(DF_ECOKMCRA_REFERENCE)
             if parent in {"CAS", "CRISPR-Cas"} or cas_namespace:
                 if category == "R-M":
                     raise ValueError(f"{ref['path']}: contradictory DefenseFinder RM/CAS taxonomy")
@@ -455,18 +576,38 @@ class SuiteReader:
                    role=None, rm_type=rm_type, category=category,
                    evidence_kind=evidence_kind, native_family=family, native_type=typ, native_model=model,
                    source=ref["path"], source_ref=ref, run_id=ref["sha256"], run_id_kind="selected_source_sha256", selected=evidence_kind != "hmm_hit")
-        raw = _canonical(raw, mapping or {}, ref["path"])
+        display = _native_family_display(provider, family, native, evidence_kind)
+        effective_mapping = mapping or {}
+        explicit_display = any(m.get("source") == "family_map" for key in ((provider, family), (None, family))
+                               if (m := effective_mapping.get(key)) is not None)
+        if display and not explicit_display:
+            effective_mapping = {**effective_mapping, (provider, family): dict(
+                category=display["category"], display_family=display["display_family"], rm_type=None,
+                priority=0.5, source="native_taxonomy", caller=provider)}
+        elif display and explicit_display and rm_type is None:
+            # The optional user classification takes precedence over display
+            # taxonomy defaults. Native fields and source provenance stay intact.
+            raw["category"] = None
+        raw = _canonical(raw, effective_mapping, ref["path"])
+        if display and not explicit_display:
+            raw["family_mapping_rule"] = display["rule"]
+            raw["family_mapping_inputs"] = display["inputs"]
+            raw["family_mapping_reference"] = display["reference"]
         if mapping_rule:
             raw["mapping_rule"] = mapping_rule
             raw["mapping_inputs"] = {key: native[key] for key in ("type", "subtype", "model_fqn") if key in native}
             if mapping_reference:
                 raw["mapping_reference"] = mapping_reference
+            if mapping_references:
+                raw["mapping_references"] = mapping_references
             if raw["category_source"] in {"explicit", "native_type"}:
                 raw["category_source"] = "native_system_taxonomy"
         raw["native_fields"] = native
+        if provider == "DefenseFinder" and _value(native.get("replicon")) is not None:
+            raw["replicon_id"] = native["replicon"]
         if self.genes[(sample, gene)].get("protein_sha256"):
             raw["protein_sha256"] = self.genes[(sample, gene)]["protein_sha256"]
-        identity = tuple(raw.get(k) for k in ("sample_id", "gene_id", "caller", "run_id", "system_id", "family", "native_model", "evidence_kind"))
+        identity = tuple(raw.get(k) for k in ("sample_id", "gene_id", "caller", "run_id", "replicon_id", "system_id", "native_family", "native_model", "evidence_kind"))
         previous = self.call_index.get(identity)
         if previous is not None:
             previous.setdefault("source_refs", [previous["source_ref"]]).append(ref)
@@ -476,21 +617,79 @@ class SuiteReader:
         self.data["calls"].append(raw)
         return raw
 
+    def dp_decision_rule(self, override, sample):
+        """Resolve a score rule without replacing a saved classification.
+
+        Older DNMB wrappers used >= 4; other producers use > 4. The legacy
+        fallback is an explicit assumption, not verified producer metadata.
+        """
+        source_rule = {}
+        metadata_ref = None
+        if "decision_metadata" in override:
+            path = self.reader.path(override["decision_metadata"])
+            metadata_ref = self.source(path, sample, "defensepredictor", "decision_metadata")
+            native = self.reader.json(path)
+            if not isinstance(native, dict) or not {"threshold", "operator"} <= native.keys():
+                raise ValueError(f"{path}: DefensePredictor decision_metadata requires threshold and operator")
+            source_rule = {"score_threshold": native["threshold"], "score_operator": native["operator"]}
+        for source, candidate in (("manifest", override), ("decision_metadata", source_rule)):
+            if "score_threshold" in candidate:
+                threshold = candidate["score_threshold"]
+                if isinstance(threshold, bool) or not isinstance(threshold, (int, float)) or not math.isfinite(threshold):
+                    raise ValueError(f"{sample}/{source}: score_threshold must be finite numeric")
+            if "score_operator" in candidate and candidate["score_operator"] not in (">", ">="):
+                raise ValueError(f"{sample}/{source}: score_operator must be '>' or '>='")
+        for key in ("score_threshold", "score_operator"):
+            if key in override and key in source_rule and override[key] != source_rule[key]:
+                raise ValueError(f"{sample}: manifest {key} contradicts DefensePredictor decision_metadata")
+        rule = {}
+        for key, output_key, default, assumed_source in (
+            ("score_threshold", "threshold", 4.0, "legacy_default_assumption_4.0"),
+            ("score_operator", "score_operator", ">=", "legacy_inclusive_assumption"),
+        ):
+            rule[output_key] = override.get(key, source_rule.get(key, default))
+            rule[output_key + "_source"] = ("manifest" if key in override else
+                                             "decision_metadata" if key in source_rule else assumed_source)
+        rule["score_rule_explicit"] = all(key in override or key in source_rule
+                                          for key in ("score_threshold", "score_operator"))
+        if metadata_ref is not None:
+            rule["decision_metadata_source_ref"] = metadata_ref
+        return rule
+
     def comparator(self, directory, spec, module, sample, metadata, families):
         provider = MODULES[module]
         mapping = self.mapping(directory, spec, module, sample)
-        path = self.module_path(directory, spec, module, "calls")
-        if not path.is_file() and "calls" in spec.get("modules", {}).get(module, {}):
-            raise ValueError(f"{path}: explicit call file is missing")
+        override = spec.get("modules", {}).get(module, {})
+        dp_rule = self.dp_decision_rule(override, sample) if module == "defensepredictor" else None
+        selected = override.get("calls")
+        multipart = isinstance(selected, list)
+        if multipart:
+            if module != "defensefinder" or not selected:
+                raise ValueError("Only DefenseFinder calls accepts a nonempty list of artifact paths")
+            paths = [self.reader.path(_string(p, "DefenseFinder calls path")) for p in selected]
+            if len(set(paths)) != len(paths):
+                raise ValueError("DefenseFinder calls paths must be unique")
+        else:
+            paths = [self.module_path(directory, spec, module, "calls")]
+        for path in paths:
+            if not path.is_file() and "calls" in override:
+                raise ValueError(f"{path}: explicit call file is missing")
         systems_path = self.module_path(directory, spec, module, "systems")
-        if module == "defensefinder" and not path.is_file() and systems_path and systems_path.is_file():
-            path = systems_path
-        rows, headers, ref = self.table(path, sample, module, "native_calls") if path.is_file() else ([], set(), None)
-        detailed = self.coverage(sample, module, spec, metadata, ref is not None, len(rows), ref)
+        if module == "defensefinder" and not multipart and not paths[0].is_file() and systems_path and systems_path.is_file():
+            paths = [systems_path]
+        artifacts = [(path, *self.table(path, sample, module, "native_calls")) for path in paths if path.is_file()]
+        refs = [ref for path, rows, headers, ref in artifacts]
+        selected_ref = refs[0] if len(refs) == 1 else None
+        detailed = self.coverage(sample, module, spec, metadata, bool(refs),
+                                 sum(len(rows) for path, rows, headers, ref in artifacts), selected_ref)
+        if multipart:
+            detailed.update(selected_sources=refs, artifact_count=len(refs),
+                            source_scope="explicit_native_artifact_list")
         self.fasta(self.module_path(directory, spec, module, "fasta"), sample, mapping)
         groups = defaultdict(list)
         group_family = {}
-        if ref:
+        group_refs = defaultdict(list)
+        for path, rows, headers, ref in artifacts:
             required = {"defensefinder": {"sys_id", "type"}, "padloc": {"system.number", "seqid", "system", "target.name"},
                         "defensepredictor": {"locus_tag", "mean_log_odds"}}[module]
             if module == "defensefinder" and not ({"hit_id", "protein_in_syst"} & headers):
@@ -498,7 +697,13 @@ class SuiteReader:
             if not required <= headers:
                 raise ValueError(f"{path}: missing required columns {sorted(required - headers)}")
         predicted = set()
-        for number, row in enumerate(rows, 2):
+        if dp_rule is not None and not dp_rule["score_rule_explicit"] and any(
+                rows and "predicted_general_defense" not in headers for path, rows, headers, ref in artifacts):
+            self.warn(f"{sample}/defensepredictor: no saved classification or fully explicit score rule; "
+                      "legacy threshold/operator assumptions recorded in decision_rule")
+        entries = ((path, headers, ref, number, row) for path, rows, headers, ref in artifacts
+                   for number, row in enumerate(rows, 2))
+        for path, headers, ref, number, row in entries:
             rr = {**ref, "row": number}
             if module == "defensefinder":
                 if "protein_in_syst" in headers:
@@ -527,20 +732,41 @@ class SuiteReader:
                 score = _number(row["mean_log_odds"], str(path))
                 if score is None:
                     raise ValueError(f"{path}: missing DefensePredictor score")
-                threshold = spec.get("modules", {}).get(module, {}).get("score_threshold", 4.0)
-                if isinstance(threshold, bool) or not isinstance(threshold, (int, float)) or not math.isfinite(threshold):
-                    raise ValueError(f"{path}: score_threshold must be finite numeric")
+                threshold = dp_rule["threshold"]
+                score_selected = score > threshold if dp_rule["score_operator"] == ">" else score >= threshold
+                if "predicted_general_defense" in headers:
+                    selected = _bool(row["predicted_general_defense"], f"{path}:{number}: predicted_general_defense")
+                    if selected is None:
+                        raise ValueError(f"{path}:{number}: predicted_general_defense requires explicit true/false; missing is unassessed")
+                    selection_source = "native_predicted_general_defense"
+                    if dp_rule["score_rule_explicit"] and selected != score_selected:
+                        self.conflict(sample, module, "saved_dp_flag_score_rule_mismatch", selected,
+                                      {"score": score, "operator": dp_rule["score_operator"],
+                                       "threshold": threshold, "selected": score_selected}, rr)
+                else:
+                    selected = score_selected
+                    selection_source = "explicit_score_rule" if dp_rule["score_rule_explicit"] else "legacy_score_rule_assumption"
                 self.raw["scores"].append(dict(sample_id=sample, gene_id=gene, score_name="mean_log_odds", score=score,
                     sd=_number(row.get("sd_log_odds"), str(path)), min=_number(row.get("min_log_odds"), str(path)),
-                    max=_number(row.get("max_log_odds"), str(path)), threshold=threshold,
-                    threshold_source="manifest" if "score_threshold" in spec.get("modules", {}).get(module, {}) else "DNMB_native_default_4.0",
-                    selected=score >= threshold, source_ref=rr, native_fields=row))
-                if score >= threshold:
-                    self.call(sample, gene, provider, "General defense", None, rr, native=row, mapping=families)
+                    max=_number(row.get("max_log_odds"), str(path)),
+                    **{k: v for k, v in dp_rule.items() if k != "decision_metadata_source_ref"},
+                    score_rule_selected=score_selected, selection_source=selection_source,
+                    selected=selected, source_ref=rr, native_fields=row))
+                if selected:
+                    call = self.call(sample, gene, provider, "General defense", None, rr, native=row, mapping=families)
+                    call["selection_source"] = selection_source
                 continue
             for source_id in ids:
                 gene = self.resolve(sample, source_id, mapping, str(path))
                 binding = "unassessed"
+                replicon = _value(row.get("replicon")) if module == "defensefinder" else None
+                if module == "defensefinder" and replicon is not None:
+                    mapped = self.mapping_records.get((sample, module, source_id), {})
+                    expected_contig = _value(mapped.get("contig_id"))
+                    if expected_contig is not None and replicon != expected_contig:
+                        raise ValueError(f"{path}:{number}: DefenseFinder replicon contradicts the exact gene/contig map")
+                    if expected_contig == replicon or self.genes[(sample, gene)].get("contig") == replicon:
+                        binding = "verified"
                 if module == "padloc":
                     self.gene(sample, gene, {"start": row.get("start"), "end": row.get("end"), "strand": row.get("strand")}, rr)
                     mapped = self.mapping_records.get((sample, module, source_id), {})
@@ -554,32 +780,49 @@ class SuiteReader:
                         binding = "verified"
                 call = self.call(sample, gene, provider, family, system, rr, native=row, model=model, mapping=families)
                 call["replicon_binding"] = binding
-                groups[system].append(gene)
-                group_family[system] = family
+                if replicon is not None:
+                    call["replicon_id"] = replicon
+                group_key = ref["sha256"], system, replicon
+                groups[group_key].append(gene)
+                if group_key in group_family and group_family[group_key] != family:
+                    raise ValueError(f"{path}:{number}: contradictory family for one native system")
+                group_family[group_key] = family
+                if ref not in group_refs[group_key]:
+                    group_refs[group_key].append(ref)
         if module == "defensepredictor":
             mapped = set(mapping.values()) if mapping is not None else {g for s, g in self.genes if s == sample}
             detailed.update(mapped_gene_count=len(mapped), scored_gene_count=len(predicted), missing_gene_count=len(mapped - predicted))
-        for system, members in groups.items():
+        for group_key, members in groups.items():
+            run_id, system, replicon = group_key
+            system_refs = group_refs[group_key]
             unique = list(dict.fromkeys(members))
             contigs = {self.genes[(sample, g)].get("contig") for g in unique}
-            bound_calls = [c for c in self.data["calls"] if c["sample_id"] == sample and c["caller"] == provider and c["system_id"] == system and c["run_id"] == ref["sha256"] and c["evidence_kind"] == "final_member"]
-            verified = all(c.get("replicon_binding") == "verified" for c in bound_calls) if module == "padloc" else None not in contigs and len(contigs) == 1
-            self.data["groups"].append(dict(group_id=json.dumps([sample, provider, ref["sha256"], system]), sample_id=sample,
-                replicon_binding="verified" if verified else "unassessed", contigs=sorted(c for c in contigs if c is not None), provider=provider, run_id=ref["sha256"], native_system_id=system, system_id=system, membership_kind="native_system", family=group_family[system],
-                members=[self.member(sample, g) for g in unique], source_refs=[ref]))
+            bound_calls = [c for c in self.data["calls"] if c["sample_id"] == sample and c["caller"] == provider and c["system_id"] == system and c["run_id"] == run_id and c["evidence_kind"] == "final_member" and (replicon is None or c.get("replicon_id") == replicon)]
+            verified = bool(bound_calls) and all(c.get("replicon_binding") == "verified" for c in bound_calls) if module == "padloc" or replicon is not None else None not in contigs and len(contigs) == 1
+            group_id = [sample, provider, run_id, system]
+            if replicon is not None:
+                group_id.insert(-1, replicon)
+            self.data["groups"].append(dict(group_id=json.dumps(group_id), sample_id=sample,
+                replicon_binding="verified" if verified else "unassessed", replicon_id=replicon,
+                contigs=sorted(c for c in contigs if c is not None), provider=provider, run_id=run_id, native_system_id=system, system_id=system, membership_kind="native_system", family=group_family[group_key],
+                members=[self.member(sample, g) for g in unique], source_refs=system_refs))
         # Check redundant native DF outputs without adding duplicate memberships.
-        if module == "defensefinder" and ref and path != systems_path and systems_path and systems_path.is_file():
+        if module == "defensefinder" and refs and systems_path not in paths and systems_path and systems_path.is_file():
             sr, sh, sf = self.table(systems_path, sample, module, "membership_crosscheck")
             if not {"sys_id", "protein_in_syst"} <= sh:
                 raise ValueError(f"{systems_path}: missing DF system membership columns")
             expected = {(r["sys_id"], self.resolve(sample, i.strip(), mapping, str(systems_path))) for r in sr for i in r["protein_in_syst"].split(",")}
-            observed = {(s, g) for s, gs in groups.items() for g in gs}
+            observed = {(group_key[1], g) for group_key, gs in groups.items() for g in gs}
             if expected != observed:
-                self.conflict(sample, module, "genes_systems_membership_mismatch", len(observed), len(expected), ref)
+                self.conflict(sample, module, "genes_systems_membership_mismatch", len(observed), len(expected), selected_ref)
         self.native_profiles(directory, spec, module, sample, mapping, families)
         versions = (((metadata.get("cache") or {}).get("signature") or {}).get("db_state") or {}).get(provider, {})
-        self.data["source_metadata"].append(dict(sample_id=sample, provider=provider, source_kind="native_module",
-            versions=versions, source_ref=ref, producer_commit=None))
+        source_metadata = dict(sample_id=sample, provider=provider, source_kind="native_module",
+            versions=versions, source_ref=selected_ref, source_refs=refs, producer_commit=None)
+        if dp_rule is not None:
+            source_metadata["decision_rule"] = dict(dp_rule, selection_precedence="saved_flag_then_score_rule",
+                saved_flag_present=any("predicted_general_defense" in headers for path, rows, headers, ref in artifacts))
+        self.data["source_metadata"].append(source_metadata)
         for call in self.data["calls"]:
             if call["sample_id"] == sample and call["caller"] == provider:
                 call["source_version"] = versions
@@ -643,16 +886,33 @@ class SuiteReader:
                 sheet = "All_Augmented_Evidence" if "All_Augmented_Evidence" in sheets else "RM_Comprehensive"
         rows, headers, ref = self.table(path, sample, module, "saved_candidates", sheet=sheet) if path.is_file() else ([], set(), None)
         detail = self.coverage(sample, module, spec, metadata, ref is not None, len(rows), ref)
+        reference_coverage = next(c for c in self.data["coverage"]
+                                  if c["sample_id"] == sample and c["caller"] == "REBASE" and c["endpoint"] == "reference_matches")
+        reference_schema = any({subject, identity} <= headers for _, subject, identity, _ in REFERENCE_PAIRS)
+        if ref is not None and not reference_schema:
+            # A curation/HMM-only export cannot establish a reference-match zero.
+            reference_coverage["status"] = "partial"
+        unbound_count = unbound_reference_count = incomplete_reference_count = 0
         retained_count = 0
         for number, row in enumerate(rows, 2):
             value = row.get("query", row.get("locus_tag", row.get("gene_id")))
             rr = {**ref, "row": number}
+            # Establish the reference endpoint before checking candidate binding.
+            # A no-hit candidate can be unresolved without losing a reference hit.
+            pair = _reference_pair(row, f"{path}:{number}")
+            reference_state = _reference_observation_state(row, pair)
+            if reference_state == "incomplete":
+                incomplete_reference_count += 1
+                reference_coverage["status"] = "partial"
             if (sample, value) not in self.genes:
-                self.raw["unmapped_records"].append(dict(sample_id=sample, module=module, source_ref=rr, native_fields=row, assessment_status="unassessed_unbound_identity"))
+                unbound_count += 1
+                unbound_reference_count += reference_state != "absent"
+                self.raw["unmapped_records"].append(dict(sample_id=sample, module=module, source_ref=rr, native_fields=row,
+                    assessment_status="unassessed_unbound_identity", has_coherent_reference_pair=pair is not None,
+                    reference_observation_state=reference_state))
                 self.conflict(sample, module, "unbound_native_candidate", value, "exact canonical gene identity", rr)
-                for coverage in self.data["coverage"]:
-                    if coverage["sample_id"] == sample and coverage["caller"] == "REBASE":
-                        coverage["status"] = "partial"
+                if pair is not None:
+                    reference_coverage["status"] = "partial"
                 continue
             gene = self.resolve(sample, value, None, str(path))
             self.raw["features"].append(dict(sample_id=sample, gene_id=gene, source_ref=rr, native_fields=row))
@@ -687,18 +947,6 @@ class SuiteReader:
             # Keep each reference subject paired with its own measurements.
             # Raw/original REBASE observations take precedence over a later
             # curated alternative; an incomplete pair never borrows identity.
-            pair = None
-            for origin, subject_key, identity_key, family_keys in (
-                ("original_raw", "raw_hit_label", "raw_blast_identity", ("raw_family_id", "family_id", "rm_type", "final_family")),
-                ("legacy_blast", "blast_match", "blast_identity", ("family_id", "rm_type", "final_family")),
-                ("native_blast", "hit_label", "blast_identity", ("family_id", "rm_type", "final_family")),
-                ("curated_blast", "curated_blast_match", "curated_blast_identity", ("curated_blast_family", "family_id", "rm_type", "final_family")),
-            ):
-                subject = _value(row.get(subject_key))
-                identity = _value(row.get(identity_key))
-                if subject is not None and identity is not None:
-                    pair = (origin, subject, _number(identity, f"{path}:{number} {identity_key}"), family_keys)
-                    break
             if pair is not None:
                 origin, subject, identity, family_keys = pair
                 native_family = next((_value(row.get(k)) for k in family_keys if _value(row.get(k)) is not None), "Unresolved")
@@ -728,6 +976,11 @@ class SuiteReader:
                         break
                     member_ids.append(matches[0])
                 if unresolved:
+                    self.raw["unresolved_contexts"].append(dict(sample_id=sample, gene_id=gene,
+                        family=typ, source_ref=rr, partner_ids=str(partners).split(" | "),
+                        resolved_member_ids=list(dict.fromkeys(member_ids)),
+                        failed_partner_id=partner, matching_gene_ids=matches,
+                        reason="context_partner_requires_one_exact_canonical_identity"))
                     self.warn(f"{sample}/{gene}: saved {typ} context partner identity unresolved; group unavailable")
                     continue
                 group_id = json.dumps([sample, "DNMB", ref["sha256"], number, prefix])
@@ -743,8 +996,15 @@ class SuiteReader:
             sentinel = detail.get("sentinel") or {}
             if "curation_keep" in headers and sentinel.get("n_hits") is not None and retained_count != sentinel["n_hits"]:
                 self.conflict(sample, module, "sentinel_live_retained_count_mismatch", retained_count, sentinel["n_hits"], ref)
+        binding_status = "partial" if unbound_count else "complete" if ref is not None else "unassessed"
+        detail.update(reference_pair_schema=reference_schema, candidate_binding_status=binding_status,
+            candidate_row_count=len(rows), bound_candidate_row_count=len(rows)-unbound_count,
+            unbound_candidate_row_count=unbound_count, unbound_reference_row_count=unbound_reference_count,
+            incomplete_reference_row_count=incomplete_reference_count)
         self.raw["capabilities"].append(dict(sample_id=sample, saved_retention="curation_keep" in headers,
-            native_candidates=ref is not None, candidate_count=len(rows), reference_scope="exported_candidates", retained_row_count=retained_count if "curation_keep" in headers else None))
+            native_candidates=ref is not None, candidate_count=len(rows), candidate_binding_status=binding_status,
+            unbound_candidate_row_count=unbound_count, reference_scope="exported_candidates",
+            retained_row_count=retained_count if "curation_keep" in headers else None))
         for name, destination in (("DNMB_REBASEfinder_motif_hits.tsv", "motifs"), ("DNMB_REBASEfinder_motif_hits_raw.tsv", "motifs"),
             ("DNMB_REBASEfinder_structure_coverage.tsv", "structures"), ("DNMB_REBASEfinder_motif_geometry.tsv", "structures"),
             ("DNMB_REBASEfinder_homology_templates.tsv", "structures"), ("foldseek_results.tsv", "structures")):
@@ -907,8 +1167,10 @@ def load_suite(root, *, manifest=None, rscript=None, strict_inputs=False):
         if not isinstance(modules, dict) or set(modules) - set(MODULES):
             raise ValueError("suite modules must use defensefinder,padloc,defensepredictor,rebasefinder")
         for name, override in modules.items():
-            if not isinstance(override, dict) or set(override) - {"calls", "systems", "id_map", "profiles", "fasta", "workbook", "status", "score_threshold"}:
+            if not isinstance(override, dict) or set(override) - {"calls", "systems", "id_map", "profiles", "fasta", "workbook", "status", "score_threshold", "score_operator", "decision_metadata"}:
                 raise ValueError(f"{name}: invalid module override")
+            if name != "defensepredictor" and set(override) & {"score_operator", "decision_metadata"}:
+                raise ValueError(f"{name}: score_operator and decision_metadata are DefensePredictor-only")
         r.gene_annotations(directory, spec, sample)
         metadata = r.metadata(directory, sample)
         for module in ("defensefinder", "padloc", "defensepredictor"):

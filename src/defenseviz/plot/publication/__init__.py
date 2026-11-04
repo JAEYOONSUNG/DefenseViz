@@ -141,6 +141,7 @@ def _config(title, options):
     for field in ("source_order","atlas_source_order","category_order","font_fallbacks"):
         if not isinstance(config[field],(list,tuple)) or any(not isinstance(v,str) or not v for v in config[field]) or len(set(config[field]))!=len(config[field]):raise ValueError(field+" needs unique nonempty strings")
     if config["type_samples"] is not None and (not isinstance(config["type_samples"],(list,tuple)) or any(not isinstance(s,str) for s in config["type_samples"])):raise ValueError("type_samples must be a sample-id list or null")
+    if config["type_samples"] is not None and len(set(config["type_samples"])) != len(config["type_samples"]):raise ValueError("type_samples must contain distinct sample identities")
     if any(not isinstance(v,str) or not v for v in config["aliases"].values()):raise ValueError("Source aliases need nonempty strings")
     return config
 
@@ -212,11 +213,11 @@ def render_publication(result:dict, output_dir:Path, *, title="DefenseViz", **la
             f"Outside original source memberships: {outside_label}. "
             f"Priority CDSs outside the shared sample scope: {item.get('excluded_selected_count','unassessed')}.")
     caption.write_text("# DefenseViz publication figures\n\nSaved annotations and source-bound evidence are summarized without a new detector run. "
-        "Source agreement and reference homology are not biological validation. Missing outputs remain unassessed; '+' marks partial evidence. Counts in incomplete exclusive-source patterns may change in either direction as coverage improves.\n\n"
-        "Atlas: category-colored disks encode binned CDS membership. A purple outline marks putative nuclease-associated membership; inner purple area is the effector/total fraction within that disk. '?' marks unassessed association or effector evidence. "
+        "Source agreement and reference homology are not biological validation. Missing outputs remain unassessed; '+' marks partial assessment. Counts in incomplete exclusive-source patterns may change in either direction as coverage improves.\n\n"
+        "Atlas: category-colored disks encode binned CDS membership. A purple outline marks putative nuclease-associated membership; inner purple area is the effector/total fraction within that disk. 'NA' marks unassessed counts and '?' marks unassessed association or effector evidence. Pink rows are explicitly selected sample highlights, not an inferred phenotype. "
         "Effector CDSs include individually supported annotations and required cores of complete reviewed complexes; individual catalysis is not assigned to every core.\n\n"
         "R-M role rings mark support for at least one CDS; context rings mean every displayed group has supplied R support. A reference dot is separately curated context evidence, not a raw homology match.\n\n"
-        "Type benchmarks: unique CDS inventories and component roles are distinct. Parentheses identify included incomplete retained R contexts or orphan M/S subsets; these are not activity calls.\n\n"
+        "Type benchmarks: unique CDS inventories and component roles are distinct. Counts and their assessment states are conditional on each observed assigned-type pool; unassessed candidates outside that pool remain in the audit. The atlas R-M input pool is broader: original R-M source/reference memberships plus typed current DNMB candidates. Untyped no-hit nominees remain evaluated/audited but do not inflate that R-M denominator. Parentheses identify included incomplete retained R contexts or orphan M/S subsets; these are not activity calls.\n\n"
         "Comparison: original source memberships are restricted to the declared priority set. Venn areas are schematic; intersection tables preserve exact memberships when Venn labels cannot fit. "
         "Category/family rows overlap. Equal bar tracks use each row union; associated totals and effector counts are separate columns.\n\n"
         +"Priority definition: "+str(result.get("endpoint_definitions",{}).get("priority","declared analysis priority set; activity unassessed"))+".\n\n"

@@ -84,25 +84,80 @@ def _mini_bar(c,x,y,w,value,state,scale,color,ref,reserve_width=None):
     _value(c,x,y,w,value,state,ref,True)
 
 
-def _fraction(c,x,y,w,n,den,state,kind,scale=None,denstate=None):
+def _fraction_layout(fonts,records,kind):
+    """One measured label reservation/linear bar track for the whole column."""
+    nominal,preferred,left = {"intersection":(17.85,5.,.5),
+                              "retained":(11.76,3.25,.4),
+                              "noncanonical":(14.49,3.7,.4)}[kind]
+    labels=[(number(n,state),number(den,denstate or state))
+            for n,den,state,denstate in records
+            if status_kind(state)!="unassessed" and n is not None and den is not None]
+    numerator=max((fonts.width(n,NUM,kind=="retained") for n,_ in labels),default=0.)
+    denominator=max((fonts.width(d,NUM) for _,d in labels),default=0.)
+    slash=fonts.width("/",NUM)
+    # Keep the approved font and physical column width for ordinary counts.
+    # A four-digit partial fraction can require a wider column; never hide its
+    # bar or let the text spill into adjacent evidence columns to fit it.
+    # Retained bars keep their original visual scale: make room for wider
+    # labels by widening the column, never by reducing that 3.25 mm track.
+    right=.7;gap=.18;track_gap=.24;minimum_track=preferred if kind=="retained" else .5
+    reserved=numerator+denominator+slash+2*gap
+    width=max(nominal,left+minimum_track+track_gap+reserved+right)
+    track=preferred if kind=="retained" else min(preferred,width-left-right-reserved-track_gap)
+    return dict(width_mm=width,track_width_mm=track,numerator_width_mm=numerator,
+                denominator_width_mm=denominator,slash_width_mm=slash,
+                left_padding_mm=left,right_padding_mm=right,text_gap_mm=gap,
+                track_gap_mm=track_gap,font_pt=NUM)
+
+
+def _fraction(c,x,y,w,n,den,state,kind,scale=None,denstate=None,layout=None):
     if status_kind(state)=="unassessed" or n is None or den is None:
         _text(c,x+w-.7,y,"NA",ha="right",role="numeric")
         return
+    layout=layout or _fraction_layout(c.fonts,[(n,den,state,denstate)],kind)
+    if w+1e-8<layout["width_mm"]:
+        raise ValueError("Fraction counts exceed available column width; expand the atlas fraction column")
+    track=layout["track_width_mm"];left=x+layout["left_padding_mm"]
     if kind=="intersection":
-        track=5.;offsets=(10.2,10.95,11.65);base="#C8DDDA";fill="#68A19C"
-        bw=track if den else 0;fw=track*n/den if den else 0;left=x+.5
+        base="#C8DDDA";fill="#68A19C"
+        bw=track if den else 0;fw=track*n/den if den else 0
     elif kind=="retained":
-        track=3.25;offsets=(6.,6.75,7.45);base=TEAL;fill="#124F4C";left=x+.4
+        base=TEAL;fill="#124F4C"
         bw=track*den/max(scale or den,den,1);fw=track*n/max(scale or den,den,1)
     else:
-        track=3.7;offsets=(8.15,8.9,9.6);base="#F2D6C3";fill=PURPLE;left=x+.4
+        base="#F2D6C3";fill=PURPLE
         bw=track if den else 0;fw=track*n/den if den else 0
     if bw:c.rect(left,y-.725,bw,1.45,base)
     if fw:c.rect(left,y-.725,fw,1.45,fill)
     c.ledger["bars"].append({"bounds_mm":[left,y-.725,bw,1.45],"value":n,"denominator":den,
-        "status":status_kind(state),"source_ref":{"endpoint":kind},"kind":"atlas_fraction"})
-    for i,(label,ha) in enumerate(zip((number(n,state),"/",number(den,denstate or state)),("right","center","left"))):
-        _text(c,x+offsets[i],y,label,ha=ha,bold=kind=="retained" and i==0,role="numeric")
+        "status":status_kind(state),"source_ref":{"endpoint":kind},"kind":"atlas_fraction",
+        "track_width_mm":track,"filled_width_mm":fw,"scale":scale if kind=="retained" else den})
+    den_right=x+w-layout["right_padding_mm"]
+    slash_center=den_right-layout["denominator_width_mm"]-layout["text_gap_mm"]-layout["slash_width_mm"]/2
+    num_right=slash_center-layout["slash_width_mm"]/2-layout["text_gap_mm"]
+    first_artist=len(c.text_artists)
+    for i,(label,anchor,ha) in enumerate(zip((number(n,state),"/",number(den,denstate or state)),
+                                           (num_right,slash_center,den_right),("right","center","right"))):
+        _text(c,anchor,y,label,ha=ha,bold=kind=="retained" and i==0,role="numeric",
+              owner=[x,y-ROW/2,w,ROW],ref={"endpoint":kind,"part":("numerator","separator","denominator")[i]})
+    # Commas in large counts extend below the usual capital-height anchor.
+    # Fit the real ink bounds inside the same row, moving the whole fraction
+    # baseline together without reducing the approved type size.
+    artists=c.text_artists[first_artist:]
+    renderer=c.fig.canvas.get_renderer();bounds=[]
+    for artist,_ in artists:
+        box=artist.get_window_extent(renderer)
+        bounds.append((c.ax.transData.inverted().transform((box.x0,box.y1))[1],
+                       c.ax.transData.inverted().transform((box.x1,box.y0))[1]))
+    low=y-ROW/2+.04-min(a for a,_ in bounds)
+    high=y+ROW/2-.04-max(b for _,b in bounds)
+    if low>high:
+        raise ValueError("Fraction text exceeds the atlas row height; increase the row size")
+    shift=min(max(0.,low),high)
+    if shift:
+        for artist,meta in artists:
+            artist.set_y(artist.get_position()[1]+shift)
+            meta["anchor_mm"][1]+=shift;meta["baseline_mm"][1]+=shift
 
 
 def _family_glyph(c,x,y,row,family,config):
@@ -136,7 +191,9 @@ def _family_glyph(c,x,y,row,family,config):
 def _role_glyph(c,x,y,w,record,key,kind):
     n=record.get("count");state=record.get("status")
     if n is None or status_kind(state)=="unassessed":
-        _text(c,x+w/2,y,"NA",6.7,ha="center");return
+        # Status marks need visible separation even in adjacent one-CDS cells.
+        mark_pt=min(6.7,6.7*(CELL-.45)/c.fonts.width("NA",6.7))
+        _text(c,x+w/2,y,"NA",mark_pt,ha="center");return
     if not n:
         if status_kind(state)=="partial":_text(c,x+w/2,y,"0+",6.7,ha="center",role="numeric")
         return
@@ -171,20 +228,21 @@ def _remap_masks(row,old,new):
             for item in row.get("noncanonical",{}).get("masks",[]) if len(item["mask"])==len(old)}
 
 
-def _layout(families,sources,refs,config):
+def _layout(families,sources,refs,config,fractions=None):
+    fractions=fractions or {}
     panels=OrderedDict();x=6.04875
     def add(name,width,gap=GAP):
         nonlocal x
         panels[name]={"left":x,"right":x+width};x+=width+gap
     add("RM_callers",len(sources)*7.56)
     if refs:add("REBASE",len(refs)*7.56)
-    add("RM_pool",17.85)
+    add("RM_pool",fractions.get("intersection",{}).get("width_mm",17.85))
     add("RM_integrated",sum(z[4]*CELL for z in ROLE_COLUMNS))
-    add("Retained_summary",11.76,MAJOR)
+    add("Retained_summary",fractions.get("retained",{}).get("width_mm",11.76),MAJOR)
     add("NonRM_callers",len(sources)*7.56,MAJOR)
     masks=_mask_order(len(sources));exclusive=masks[:-1]
     add("cases",len(exclusive)*CELL)
-    add("NonRM_summary",14.49,MAJOR)
+    add("NonRM_summary",fractions.get("noncanonical",{}).get("width_mm",14.49),MAJOR)
     groups=OrderedDict()
     for f in families:groups.setdefault(_category(f),[]).append(f)
     fpos={}
@@ -231,8 +289,9 @@ def _headers(c,panels,groups,fpos,sources,refs,config,dy=0):
         _badge(c,ll+17,64+dy,5,"#52626A")
         text(ll+20.7,64,"Complementary defense priorities",12,bold=True)
     p=panels
-    ref_right=p["REBASE"]["right"] if refs else p["RM_callers"]["right"]
-    text((p["RM_callers"]["left"]+ref_right)/2,80,"R-M CDSs in",9.24,bold=True,ha="center")
+    text((p["RM_callers"]["left"]+p["RM_callers"]["right"])/2,80,"R-M CDSs in",9.24,bold=True,ha="center")
+    if refs:
+        text((p["REBASE"]["left"]+p["REBASE"]["right"])/2,80,"Hits",9.24,bold=True,ha="center")
     for name,keys in (("RM_callers",sources),("REBASE",refs),("NonRM_callers",sources)):
         if not keys:continue
         for i,source in enumerate(keys):text(p[name]["left"]+(i+.5)*7.56,85,alias(source,config),8.82,ha="center")
@@ -414,6 +473,9 @@ def _legend(c,model,panels,groups,fpos,masks,sources,rows,bottom,sampleleft,conf
     if any(_absence_cell(r,fid) for r in rows for fid in fpos):extras.append(("No "+str(model.get("absence_label","saved family")),"#D0CFE5"))
     marker=config.get("sample_marker")
     if any(_marker_selected(r,marker) for r in rows):extras.append((marker["label"],marker["color"]))
+    if extras:
+        _text(c,tx,fy,"Annotations",8.1,bold=True)
+        fy+=4
     for i,(label,color) in enumerate(extras):
         xx=tx+(i%2)*40;yy=fy+(i//2)*4
         c.rect(xx,yy-1.2,2.2,2.2,color);_text(c,xx+4,yy,label,7.8)
@@ -439,23 +501,36 @@ def manuscript_atlas_pages(result,fonts,config,page_factory):
             if explicit and not declared and row.get(field):taxonomy_colors[field][row[field]]=explicit
     families=ordered_families(visible_rows(model.get("families",[])),config)
     families=[f for f in families if f.get("category")!="R-M"]
+    allrows=model.get("rows",[])
+    fractions={}
+    for kind,record_key,nkey,dkey,skey,dskey in (
+        ("intersection","rm_original","intersection_CDS","input_pool_CDS","intersection_status","pool_status"),
+        ("retained","retained","R_CDS","total_CDS","status","status"),
+        ("noncanonical","noncanonical","intersection_CDS","pool_CDS","intersection_status","pool_status")):
+        records=[row.get(record_key,{}) for row in allrows]
+        fractions[kind]=_fraction_layout(fonts,[(r.get(nkey),r.get(dkey),r.get(skey),r.get(dskey)) for r in records],kind)
+    # Reserve adjacent inter-panel whitespace for headings as well as numbers.
+    # A wider fallback font must not overlap the separate reference heading.
+    fractions["intersection"]["width_mm"] = max(
+        fractions["intersection"]["width_mm"],
+        fonts.width("Intersection",9.24,True)-2*GAP+.4,
+        fonts.width("(n/R-M pool)",9.6)-2*GAP+.4)
     family_pages=[];block=[]
     maxwidth=config["atlas_page_size"][0]
     for f in families:
         trial=block+[f]
-        if block and (_layout(trial,sources,refs,config)[-1]>maxwidth or len(trial)>config["max_families_per_page"]):
+        if block and (_layout(trial,sources,refs,config,fractions)[-1]>maxwidth or len(trial)>config["max_families_per_page"]):
             family_pages.append(block);block=[]
         block.append(f)
     family_pages.append(block)
     pages=[]
     for fs in family_pages:
-        panels,groups,fpos,masks,sampleleft,width=_layout(fs,sources,refs,config)
+        panels,groups,fpos,masks,sampleleft,width=_layout(fs,sources,refs,config,fractions)
         # Preserve original header grammar. Small inventories use an explicit
         # heading key above the matrix rather than colliding five long headings.
         small=any(len(groups.get(k,[]))<v for k,v in (("Modification",7),("Nuclease",17)))
         dy=max(15.,max((fonts.width("Other" if k=="Other mechanisms" else k,9.6,True)-12.8 for k in groups),default=0.)) if small else 0.
         maxrows=max(1,min(config["max_rows_per_page"],int((config["atlas_page_size"][1]-BODY_TOP-dy-55)/ROW)))
-        allrows=model.get("rows",[])
         labelwidth=max((sum(fonts.width(part,NUM,bool(r.get("highlight"))) for part in _strain_parts(r))+2 for r in allrows),default=58.)
         width=max(width,min(maxwidth,sampleleft+labelwidth+8))
         chunks=[allrows[i:i+maxrows] for i in range(0,len(allrows),maxrows)] or [[]]
@@ -469,6 +544,7 @@ def manuscript_atlas_pages(result,fonts,config,page_factory):
             c=page_factory(width,height,"atlas")
             c.ledger["atlas_style"]="manuscript"
             c.ledger["panel_bounds"]={k:dict(v,top=top,bottom=bottom) for k,v in panels.items()}
+            c.ledger["fraction_layout"]=fractions
             c.ledger["model_provenance"]=model.get("provenance",{})
             draw_manuscript_workflow(c,result,config,[0,0,447.,55.53])
             if small:
@@ -515,17 +591,17 @@ def manuscript_atlas_pages(result,fonts,config,page_factory):
                         x=panels[name]["left"]+j*7.56;_cell(c,x,y,7.56,ROW)
                         _mini_bar(c,x,cy,7.56,data.get(source),status.get(source),scale,color,{"sample_id":sid,"source":source,"panel":name},reservations[name])
                 pp=panels["RM_pool"];_cell(c,pp["left"],y,pp["right"]-pp["left"],ROW)
-                _fraction(c,pp["left"],cy,17.85,raw.get("intersection_CDS"),raw.get("input_pool_CDS"),raw.get("intersection_status"),"intersection",denstate=raw.get("pool_status"))
+                _fraction(c,pp["left"],cy,pp["right"]-pp["left"],raw.get("intersection_CDS"),raw.get("input_pool_CDS"),raw.get("intersection_status"),"intersection",denstate=raw.get("pool_status"),layout=fractions["intersection"])
                 for field,value,state in (("rm_pool_CDS",raw.get("input_pool_CDS"),raw.get("pool_status")),("rm_intersection_CDS",raw.get("intersection_CDS"),raw.get("intersection_status"))):
-                    c.ledger["cells"].append({"kind":"atlas_evidence","sample_id":sid,"field":field,"value":value,"status":state,"bounds_mm":[pp["left"],y,17.85,ROW]})
+                    c.ledger["cells"].append({"kind":"atlas_evidence","sample_id":sid,"field":field,"value":value,"status":state,"bounds_mm":[pp["left"],y,pp["right"]-pp["left"],ROW]})
                 x=panels["RM_integrated"]["left"]
                 for key,kind,typ,label,units in ROLE_COLUMNS:
                     w=units*CELL;fill=PINK if row.get("highlight") else "#FAF8FC" if key in ("I_MS","III_M") and kind=="context" else "#F6F8F7" if kind=="context" else None
                     _cell(c,x,y,w,ROW,fill);rec=row.get("compositions" if kind=="context" else "rm_roles",{}).get(key,{})
                     _role_glyph(c,x,cy,w,rec,key,kind);x+=w
                     if key in ("I_RMS","II_M","III_MR","IV_A"):c.line(x,y,x,y+ROW,"#8C999E",.4875)
-                pp=panels["Retained_summary"];ret=row.get("retained",{});_cell(c,pp["left"],y,11.76,ROW)
-                _fraction(c,pp["left"],cy,11.76,ret.get("R_CDS"),ret.get("total_CDS"),ret.get("status"),"retained",scale_ret)
+                pp=panels["Retained_summary"];ret=row.get("retained",{});_cell(c,pp["left"],y,pp["right"]-pp["left"],ROW)
+                _fraction(c,pp["left"],cy,pp["right"]-pp["left"],ret.get("R_CDS"),ret.get("total_CDS"),ret.get("status"),"retained",scale_ret,layout=fractions["retained"])
                 rowmasks=_remap_masks(row,model.get("source_order",[]),sources)
                 for j,mask in enumerate(masks[:-1]):
                     x=panels["cases"]["left"]+j*CELL;_cell(c,x,y,CELL,ROW)
@@ -536,8 +612,8 @@ def manuscript_atlas_pages(result,fonts,config,page_factory):
                         if status_kind(state)=="partial":_text(c,x+CELL-.1,cy-1,"+",6.7,ha="right")
                     elif status_kind(state)=="partial":_text(c,x+CELL/2,cy,"0+",6.7,ha="center")
                     c.ledger["cells"].append({"kind":"exclusive","sample_id":sid,"mask":mask,"count":n,"status":state,"bounds_mm":[x,y,CELL,ROW]})
-                pp=panels["NonRM_summary"];_cell(c,pp["left"],y,14.49,ROW)
-                _fraction(c,pp["left"],cy,14.49,nc.get("intersection_CDS"),nc.get("pool_CDS"),nc.get("intersection_status"),"noncanonical",denstate=nc.get("pool_status"))
+                pp=panels["NonRM_summary"];_cell(c,pp["left"],y,pp["right"]-pp["left"],ROW)
+                _fraction(c,pp["left"],cy,pp["right"]-pp["left"],nc.get("intersection_CDS"),nc.get("pool_CDS"),nc.get("intersection_status"),"noncanonical",denstate=nc.get("pool_status"),layout=fractions["noncanonical"])
                 for f in fs:
                     x=fpos[f["id"]];cell=row.get("cells",{}).get(f["id"],{})
                     absent=_absence_cell(row,f["id"])
