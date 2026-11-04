@@ -10,7 +10,7 @@ The private source-bound display projection passes 16,094 comparisons against th
 
 ## General inputs and verification
 
-- **458 automated tests passed** on the final local source, with source hashes unchanged throughout execution.
+- **461 automated tests passed** on the final local source, with source hashes unchanged throughout execution.
 - A wheel installed in a fresh environment passes both CLI workflows outside the checkout (`CLEAN_INSTALL_OK`).
 - All **seven real native folders** import and render with consumed input hashes unchanged.
 

@@ -270,17 +270,21 @@ def enrich_manuscript_model(bundle, result):
         if not members <= retained:
             raise ValueError("Atlas saved context retained member conflicts with saved decision")
         typ = _TYPES.get(g.get("rm_type") or g.get("family"))
-        unknown_composition = typ is None or any(
+        unknown_member_role = typ is None or any(
             not any(t == typ and role in {"R","M","S","RM","Aux","C","F"}
                     for t,role in assignments[k]) for k in members)
-        if unknown_composition:
-            unresolved_group_samples.add(sid)
         roles = set().union(*({"R","M"} if role == "RM" else {role}
                              for k in members for t,role in assignments[k] if t == typ))
+        settled_class = ((typ == "Type I" and {"R","M","S"} <= roles) or
+                         (typ == "Type III" and {"R","M"} <= roles))
+        unknown_composition = unknown_member_role and not settled_class
+        if unknown_composition:
+            unresolved_group_samples.add(sid)
         cls = None if unknown_composition else (("I_RMS" if "R" in roles else "I_MS") if typ == "Type I" and {"M","S"} <= roles else ("III_MR" if "R" in roles else "III_M") if typ == "Type III" and "M" in roles else None)
         row = dict(sample_id=sid,group_id=gid,group_ids=[gid],provider=g["provider"],run_id=g.get("run_id"),family=typ,
             composition_class=cls,member_keys=_keys(members),original_member_keys=_keys(original),
             composition_status="unassessed" if unknown_composition else "complete",
+            member_role_status="partial" if unknown_member_role else "complete",
             context_state=g.get("context_state","unassessed"),rm_R_support="unassessed",rm_reference_link="unassessed",
             source_refs=deepcopy(g.get("source_refs",[])),evidence_refs=[])
         # Reciprocal exported partner rows can describe the same exact context.

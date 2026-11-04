@@ -515,3 +515,43 @@ def test_contradictory_sample_and_declared_taxonomy_colors_are_rejected(field):
     with pytest.raises(ValueError,match="(?i)(taxonomy.*colo|contradict.*colo|colo.*conflict)"):
         render_pages(result)
     assert result==before
+
+
+def test_later_explicit_taxonomy_color_fills_earlier_unset_rows_and_null_legend_color():
+    result=synthetic_result(samples=3,categories=[("Nuclease",1)])
+    model=result["manuscript_atlas"]
+    # This is the default projection when the first observed sample had no
+    # explicit color: the key exists, but its legend color is still unset.
+    model["taxonomy_legend"]={
+        "genera":[{"key":"Syntheticus","label":"Syntheticus","color":None}],
+        "species":[{"key":"example","label":"S. example","color":None}]}
+    for sample in (model["samples"][1],model["rows"][1]):
+        sample["display"].update(genus_color="#123456",species_color="#C45123")
+    before=deepcopy(result);page=render_pages(result)[0]
+    assert result==before
+    top=page.ledger["panel_bounds"]["RM_callers"]["top"]
+    for x,color in [(2.35,"#123456"),(4.03,"#C45123")]:
+        for row in range(3):
+            strips=rectangles_at(page,x,top+row*3.05,1.365,3.05)
+            assert len(strips)==1 and strips[0].get_facecolor()==to_rgba(color)
+        swatches=[p for p in page.ax.patches if isinstance(p,Rectangle)
+                  and math.isclose(p.get_width(),2.2) and math.isclose(p.get_height(),2.2)
+                  and p.get_facecolor()==to_rgba(color)]
+        assert len(swatches)==1
+    page.validate()
+
+
+def test_conflicting_later_taxonomy_colors_rejected_when_first_sample_color_is_unset():
+    for field in ("genus_color","species_color"):
+        result=synthetic_result(samples=3,categories=[("Nuclease",1)])
+        model=result["manuscript_atlas"]
+        model["taxonomy_legend"]={
+            "genera":[{"key":"Syntheticus","label":"Syntheticus","color":None}],
+            "species":[{"key":"example","label":"S. example","color":None}]}
+        for index,color in [(1,"#123456"),(2,"#654321")]:
+            for sample in (model["samples"][index],model["rows"][index]):
+                sample["display"][field]=color
+        before=deepcopy(result)
+        with pytest.raises(ValueError,match="(?i)(taxonomy.*colo|contradict.*colo|colo.*conflict)"):
+            render_pages(result)
+        assert result==before
