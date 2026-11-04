@@ -141,7 +141,14 @@ Optional manifest `options.manuscript_atlas` accepts `source_order`, per-sample
 exports; without an explicit complete assessment, observed groups remain partial.
 An absence highlight requires both a configured family and a complete zero cell.
 It never means genome-wide biological absence. Sample `display` metadata controls
-taxonomy colors, taxon/strain typography and explicit phenotype annotations.
+taxonomy colors and taxon/strain typography. There are no default target-strain
+or transformability keys. Layout `highlight_label` is nullable text and labels
+explicit pink highlights only when present. Optional layout `sample_marker`
+requires exactly `field`, `label`, and `color`: a marker is drawn only where
+`sample.display[field] is true`, with its key on the same page. Legacy
+`display.transformable` is ordinary metadata and does not activate a marker.
+Taxonomy/category keys require rendered members; an absence key requires at
+least one actually shaded complete-zero cell on that page.
 Family display metadata may carry `display_order`, `display_group`,
 `partner_group`, `category_tags`, `secondary_category`, `secondary_style` and
 `highlight_source`. These affect presentation only; no function follows from a

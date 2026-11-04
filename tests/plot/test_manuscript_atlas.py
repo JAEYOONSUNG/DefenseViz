@@ -245,7 +245,7 @@ def test_default_atlas_preserves_five_cards_and_manual_two_of_three_target_rows(
         x,y,w,h=row["bounds_mm"]
         target=rectangles_at(page,x-.6825,y,58,h)
         assert any(p.get_facecolor()==to_rgba("#F3BCD2") for p in target)==row["highlight"]
-    assert "Transformable" in texts(page)
+    assert "Target strain" not in texts(page) and "Transformable" not in texts(page)
 
 
 def test_absence_shading_requires_explicit_family_and_complete_zero():
