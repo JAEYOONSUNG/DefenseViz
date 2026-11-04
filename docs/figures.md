@@ -1,4 +1,9 @@
-# Figure 2 panels a and b
+# Figure views
+
+The direct DNMBsuite workflow adds a publication atlas, R-M type tables and
+original/prioritized source overlaps with category/family comparison tables. See
+[the suite guide](suite.md) for these outputs. The original normalized-project
+renderer described below remains available through `defenseviz run`.
 
 `defenseviz run project.json --out output` writes a vector PDF, editable SVG pages and `figure2_layout.json`. A single page is `figure2_ab.svg`; multi-page exports use `figure2_ab_page001.svg` and so on. PDF pages follow the same order. SVG text stays text; no raster images are embedded. Text can be edited in Illustrator or Inkscape. The source font must be installed when editing; the layout JSON records its family name.
 

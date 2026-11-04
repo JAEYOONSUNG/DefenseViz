@@ -24,8 +24,11 @@ jobs:
       - run: python -m pytest -q
       - run: python scripts/check_install.py
       - run: defenseviz demo --out demo-output
+      - run: defenseviz demo --suite --out suite-demo
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: demo-${{ matrix.os }}-${{ matrix.python-version }}
-          path: demo-output/results/
+          path: |
+            demo-output/results/
+            suite-demo/results/

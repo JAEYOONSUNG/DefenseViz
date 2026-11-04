@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "defenseviz"
-version = "2.0.0"
+version = "2.1.0"
 description = "Source-traceable defense annotation integration, DNMB evidence reevaluation and comparative figures"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -15,6 +15,7 @@ classifiers = ["Programming Language :: Python :: 3", "Topic :: Scientific/Engin
 
 [project.optional-dependencies]
 excel = ["openpyxl>=3.1,<4"]
+suite = ["openpyxl>=3.1,<4"]
 dev = ["pytest>=7,<10", "build>=1,<2"]
 
 [project.urls]
@@ -28,7 +29,7 @@ defenseviz = "defenseviz.cli:main"
 where = ["src"]
 
 [tool.setuptools.package-data]
-defenseviz = ["data/*.json"]
+defenseviz = ["data/*.json", "data/*.R"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

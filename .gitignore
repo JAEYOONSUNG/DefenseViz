@@ -9,4 +9,5 @@ dist/
 .DS_Store
 *.log
 demo-output/
+suite-demo/
 site/

@@ -144,6 +144,9 @@ class Reader:
                 if sheet is not None and sheet not in workbook.sheetnames:
                     raise _error(str(p), f"worksheet {sheet!r} does not exist")
                 ws = workbook[sheet or workbook.sheetnames[0]]
+                # Some native openxlsx exports declare A1 despite populated rows.
+                # Ignore worksheet dimension hints and inspect actual XML cells.
+                ws.reset_dimensions()
                 data = []
                 for row in ws.iter_rows():
                     if any(c.data_type == "f" for c in row):
@@ -159,8 +162,10 @@ class Reader:
             for i, row in enumerate(data[1:], 2):
                 if all(x is None for x in row):
                     continue
-                if len(row) != len(headers):
+                if len(row) > len(headers):
                     raise _error(f"{p}:{i}", "row/header column count differs")
+                # Reset dimensions exposes omitted trailing empty XML cells.
+                row.extend([None] * (len(headers) - len(row)))
                 rows.append(dict(zip(headers, ("" if x is None else x for x in row))))
             return rows, set(headers)
         if p.suffix.lower() not in {".tsv", ".csv", ".txt"}:
