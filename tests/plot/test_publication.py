@@ -279,9 +279,13 @@ def test_actual_native_demo_headings_fit_and_category_order_is_stable(tmp_path):
     data['inventory_rows']['families'].reverse()
     render_publication(data,tmp_path/'figures',sections=['atlas','comparison'])
     atlas=next(p for p in ledger(tmp_path/'figures')['pages'] if p['section']=='atlas')
-    assert atlas['section_headings']['mode']=='section_key'
+    assert atlas['section_headings']['mode']=='group_anchored_staggered'
     assert not atlas['validation']['errors']
-    assert all(t['owner_bounds_mm'] for t in atlas['texts'] if t['role']=='section_heading')
+    headings=atlas['section_headings']['headings']
+    assert headings
+    assert all(h['group_span_mm'][0] <= h['badge_x'] <= h['group_span_mm'][1] for h in headings)
+    assert {int(t['text']) for t in atlas['texts'] if t['role']=='stage_badge'}=={h['stage_id'] for h in headings}
+    assert all(h['text_bounds_mm'] and h['badge_bounds_mm'] for h in headings)
     category_sequence=list(dict.fromkeys(b['primary'] for b in atlas['bands']))
     known=[x for x in DEFAULTS['category_order'] if x in category_sequence]
     assert category_sequence[:len(known)]==known
