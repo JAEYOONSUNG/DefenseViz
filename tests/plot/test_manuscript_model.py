@@ -363,3 +363,19 @@ def test_excluded_unknown_role_member_does_not_make_current_context_unknown():
     row=model(d)['rows'][0]
     assert row['compositions']['I_MS']['count']==1
     assert row['compositions']['I_MS']['status']=='complete'
+
+
+def test_complete_known_composition_survives_an_extra_unknown_member_and_bound_badge():
+    d=fixture();sha=hashlib.sha256(b'unknown_extra').hexdigest()
+    d['genes'].append(dict(sample_id='sample',gene_id='extra',protein_sha256=sha))
+    d['saved_decisions'].append(dict(sample_id='sample',gene_id='extra',state='retained',family='Type I',role='unknown',source_ref=REF))
+    d['groups'][0]['members'].append(dict(gene_id='extra',protein_sha256=sha))
+    d['annotations'].append(evidence(d,group_id='context',rm_R_support='supported'))
+    m=model(d);row=m['rows'][0]
+    assert row['compositions']['I_RMS']['count']==1 and row['compositions']['I_RMS']['status']=='complete'
+    assert row['compositions']['I_RMS']['R_support_all']is True
+    assert row['rm_roles']['I_R']['status']=='partial'
+    assert m['group_records'][0]['member_role_status']=='partial'
+    d['groups'][0]['members'][0]['retained']=False;d['annotations'].pop()
+    row=model(d)['rows'][0]
+    assert row['compositions']['I_MS']['count']==0 and row['compositions']['I_MS']['status']=='partial'

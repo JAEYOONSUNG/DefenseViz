@@ -163,3 +163,7 @@ The five workflow cards show the saved method. Optional layout
 `manuscript_workflow.parameters` displays supplied saved criteria; it does not
 evaluate them. `analysis.manuscript_atlas.provenance`, exact group/member records
 and `publication_layout.json` retain the origins and geometry for auditing.
+
+Evidence-only HMM providers are excluded from manuscript native-source columns.
+The broader legacy summary coverage can remain conservative when an additional
+HMM-only provider is present; this does not create a final call or a zero-hit claim.

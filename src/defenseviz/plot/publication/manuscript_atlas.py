@@ -329,7 +329,7 @@ def _strain(c,x,y,row):
     if strain:_text(c,x+width+.8,y,strain,NUM,bold=bold)
 
 
-def _legend(c,model,panels,groups,fpos,masks,sources,rows,bottom,sampleleft,config):
+def _legend(c,model,panels,groups,fpos,masks,sources,rows,bottom,sampleleft,config,taxonomy_colors):
     y=bottom+3.4
     _text(c,6,y,"Coding",8.8,bold=True);_text(c,6,y+3,"sequences (CDSs)",8.8,bold=True)
     for i,n in enumerate((1,2,4,8,16)):
@@ -388,11 +388,12 @@ def _legend(c,model,panels,groups,fpos,masks,sources,rows,bottom,sampleleft,conf
     _text(c,tx,y,"Genus",8.8,bold=True)
     for i,(key,z) in enumerate(genus.items()):
         xx=tx+(i%2)*40;yy=y+4+(i//2)*3
-        c.rect(xx,yy-1.2,2.2,2.2,z.get("color") or stable_color(str(key)));legend_text(xx+4,yy,z,True)
+        c.rect(xx,yy-1.2,2.2,2.2,taxonomy_colors["genus"].get(key) or z.get("color") or stable_color(str(key)));legend_text(xx+4,yy,z,True)
     sy=y+8+max(0,(len(genus)-1)//2)*3;_text(c,tx,sy,"Species",8.1,bold=True)
     for i,(key,z) in enumerate(species.items()):
         xx=tx+(i%2)*40;yy=sy+4+(i//2)*3
-        c.rect(xx,yy-1.2,2.2,2.2,z.get("color") or stable_color(str(key)));legend_text(xx+4,yy,z)
+        species_key=key[-1] if isinstance(key,tuple) else key
+        c.rect(xx,yy-1.2,2.2,2.2,taxonomy_colors["species"].get(species_key) or z.get("color") or stable_color(str(species_key)));legend_text(xx+4,yy,z)
     fy=sy+4+math.ceil(len(species)/2)*3+2
     extras=[("Other",PALETTE["Other mechanisms"]),("Target strain",TARGET),
             ("Mechanism not assigned yet",PALETTE["Unresolved"])]
@@ -420,6 +421,7 @@ def manuscript_atlas_pages(result,fonts,config,page_factory):
             declared=taxonomy_colors[field].get(row.get(field))
             if explicit and declared and to_rgba(explicit)!=to_rgba(declared):
                 raise ValueError("Conflicting taxonomy colors between sample display and legend")
+            if explicit and not declared and row.get(field):taxonomy_colors[field][row[field]]=explicit
     families=ordered_families(visible_rows(model.get("families",[])),config)
     families=[f for f in families if f.get("category")!="R-M"]
     family_pages=[];block=[]
@@ -549,7 +551,7 @@ def manuscript_atlas_pages(result,fonts,config,page_factory):
             for key,kind,typ,label,units in ROLE_COLUMNS:
                 if typ=="IV":_text(c,x+units*CELL/2,bottom+1.7,"R: nuclease" if key=="IV_R" else "A: auxiliary",7.7,ha="right",rotation=90)
                 x+=units*CELL
-            _legend(c,model,panels,groups,fpos,masks,sources,rows,bottom,sampleleft,config)
+            _legend(c,model,panels,groups,fpos,masks,sources,rows,bottom,sampleleft,config,taxonomy_colors)
             c.ledger["workflow"]={"operation":"saved_result_import_and_aggregation","new_engine_runs":False,"activity_assessed":False}
             pages.append(c)
     return pages
