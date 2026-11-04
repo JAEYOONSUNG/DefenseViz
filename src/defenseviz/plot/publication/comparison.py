@@ -1,6 +1,8 @@
 """Uniform row-union bars and independently aligned comparison columns."""
 from __future__ import annotations
 
+from collections import Counter
+
 from .drawing import (TEAL, ASSOCIATED, EFFECTOR, alias, category_color,
                       number, source_color, status_kind, display_label)
 from .overlap import draw_flow, intersection_pages
@@ -31,8 +33,18 @@ def ordered_families(rows, config=None):
         groups.setdefault(group,{}).setdefault(row.get("partner_group") or row["id"],[]).append(row)
     order=(config or {}).get("category_order",[])
     keys=[key for key in order if key in groups]+[key for key in groups if key not in order]
-    return [r for key in keys for pair in groups[key].values()
-            for r in sorted(pair,key=lambda r:r.get("partner_order",0))]
+    ordered=[r for key in keys for pair in groups[key].values()
+             for r in sorted(pair,key=lambda r:r.get("partner_order",0))]
+    # Distinct declared pools must not acquire indistinguishable display names.
+    # Resolve only presentation collisions; keep every identity/member/count.
+    for _ in range(len(ordered)+1):
+        counts=Counter(display_label(r) for r in ordered)
+        if max(counts.values(),default=0)<2:return ordered
+        resolved=[dict(r,_display_label=str(r["id"])) if counts[display_label(r)]>1 else r for r in ordered]
+        if [display_label(r) for r in resolved]==[display_label(r) for r in ordered]:
+            raise ValueError("Distinct publication rows need unique identities")
+        ordered=resolved
+    raise ValueError("Publication row labels could not be disambiguated")
 
 
 def _tag_colors(row, config):

@@ -51,6 +51,7 @@ def alias(name, config):
 
 def display_label(row):
     """Editorial qualifiers are display-only; IDs and biological metadata stay intact."""
+    if "_display_label" in row:return row["_display_label"]
     label=str(row.get("label",row.get("id","")))
     return re.sub(r"\s*\((?:pooled|pred\.)\)","",label,flags=re.IGNORECASE).strip()
 

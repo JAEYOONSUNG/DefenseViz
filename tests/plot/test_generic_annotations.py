@@ -7,7 +7,10 @@ from matplotlib.patches import Rectangle
 import pytest
 
 from defenseviz.plot.publication import DEFAULTS, _config
+from defenseviz.plot.publication.comparison import comparison_pages, ordered_families
+from defenseviz.plot.publication.drawing import Canvas, Fonts, display_label
 from tests.plot.test_manuscript_atlas import render_pages, synthetic_result, texts
+from tests.plot.test_publication import fixture as publication_fixture
 
 
 def colored_rectangles(page, color):
@@ -120,5 +123,56 @@ def test_absence_key_requires_a_visible_complete_zero_on_the_current_page():
         cell["metric_status"]["inventory"] = state
     pages = render_pages(result, max_rows_per_page=1)
     assert ["No Example feature" in texts(page) for page in pages] == [True, False, False]
+    for page in pages:
+        page.validate()
+
+
+@pytest.mark.parametrize("labels", [
+    ["Shared label", "Shared label"],
+    ["Shared label", "Shared label", "Shared label"],
+    ["Shared label", "Shared label", "pool-a"],
+])
+def test_colliding_family_labels_preserve_distinct_pools_and_resolve_secondary_collisions(labels):
+    rows = [dict(id=f"pool-{chr(97+i)}", label=label, category="Nuclease",
+                 N=i+2, source_counts={"Source": i+1}) for i, label in enumerate(labels)]
+    rows.append(dict(id="pool-unaffected", label="Independent label", category="Nuclease", N=11))
+    before = deepcopy(rows)
+    rendered = ordered_families(rows)
+    assert rows == before
+    assert [row["id"] for row in rendered] == [row["id"] for row in before]
+    assert [display_label(row) for row in rendered] == [row["id"] for row in before[:-1]] + ["Independent label"]
+    assert [{key: value for key, value in row.items() if key != "_display_label"}
+            for row in rendered] == before
+
+
+def test_atlas_and_comparison_show_the_same_unique_family_identity_after_label_collision():
+    result = publication_fixture(samples=2, families=3, sources=3)
+    families = result["inventory_rows"]["families"]
+    for row, label in zip(families, ["Shared label", "Shared label", "family/0"]):
+        row.update(label=label, category="Nuclease")
+    for cell in result["cells"]:
+        family = next(row for row in families if row["id"] == cell["family_id"])
+        cell.update(label=family["label"], category=family["category"])
+    before = deepcopy(result)
+    atlas = render_pages(result)[0]
+    fonts = Fonts()
+    pages = comparison_pages(result, fonts, _config("Synthetic comparison", {}),
+                             lambda width, height, section: Canvas(width, height, fonts, section, 1))
+    assert result == before
+    expected = {row["id"]: row["id"] for row in families}
+    atlas_labels = {meta["text"] for _, meta in atlas.text_artists if meta["rotation"] == 90}
+    assert set(expected.values()) <= atlas_labels and "Shared label" not in atlas_labels
+    shown = {meta["source_ref"]["row_id"]: meta["text"] for page in pages for _, meta in page.text_artists
+             if (meta.get("source_ref") or {}).get("field") == "label"
+             and meta["source_ref"]["row_id"] in expected}
+    assert shown == expected
+    glyphs = {(glyph["sample_id"], glyph["family_id"]): glyph["total"] for glyph in atlas.ledger["glyphs"]}
+    assert glyphs == {(cell["sample_id"], cell["family_id"]): cell["N"] for cell in result["cells"]}
+    comparison = {row["row_id"]: row for page in pages for row in page.ledger["cells"]
+                  if row.get("table") == "families"}
+    for family in families:
+        assert comparison[family["id"]]["count"] == family["N"]
+        assert comparison[family["id"]]["source_counts"] == family["source_counts"]
+    atlas.validate()
     for page in pages:
         page.validate()
