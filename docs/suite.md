@@ -47,6 +47,13 @@ primary/external scope without adding automatic cohort labels to the figure.
 IDs are opaque: the importer does not parse accessions, guess species, or merge
 different loci because their proteins have the same sequence.
 
+Optional sample `genus`, `species` and `display` metadata control taxonomy strips
+and labels. For example, `display: {"taxon_label": "Example species",
+"strain_label": "isolate A", "genus_color": "#537C83", "species_color": "#B29BCB"}`
+keeps the taxon italic and the strain upright. `display.transformable: true` is
+an explicit supplied annotation, never inferred from a strain name. Sample
+highlights still use `highlight`; absent metadata does not create phenotype labels.
+
 For nonstandard locations, sample-level `genes` and `fasta` paths can be supplied.
 `modules` accepts `defensefinder`, `padloc`, `defensepredictor`, and
 `rebasefinder` mappings with explicit artifact paths (`calls`, `id_map`,
@@ -123,8 +130,17 @@ Execution receipts deliberately retain exact executed command arguments and may
 contain machine-specific paths, as may unchanged upstream metadata. This is
 execution provenance, not a claim that every provenance field is relocatable.
 
-The main atlas uses category colors and purple evidence glyphs, with optional pink
-sample highlights. Comparative tables separate putative nuclease-associated
+The default **manuscript** atlas preserves the five-card vector workflow and the
+detailed landscape: original R-M source mini-bars, the native-source intersection,
+13 R-M role/context columns, retained R/total, noncanonical source memberships,
+exclusive-membership symbols, family glyphs and taxonomy legends. The main atlas
+orders native columns **PAD, DF, DP**; REB stays a separate reference channel.
+Rings on R-M groups describe supplied support, independently of effector glyphs.
+The intersection excludes the reference channel and never gains later DNMB-only
+additions. Unavailable original-context evidence remains NA.
+
+Category colors, purple evidence glyphs and optional pink sample highlights match
+the manuscript grammar. Comparative tables separate putative nuclease-associated
 **Total** and **Effector CDSs**, right-align numbers and order the default native
 source columns **DF, PAD, DP**. Native and prioritized overlap views use the same
 original source memberships. Larger datasets paginate; counts are never removed
@@ -137,6 +153,8 @@ Use `--title "Defense comparison" --layout layout.json` to configure presentatio
   "sections": ["atlas", "type_benchmarks", "comparison"],
   "font_family": "Arial",
   "font_fallbacks": ["Liberation Sans", "DejaVu Sans"],
+  "atlas_style": "manuscript",
+  "atlas_source_order": ["PADLOC", "DefenseFinder", "DefensePredictor"],
   "source_order": ["DefenseFinder", "PADLOC", "DefensePredictor"],
   "type_samples": ["isolate-a", "isolate-b"],
   "preview_png": true
@@ -145,15 +163,44 @@ Use `--title "Defense comparison" --layout layout.json` to configure presentatio
 
 Omit `type_samples` for the default selection; use `[]` to omit type tables.
 `max_rows_per_page` and `max_families_per_page` limit atlas pages.
-`atlas_page_size` sets maximum width/height in millimetres (at least 270 × 145);
-smaller datasets use less space. `category_order` controls displayed category
+`atlas_page_size` sets maximum width/height in millimetres (default 506 × 365).
+The manuscript template requires at least 447 × 200; data rows and family blocks
+paginate without changing font sizes. Short inventories place the same five
+section headings in a separate key above the matrix. Long strain labels expand
+the page within its configured limit. Labels too long for that limit give an
+actionable error. `atlas_style: "compact"` explicitly selects the earlier compact
+view, whose minimum page limit is 270 × 145. `atlas_title` sets panel b's title.
+`category_order` controls displayed category
 order; an empty list preserves category encounter order while grouping partners.
-`atlas_section_titles` overrides section headings. Comparisons remain US Letter portrait and continue onto additional
+`atlas_section_titles` overrides compact-view headings. Comparisons remain US Letter portrait and continue onto additional
 pages. Additional sources or large intersection numbers use an exact intersection
 table when a Venn diagram cannot remain legible. `source_colors`,
 `category_colors`, and `aliases` are optional mappings. Unknown layout options
 raise an error. The manifest records the actual font files and hashes; an
 unavailable Arial installation is never reported as Arial.
+
+Workflow thresholds are supplied presentation provenance, not new evaluation
+parameters. `manuscript_workflow.parameters` accepts saved `retain_cutoff`,
+`max_divergent_gap_bp` and `structure` values; omitted values use qualified saved
+criteria wording. Result-bound values are authoritative; layout may fill a missing
+value or repeat it, but conflicting values are rejected. `manuscript_workflow.pt_pairs` optionally lists displayed
+modification/restriction partners. A layout setting never changes classification.
+
+The native pipeline automatically attaches `analysis.manuscript_atlas`, a display
+projection built from exact original memberships and saved groups. Python users
+who already hold the canonical bundle and analyzed result can call:
+
+```python
+from defenseviz.plot.publication.manuscript_model import enrich_manuscript_model
+from defenseviz.plot.publication import render_publication
+
+enriched = enrich_manuscript_model(bundle, result)
+render_publication(enriched, output_dir, sections=["atlas"])
+```
+
+Rendering an older result without that projection remains supported, but channels
+that require the original bundle stay NA. See [display evidence](SUITE_CONTRACT.md#manuscript-display-projection)
+for separately bound R-M support badges and cosmetic metadata.
 
 These are saved annotation/evidence summaries. They do not establish biological
 activity, prove a candidate is safe to remove, or supply independently adjudicated

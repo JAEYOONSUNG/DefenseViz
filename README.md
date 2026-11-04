@@ -2,11 +2,11 @@
 
 **Turn saved DNMBsuite results into traceable defense inventories and editable publication figures.**
 
-DefenseViz separates original tool output, saved DNMB decisions, component evidence and visualization. Version 2.1 adds direct DNMBsuite folder input and publication views: workflow, defense atlas, R-M type tables, original/prioritized overlaps, and category/family comparisons. Arbitrary sample identifiers, cohort sizes and new defense families are supported. The earlier normalized-project evaluation workflow remains available.
+DefenseViz separates original tool output, saved DNMB decisions, component evidence and visualization. Version 2.1.1 restores the manuscript's five-card workflow (a) and detailed defense landscape (b) as the default DNMBsuite view, alongside R-M type tables, original/prioritized overlaps and category/family comparisons. Samples, counts and evidence come from the supplied results; the layout has no built-in cohort. The earlier normalized-project evaluation workflow remains available.
 
 ![Synthetic saved-output comparison](docs/assets/suite-comparison.svg)
 
-[View the synthetic atlas](docs/assets/suite-atlas.svg).
+[View the synthetic manuscript-style atlas](docs/assets/suite-atlas.svg). Missing saved evidence remains visibly unassessed; the example does not invent reviewed manuscript results.
 
 ## Install and try
 

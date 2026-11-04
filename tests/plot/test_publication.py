@@ -202,7 +202,7 @@ def test_saved_context_and_unassessed_effector_glyph_states(tmp_path):
                    rm_pool_CDS=15,rm_intersection_CDS=2,retained_R_CDS=1,retained_RM_CDS=3,
                    complete_saved_contexts=2,complete_context_state='observed_saved_assessment')
     data['cells'][0]['metric_status']['effector']='unassessed'
-    render_publication(data,tmp_path,sections=['atlas'])
+    render_publication(data,tmp_path,sections=['atlas'],atlas_style='compact')
     texts=ledger(tmp_path)['pages'][0]['texts']
     assert next(t['text'] for t in texts if (t.get('source_ref') or {}).get('field')=='complete_saved_contexts')=='2'
     assert any(t['role']=='missing_evidence' and t['text']=='?' for t in texts)
@@ -255,7 +255,7 @@ def test_compact_atlas_respects_explicit_roles_and_display_partners(tmp_path):
         for role in 'RMSA':
             data['rm_components'].append({'sample_id':r['sample_id'],'rm_type':r['rm_type'],
                                          'role':'Aux' if role=='A' else role,'count':r[role]})
-    render_publication(data,tmp_path,sections=['atlas','type_benchmarks'])
+    render_publication(data,tmp_path,sections=['atlas','type_benchmarks'],atlas_style='compact')
     page=ledger(tmp_path)['pages'][0]
     assert page['family_ids']==[first['id'],last['id'],middle['id']]
     components={(r['rm_type'],r['role']) for r in page['cells'] if r.get('field')=='component'}
@@ -298,7 +298,7 @@ def test_unassessed_retention_is_na_and_typed_pool_uses_coverage(tmp_path,covera
         'calls':[{'sample_id':'s','gene_id':'a','caller':'DefenseFinder','family':'RM_Type_I',
                   'category':'R-M','rm_type':'Type I','system_id':'x'}],
         'coverage':[{'sample_id':'s','caller':'DefenseFinder','status':coverage,'endpoint':'native_calls'}]})
-    render_publication(data,tmp_path,sections=['atlas','type_benchmarks'])
+    render_publication(data,tmp_path,sections=['atlas','type_benchmarks'],atlas_style='compact')
     pages=ledger(tmp_path)['pages']
     type_texts=[t for p in pages for t in p['texts'] if t['role']=='type_numeric']
     assert {t['text'] for t in type_texts if t['source_ref']['field']=='DNMB'}=={'NA'}
@@ -319,7 +319,7 @@ def test_actual_native_missing_rebase_is_unassessed_overlap_not_zero(tmp_path):
     data=analyze_saved(prepare_suite(paths['root'],manifest=paths['manifest']))
     assert data['global_summary']['native_union_CDS']>0
     assert data['overlap_regions']['coverage_status']=='unassessed'
-    render_publication(data,tmp_path/'figures',sections=['atlas','comparison'])
+    render_publication(data,tmp_path/'figures',sections=['atlas','comparison'],atlas_style='compact')
     pages=ledger(tmp_path/'figures')['pages']
     overlaps=[o for p in pages for o in p.get('overlaps',[])]
     assert overlaps and all(o['mode']=='unassessed' and o['reported_counts'] is None for o in overlaps)
@@ -357,7 +357,7 @@ def test_actual_native_partial_rebase_scope_stays_with_its_sample(tmp_path):
         writer.writerow({'query':'unmapped-synthetic-reference','curation_keep':'FALSE',
                          'final_family':'Type I','final_role':'R','blast_match':'Synthetic unmatched candidate'})
     data=analyze_saved(prepare_suite(paths['root'],manifest=paths['manifest']))
-    render_publication(data,tmp_path/'figures',sections=['atlas'])
+    render_publication(data,tmp_path/'figures',sections=['atlas'],atlas_style='compact')
     values={(t['source_ref']['sample_id'],t['source_ref']['field']):t['text']
             for p in ledger(tmp_path/'figures')['pages'] for t in p['texts']
             if (t.get('source_ref') or {}).get('field') in ('rm_pool_CDS','rm_intersection_CDS')}

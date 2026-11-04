@@ -167,6 +167,7 @@ def test_hmm_completion_does_not_create_final_members():
     d=base('a');d['calls']=[call('a',kind='hmm_hit')];d['coverage']=[dict(sample_id='s',caller='DefenseFinder',status='missing')]
     r=analyze_saved(d)
     assert r['global_summary']['native_union_CDS']==0
+    assert r['sources'][0]['kind']=='native_final_member'  # explicitly declared missing final output
 
 
 def test_motif_grade_required_and_not_auto_validated():
@@ -255,6 +256,7 @@ def test_hmm_endpoint_completion_does_not_complete_final_overlap():
     d=base('g');d['calls']=[call('g',kind='hmm_hit')];d['coverage']=[dict(sample_id='s',caller='DefenseFinder',endpoint='hmm_hits',status='complete')]
     r=analyze_saved(d)
     assert r['overlap_regions']['coverage_status']=='unassessed'
+    assert r['sources'][0]['kind']=='hmm_evidence'
 
 
 def test_same_group_id_in_different_samples_does_not_merge():
@@ -613,3 +615,16 @@ def test_rm_complete_zero_and_missing_endpoints_remain_distinct():
     row=analyze_saved(d)['sample_summary'][0]
     assert row['rm_pool_CDS']==row['rm_intersection_CDS']==0
     assert row['rm_pool_status']==row['rm_intersection_status']=='complete'
+
+
+def test_mixed_provider_general_prediction_does_not_relabel_specific_calls():
+    d=base('a','b');d['coverage']=cov('MixedProvider','RMSource')
+    d['calls']=[call('a','MixedProvider',family='General defense'),
+                call('b','MixedProvider',family='CBASS'),
+                call('a','RMSource',family='RM_Type_I',rm_type='Type I'),
+                call('b','RMSource',family='RM_Type_I',rm_type='Type I')]
+    for row in d['calls'][2:]:row['category']='R-M'
+    result=analyze_saved(d)
+    assert result['sample_summary'][0]['rm_source_counts']['MixedProvider']==1
+    assert result['sample_summary'][0]['rm_source_counts']['RMSource']==2
+    assert result['global_summary']['native_union_CDS']==2

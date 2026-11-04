@@ -105,6 +105,8 @@ def run_suite(root, output_dir, *, manifest=None, supplement=None, rscript=None,
     try:
         tick = time.monotonic()
         result = analyze_saved(data)
+        from .plot.publication.manuscript_model import enrich_manuscript_model
+        result = enrich_manuscript_model(data, result)
         analysis_seconds = time.monotonic() - tick
         path_map = {str(p): provenance_path(p, source_root) for p in paths}
         path_map[str(source_root)] = "."

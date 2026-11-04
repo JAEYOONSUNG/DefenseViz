@@ -886,7 +886,7 @@ def load_suite(root, *, manifest=None, rscript=None, strict_inputs=False):
     seen = set()
     directories = set()
     for spec in specs:
-        if not isinstance(spec, dict) or set(spec) - {"sample_id", "path", "label", "highlight", "genus", "species", "cohort", "modules", "genes", "fasta"}:
+        if not isinstance(spec, dict) or set(spec) - {"sample_id", "path", "label", "highlight", "genus", "species", "cohort", "display", "modules", "genes", "fasta"}:
             raise ValueError("invalid or unknown suite sample fields")
         sample = _string(spec.get("sample_id"), "suite sample_id")
         if sample in seen:
@@ -898,7 +898,9 @@ def load_suite(root, *, manifest=None, rscript=None, strict_inputs=False):
         if directory in directories:
             raise ValueError(f"{directory}: sample directory bound more than once")
         directories.add(directory)
-        metadata_sample = {k: spec[k] for k in ("genus", "species", "cohort") if k in spec}
+        metadata_sample = {k: spec[k] for k in ("genus", "species", "cohort", "display") if k in spec}
+        if "display" in spec and not isinstance(spec["display"],dict):
+            raise ValueError("sample display must be a metadata object")
         r.data["samples"].append(dict(sample_id=sample, label=_string(spec.get("label") or sample, "sample label"),
             highlight=_bool(spec.get("highlight", False), "sample highlight") or False, **metadata_sample))
         modules = spec.get("modules", {})
