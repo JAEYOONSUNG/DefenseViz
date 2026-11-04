@@ -571,3 +571,45 @@ def test_known_group_run_cannot_fill_unknown_member_run():
     assert analyze_saved(d)['global_summary']['complex_core_CDS']==0
     d['calls'][0]['run_id']='different'
     with pytest.raises(ValueError,match='Native group member conflicts'):analyze_saved(d)
+
+
+def test_rm_pool_and_shared_use_each_sample_reference_endpoint_coverage():
+    d=base();d['samples']=[]
+    for sid,state in [('complete','complete'),('partial','partial'),('missing','missing'),('not_run','not_run')]:
+        d['samples'].append(dict(sample_id=sid,label=sid))
+        d['genes'].append(gene('a',sid))
+        d['calls'].append(dict(call('a',rm_type='Type I'),sample_id=sid))
+        if state in {'complete','partial'}:
+            d['calls'].append(dict(call('a',caller='ReferenceDB',kind='reference_hit',rm_type='Type I'),sample_id=sid))
+        d['coverage'].extend([dict(sample_id=sid,caller='DefenseFinder',endpoint='native_calls',status='complete'),
+                              dict(sample_id=sid,caller='ReferenceDB',endpoint='reference_matches',status=state)])
+        d['saved_decisions'].append(dict(decision('a',typ='Type I'),sample_id=sid))
+    rows={r['sample_id']:r for r in analyze_saved(d)['sample_summary']}
+    assert {s:r['rm_pool_CDS']for s,r in rows.items()}==dict(complete=1,partial=1,missing=1,not_run=1)
+    assert {s:r['rm_intersection_CDS']for s,r in rows.items()}==dict(complete=1,partial=1,missing=0,not_run=0)
+    assert {s:r['rm_pool_status']for s,r in rows.items()}==dict(complete='complete',partial='partial',missing='partial',not_run='partial')
+    assert {s:r['rm_intersection_status']for s,r in rows.items()}==dict(complete='complete',partial='partial',missing='unassessed',not_run='unassessed')
+    assert all(r['metric_status']['inventory']=='complete' for r in rows.values())
+
+
+@pytest.mark.parametrize('saved_state,expected',[(None,'partial'),('unassessed','partial'),('retained','complete')])
+def test_rm_pool_status_includes_saved_candidate_contribution(saved_state,expected):
+    d=base('a');d['calls']=[call('a',rm_type='Type I'),call('a',caller='ReferenceDB',kind='reference_hit',rm_type='Type I')]
+    d['coverage']=[dict(sample_id='s',caller='DefenseFinder',endpoint='native_calls',status='complete'),
+                   dict(sample_id='s',caller='ReferenceDB',endpoint='reference_matches',status='complete')]
+    if saved_state:d['saved_decisions']=[decision('a',typ='Type I',state=saved_state)]
+    row=analyze_saved(d)['sample_summary'][0]
+    assert row['rm_pool_CDS']==row['rm_intersection_CDS']==1
+    assert row['rm_pool_status']==row['rm_intersection_status']==expected
+
+
+def test_rm_complete_zero_and_missing_endpoints_remain_distinct():
+    d=base();d['coverage']=[dict(sample_id='s',caller='ReferenceDB',endpoint='reference_matches',status='missing')]
+    row=analyze_saved(d)['sample_summary'][0]
+    assert row['rm_pool_CDS']==row['rm_intersection_CDS']==0
+    assert row['rm_pool_status']==row['rm_intersection_status']=='unassessed'
+    d['coverage'][0]['status']='complete'
+    d['coverage'].append(dict(sample_id='s',caller='DNMB',endpoint='saved_retention',status='complete'))
+    row=analyze_saved(d)['sample_summary'][0]
+    assert row['rm_pool_CDS']==row['rm_intersection_CDS']==0
+    assert row['rm_pool_status']==row['rm_intersection_status']=='complete'

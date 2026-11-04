@@ -145,8 +145,10 @@ Use `--title "Defense comparison" --layout layout.json` to configure presentatio
 
 Omit `type_samples` for the default selection; use `[]` to omit type tables.
 `max_rows_per_page` and `max_families_per_page` limit atlas pages.
-`atlas_page_size` sets maximum width/height in millimetres; smaller datasets use
-less space. Comparisons remain US Letter portrait and continue onto additional
+`atlas_page_size` sets maximum width/height in millimetres (at least 270 × 145);
+smaller datasets use less space. `category_order` controls displayed category
+order; an empty list preserves category encounter order while grouping partners.
+`atlas_section_titles` overrides section headings. Comparisons remain US Letter portrait and continue onto additional
 pages. Additional sources or large intersection numbers use an exact intersection
 table when a Venn diagram cannot remain legible. `source_colors`,
 `category_colors`, and `aliases` are optional mappings. Unknown layout options

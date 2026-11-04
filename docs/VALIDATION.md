@@ -8,7 +8,7 @@ Validation separates two data sources: seven read-only native folders spanning m
 
 ## Executed checks
 
-- **313 automated tests passed** locally on Python 3.14, including native input, legacy compatibility, scientific set boundaries, plotting and complete CLI execution.
+- **319 automated tests passed** locally on Python 3.14, including native input, legacy compatibility, scientific set boundaries, plotting and complete CLI execution.
 - A built wheel installed into a fresh virtual environment passes legacy and native demos, inspection, standalone execution and analytical equivalence outside the checkout (`CLEAN_INSTALL_OK`).
 - All **seven real native folders** import and render through `from-suite`; consumed input hashes remain unchanged. Existing metadata/export conflicts remain explicit, not silently repaired. Tests also cover strict rejection.
 - The separate **52-genome source-plus-review regression passes 17,965 checks**. Its integrated union (2,929), effector CDSs (497) and annotation-based priorities (500) remain identical to the pinned reviewed inputs.

@@ -319,7 +319,7 @@ def test_actual_native_missing_rebase_is_unassessed_overlap_not_zero(tmp_path):
     data=analyze_saved(prepare_suite(paths['root'],manifest=paths['manifest']))
     assert data['global_summary']['native_union_CDS']>0
     assert data['overlap_regions']['coverage_status']=='unassessed'
-    render_publication(data,tmp_path/'figures',sections=['comparison'])
+    render_publication(data,tmp_path/'figures',sections=['atlas','comparison'])
     pages=ledger(tmp_path/'figures')['pages']
     overlaps=[o for p in pages for o in p.get('overlaps',[])]
     assert overlaps and all(o['mode']=='unassessed' and o['reported_counts'] is None for o in overlaps)
@@ -327,6 +327,11 @@ def test_actual_native_missing_rebase_is_unassessed_overlap_not_zero(tmp_path):
     assert 'Source overlap: NA' in texts
     assert 'No observed source memberships' not in texts
     assert not any(t['role']=='venn_count' for p in pages for t in p['texts'])
+    atlas=next(p for p in pages if p['section']=='atlas')
+    shared=[t for t in atlas['texts'] if (t.get('source_ref') or {}).get('field')=='rm_intersection_CDS']
+    pools=[t for t in atlas['texts'] if (t.get('source_ref') or {}).get('field')=='rm_pool_CDS']
+    assert shared and {t['text'] for t in shared}=={'NA'}
+    assert pools and all(t['text'].endswith('+') for t in pools)
 
 
 def test_partial_context_subset_keeps_lower_bound_and_unknown_subset_is_na(tmp_path):
@@ -337,3 +342,26 @@ def test_partial_context_subset_keeps_lower_bound_and_unknown_subset_is_na(tmp_p
     texts=[t for p in ledger(tmp_path)['pages'] for t in p['texts'] if t['role']=='type_numeric' and t['source_ref']['type']=='I']
     assert next(t['text'] for t in texts if t['source_ref']['field']=='R')=='1 (0+)'
     assert next(t['text'] for t in texts if t['source_ref']['field']=='M')=='1 (NA)'
+
+
+def test_actual_native_partial_rebase_scope_stays_with_its_sample(tmp_path):
+    import csv
+    from defenseviz.suite_demo import write_suite_project
+    from defenseviz.suite_pipeline import prepare_suite
+    from defenseviz.analysis.saved import analyze_saved
+    paths=write_suite_project(tmp_path/'native')
+    source=tmp_path/'native/runs/isolate-a/dnmb_module_rebasefinder/DNMB_REBASEfinder_augmented_hits.tsv'
+    with source.open() as stream:fields=next(csv.reader(stream,delimiter='\t'))
+    with source.open('a') as stream:
+        writer=csv.DictWriter(stream,fieldnames=fields,delimiter='\t')
+        writer.writerow({'query':'unmapped-synthetic-reference','curation_keep':'FALSE',
+                         'final_family':'Type I','final_role':'R','blast_match':'Synthetic unmatched candidate'})
+    data=analyze_saved(prepare_suite(paths['root'],manifest=paths['manifest']))
+    render_publication(data,tmp_path/'figures',sections=['atlas'])
+    values={(t['source_ref']['sample_id'],t['source_ref']['field']):t['text']
+            for p in ledger(tmp_path/'figures')['pages'] for t in p['texts']
+            if (t.get('source_ref') or {}).get('field') in ('rm_pool_CDS','rm_intersection_CDS')}
+    for field in ('rm_pool_CDS','rm_intersection_CDS'):
+        assert values['isolate-a',field].endswith('+')
+        assert not values['isolate-b',field].endswith('+') and values['isolate-b',field]!='NA'
+        assert values['isolate-c',field]=='0'
