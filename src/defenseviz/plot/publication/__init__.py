@@ -31,6 +31,7 @@ DEFAULTS = {"sections": ["atlas", "type_benchmarks", "comparison"],
     "atlas_style": "manuscript", "atlas_title": None,
     "atlas_source_order": ["PADLOC","DefenseFinder","DefensePredictor"],
     "manuscript_workflow": {},
+    "highlight_label": None, "sample_marker": None,
     "selection_label": "R subunits + nuclease effectors", "overlap_mode": "auto",
     "type_samples": None, "preview_png": False}
 
@@ -126,6 +127,15 @@ def _config(title, options):
         raise ValueError("manuscript atlas_page_size needs at least447×200mm to preserve the five-card template; use compact for smaller pages")
     if config["atlas_title"] is not None and (not isinstance(config["atlas_title"],str) or not config["atlas_title"].strip()):raise ValueError("atlas_title must be nonempty text or null")
     if not isinstance(config["manuscript_workflow"],dict):raise ValueError("manuscript_workflow must be a mapping")
+    if config["highlight_label"] is not None and (not isinstance(config["highlight_label"],str) or not config["highlight_label"].strip()):
+        raise ValueError("highlight_label must be nonempty text or null")
+    marker=config["sample_marker"]
+    if marker is not None:
+        if not isinstance(marker,dict) or set(marker)!={"field","label","color"} or any(not isinstance(v,str) or not v.strip() for v in marker.values()):
+            raise ValueError("sample_marker needs nonempty field, label and color strings")
+        from matplotlib.colors import to_rgba
+        try:to_rgba(marker["color"])
+        except ValueError as exc:raise ValueError("sample_marker color must be a valid color") from exc
     for field in ("source_colors","category_colors","aliases","atlas_section_titles","atlas_link_colors"):
         if not isinstance(config[field],dict):raise ValueError(field+" must be a mapping")
     for field in ("source_order","atlas_source_order","category_order","font_fallbacks"):
