@@ -123,3 +123,47 @@ uniform comparison tracks are data-independent presentation defaults. Empty
 families can be hidden only with an explicit observed-zero inventory; unknown
 families and missing evidence remain visible. Large cohorts, long labels and
 additional sources require pagination or a counted-intersection fallback.
+
+## Manuscript display projection
+
+`from-suite` adds `manuscript_atlas` after `analyze_saved`. This independent
+projection never changes gene retention, effector admission, priority selection
+or source membership. Its original R-M intersection uses native sources only;
+reference matches are a separate column. I–III component glyphs use saved retained
+components; IV also includes explicitly reviewed components already admitted by
+the analysis. Exact DNMB saved contexts produce I MS/RMS and III M/MR group
+counts. Equal original member sets are deduplicated only within the same known
+sample/provider/run/type; adjacent or overlapping groups are not merged.
+
+Optional manifest `options.manuscript_atlas` accepts `source_order`, per-sample
+`group_coverage` (`complete`, `partial`, `unassessed`), `absence_families`,
+`absence_label` and `taxonomy_legend`. Group coverage must describe the saved
+exports; without an explicit complete assessment, observed groups remain partial.
+An absence highlight requires both a configured family and a complete zero cell.
+It never means genome-wide biological absence. Sample `display` metadata controls
+taxonomy colors, taxon/strain typography and explicit phenotype annotations.
+Family display metadata may carry `display_order`, `display_group`,
+`partner_group`, `category_tags`, `secondary_category`, `secondary_style` and
+`highlight_source`. These affect presentation only; no function follows from a
+label or color. Highlight ticks use actual exclusive source memberships.
+
+Historical R-support rings and curated reference-group badges are separate from
+nuclease-effector evidence. Optional annotation records use
+`evidence_kind: "rm_role_display"` or `"rm_context_display"`,
+`assignment_kind: "reviewed_RM_component"`, `status: "unassessed"` and
+`include_in_union: false`. Each binds `sample_id`, `gene_id`, current
+`protein_sha256`, a `rule_id` and hashed `source_refs`. The explicit fields
+`rm_R_support` and (for contexts) `rm_reference_link` accept `supported`,
+`not_supported` or `unassessed`. Context records also bind `group_id` and an exact
+retained group member. A curated reference badge requires a complete saved R-M
+context; raw reference presence does not supply it. Conflicting bindings or
+assessments are rejected. The supplement importer checks actual source hashes.
+
+The five workflow cards show the saved method. Optional layout
+`manuscript_workflow.parameters` displays supplied saved criteria; it does not
+evaluate them. `analysis.manuscript_atlas.provenance`, exact group/member records
+and `publication_layout.json` retain the origins and geometry for auditing.
+
+Evidence-only HMM providers are excluded from manuscript native-source columns.
+The broader legacy summary coverage can remain conservative when an additional
+HMM-only provider is present; this does not create a final call or a zero-hit claim.
