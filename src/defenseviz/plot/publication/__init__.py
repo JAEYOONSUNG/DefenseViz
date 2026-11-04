@@ -15,6 +15,7 @@ from matplotlib.backends.backend_pdf import PdfPages
 
 from .drawing import Canvas, Fonts, status_kind, alias, source_color
 from .atlas import atlas_pages, type_pages
+from .manuscript_atlas import manuscript_atlas_pages
 from .comparison import comparison_pages
 
 __all__ = ["render_publication", "validate_publication_model"]
@@ -25,8 +26,11 @@ DEFAULTS = {"sections": ["atlas", "type_benchmarks", "comparison"],
     "max_rows_per_page": 60, "max_families_per_page": 64,
     "source_order": ["DefenseFinder","PADLOC","DefensePredictor"],
     "category_order": ["R-M","Modification","Nuclease","Cas","CRISPR-Cas","Abortive infection","Other","Other mechanisms","Unresolved"],
-    "source_colors": {}, "category_colors": {}, "aliases": {},
+    "source_colors": {}, "category_colors": {}, "aliases": {}, "atlas_link_colors": {},
     "atlas_section_titles": {},
+    "atlas_style": "manuscript", "atlas_title": None,
+    "atlas_source_order": ["PADLOC","DefenseFinder","DefensePredictor"],
+    "manuscript_workflow": {},
     "selection_label": "R subunits + nuclease effectors", "overlap_mode": "auto",
     "type_samples": None, "preview_png": False}
 
@@ -117,9 +121,14 @@ def _config(title, options):
     if not isinstance(size,(list,tuple)) or len(size)!=2 or any(isinstance(v,bool) or not isinstance(v,(int,float)) or not math.isfinite(v) for v in size) or size[0]<270 or size[1]<145:
         raise ValueError("atlas_page_size needs finite dimensions at least270×145mm; smaller requests cannot contain the fixed-font workflow and evidence columns")
     if config["overlap_mode"] not in ("auto","intersection"):raise ValueError("overlap_mode must be auto or intersection")
-    for field in ("source_colors","category_colors","aliases","atlas_section_titles"):
+    if config["atlas_style"] not in ("manuscript","compact"):raise ValueError("atlas_style must be manuscript or compact")
+    if config["atlas_style"]=="manuscript" and (size[0]<447 or size[1]<200):
+        raise ValueError("manuscript atlas_page_size needs at least447×200mm to preserve the five-card template; use compact for smaller pages")
+    if config["atlas_title"] is not None and (not isinstance(config["atlas_title"],str) or not config["atlas_title"].strip()):raise ValueError("atlas_title must be nonempty text or null")
+    if not isinstance(config["manuscript_workflow"],dict):raise ValueError("manuscript_workflow must be a mapping")
+    for field in ("source_colors","category_colors","aliases","atlas_section_titles","atlas_link_colors"):
         if not isinstance(config[field],dict):raise ValueError(field+" must be a mapping")
-    for field in ("source_order","category_order","font_fallbacks"):
+    for field in ("source_order","atlas_source_order","category_order","font_fallbacks"):
         if not isinstance(config[field],(list,tuple)) or any(not isinstance(v,str) or not v for v in config[field]) or len(set(config[field]))!=len(config[field]):raise ValueError(field+" needs unique nonempty strings")
     if config["type_samples"] is not None and (not isinstance(config["type_samples"],(list,tuple)) or any(not isinstance(s,str) for s in config["type_samples"])):raise ValueError("type_samples must be a sample-id list or null")
     if any(not isinstance(v,str) or not v for v in config["aliases"].values()):raise ValueError("Source aliases need nonempty strings")
@@ -150,7 +159,7 @@ def render_publication(result:dict, output_dir:Path, *, title="DefenseViz", **la
         return Canvas(width,height,fonts,section,index)
     pages=[]
     for section in config["sections"]:
-        if section=="atlas":pages.extend(atlas_pages(result,fonts,config,factory))
+        if section=="atlas":pages.extend((manuscript_atlas_pages if config["atlas_style"]=="manuscript" else atlas_pages)(result,fonts,config,factory))
         elif section=="type_benchmarks":pages.extend(type_pages(result,fonts,config,factory))
         else:pages.extend(comparison_pages(result,fonts,config,factory))
     if not pages:
@@ -193,9 +202,10 @@ def render_publication(result:dict, output_dir:Path, *, title="DefenseViz", **la
             f"Outside original source memberships: {outside_label}. "
             f"Priority CDSs outside the shared sample scope: {item.get('excluded_selected_count','unassessed')}.")
     caption.write_text("# DefenseViz publication figures\n\nSaved annotations and source-bound evidence are summarized without a new detector run. "
-        "Source agreement and reference homology are not biological validation. Missing outputs remain unassessed; '+' marks an observed lower bound.\n\n"
+        "Source agreement and reference homology are not biological validation. Missing outputs remain unassessed; '+' marks partial evidence. Counts in incomplete exclusive-source patterns may change in either direction as coverage improves.\n\n"
         "Atlas: category-colored disks encode binned CDS membership. A purple outline marks putative nuclease-associated membership; inner purple area is the effector/total fraction within that disk. '?' marks unassessed association or effector evidence. "
         "Effector CDSs include individually supported annotations and required cores of complete reviewed complexes; individual catalysis is not assigned to every core.\n\n"
+        "R-M role rings mark support for at least one CDS; context rings mean every displayed group has supplied R support. A reference dot is separately curated context evidence, not a raw homology match.\n\n"
         "Type benchmarks: unique CDS inventories and component roles are distinct. Parentheses identify included incomplete retained R contexts or orphan M/S subsets; these are not activity calls.\n\n"
         "Comparison: original source memberships are restricted to the declared priority set. Venn areas are schematic; intersection tables preserve exact memberships when Venn labels cannot fit. "
         "Category/family rows overlap. Equal bar tracks use each row union; associated totals and effector counts are separate columns.\n\n"

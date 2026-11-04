@@ -155,14 +155,15 @@ class Canvas:
                        "texts": [], "bars": [], "glyphs": [], "cells": [], "bands": [], "notes": []}
 
     def text(self, x, y, value, pt=7.8, *, ha="left", bold=False, color=INK,
-             role="label", owner=None, ref=None, rotation=0):
+             role="label", owner=None, ref=None, rotation=0, italic=False):
         value = str(value)
         t = self.ax.text(x, y, value, fontsize=pt, family=self.fonts.pick(value, bold),
                          weight="bold" if bold else "normal", color=color, ha=ha, va="center",
+                         style="italic" if italic else "normal",
                          rotation=rotation, rotation_mode="anchor", linespacing=1.12,
                          clip_on=False, parse_math=False)
         self.text_artists.append((t, {"text": value, "anchor_mm": [x, y], "font_pt": pt,
-            "alignment": ha, "bold": bold, "role": role, "owner_bounds_mm": owner,
+            "alignment": ha, "bold": bold, "italic": italic, "role": role, "owner_bounds_mm": owner,
             "source_ref": ref, "color": color, "rotation": rotation}))
         return t
 

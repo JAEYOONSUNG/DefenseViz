@@ -1,7 +1,9 @@
 # Figure views
 
 The direct DNMBsuite workflow adds a publication atlas, R-M type tables and
-original/prioritized source overlaps with category/family comparison tables. See
+original/prioritized source overlaps with category/family comparison tables. Its
+default `atlas_style: "manuscript"` reproduces the detailed five-card a/b design;
+`"compact"` explicitly selects the earlier compact publication layout. See
 [the suite guide](suite.md) for these outputs. The original normalized-project
 renderer described below remains available through `defenseviz run`.
 

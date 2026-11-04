@@ -28,5 +28,33 @@
     "sha256": "522ec650eaa1f3e25fc8eb9806c920b42822031ce2f0975345c4bcbbd72095a3",
     "source_commit": null,
     "working_tree_state": "not_git_repository"
+  },
+  {
+    "source": "revision048/atlas/build_landscape.R",
+    "sha256": "9e6440042591221111561ed16b45e3e4ae0cb1081b7eabe116b240a1496a4978",
+    "source_commit": null,
+    "working_tree_state": "not_git_repository",
+    "scope": "drawing geometry and visual grammar; no private data copied"
+  },
+  {
+    "source": "revision048/atlas/R/draw_panel_a.R",
+    "sha256": "8c99ce78594039129a21ceb8c8465beb908bebac317b7faf5187d09e032b5241",
+    "source_commit": null,
+    "working_tree_state": "not_git_repository",
+    "scope": "drawing geometry and visual grammar; no private data copied"
+  },
+  {
+    "source": "revision048/atlas/R/profile_renderer.R",
+    "sha256": "bc92c4c2c40ed1bfcab56b1d592deb07c8cf8aaccd1c6e913cb416e13206bad0",
+    "source_commit": null,
+    "working_tree_state": "not_git_repository",
+    "scope": "drawing geometry and visual grammar; no private data copied"
+  },
+  {
+    "source": "revision048/atlas/integration/cohere_panel_a.py",
+    "sha256": "3fa07298bc27c8bd964cb0ad237e863ab5a5f7e7d76cc131ae8953eba0d420e5",
+    "source_commit": null,
+    "working_tree_state": "not_git_repository",
+    "scope": "drawing geometry and visual grammar; no private data copied"
   }
 ]

@@ -1,3 +1,26 @@
+# Release validation — 2.1.1
+
+## Original manuscript a/b fidelity
+
+The default saved-suite atlas now preserves the original five-card vector panel a and detailed panel b. The earlier compact publication view remains an explicit option. This is a saved-source display replay and aggregation, not a detector rerun or new biological validation.
+
+Independent reference comparison verifies the five cards, 48 workflow labels, 16 icons, 18 arrows, 14 landscape blocks, 13 R-M columns and 2,496 family cells in the private reviewed cohort. Block and glyph coordinates/radii agree within 0.00005 mm (the reference ledger rounds coordinates). Counts, category bands, purple effector areas, six pink highlights, source membership symbols, taxonomy typography and legends match. Mini-bar tracks reserve measured digit space to prevent overlap; the type table remains a separate page rather than reproducing the original combined pagination.
+
+The private source-bound display projection passes 16,094 comparisons against the original saved arrays without changing gene-level assignments or memberships. Later reviewed evidence is still required to reproduce later reviewed annotations; raw older native exports do not acquire invented reviews.
+
+## General inputs and verification
+
+- **458 automated tests passed** on the final local source, with source hashes unchanged throughout execution.
+- A wheel installed in a fresh environment passes both CLI workflows outside the checkout (`CLEAN_INSTALL_OK`).
+- All **seven real native folders** import and render with consumed input hashes unchanged.
+
+
+Regression cases cover explicit excluded group members, unknown roles/types, HMM-only providers, missing versus partial endpoints, provider-specific general predictions, mixed native/reference identities, neutral bound display annotations, contradictory saved criteria, long names, small and large cohorts, partial zeros, outside-source memberships and taxonomy color consistency. Actual native folders, synthetic CLI execution and clean wheel installation were rerun. The original live text helper also passes on Matplotlib 3.7.5 and 3.11.2 in separate environments.
+
+Exact original design review and actual read-only Claude code critique are separate checks. Review findings were reproduced with synthetic inputs before correction; private genomic inputs were not included in the Claude source snapshot. See [review resolutions](REVIEW.md). Remote CI results remain authoritative for the operating-system/Python matrix.
+
+---
+
 # Release validation — 2.1.0
 
 ## Saved DNMBsuite input

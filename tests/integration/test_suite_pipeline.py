@@ -101,8 +101,11 @@ def fake_stages(monkeypatch, data, *, fail=False, mutate=False):
         if mutate: Path(data['inputs'][0]).write_text('changed', encoding='utf-8')
         return [path, svg]
     plot.render_publication = render
+    model = ModuleType('defenseviz.plot.publication.manuscript_model')
+    model.enrich_manuscript_model = lambda bundle, result: result
     monkeypatch.setitem(sys.modules, analysis.__name__, analysis)
     monkeypatch.setitem(sys.modules, plot.__name__, plot)
+    monkeypatch.setitem(sys.modules, model.__name__, model)
 
 
 def test_suite_transaction_records_exact_inputs_and_outputs(tmp_path, monkeypatch):
@@ -223,6 +226,9 @@ def test_direct_native_cli_preserves_distinct_endpoints_and_editable_outputs(tmp
     assert code == 0, capsys.readouterr().err
     result = json.loads((output / 'analysis.json').read_text(encoding='utf-8'))
     summary = result['global_summary']
+    assert result['manuscript_atlas']['schema_version'] == 'manuscript-atlas-v1'
+    assert len(result['manuscript_atlas']['rows']) == len(result['samples'])
+    assert result['manuscript_atlas']['provenance']['scientific_assignments_changed'] is False
     assert summary['native_union_CDS'] == 11
     assert summary['source_union_CDS'] == 13  # reference-only includes an unretained observation
     assert summary['integrated_CDS'] == 12  # saved retained orphan enters DNMB, raw-only hit does not

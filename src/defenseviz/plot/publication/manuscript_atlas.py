@@ -1,0 +1,583 @@
+"""The approved five-stage/landscape composition, driven by saved identities.
+
+The constants below are physical drawing dimensions, never cohort quantities.
+Source memberships, group composition, glyph areas and labels come from the
+manuscript model. No annotation or biological activity is inferred here.
+"""
+from __future__ import annotations
+
+from collections import OrderedDict
+from itertools import combinations
+import math
+
+from .drawing import alias, number, status_kind, stable_color, display_label
+from .comparison import ordered_families, visible_rows, metric_state
+
+TEAL = "#287C78"
+PURPLE = "#7953A2"
+REFERENCE = "#7B3294"
+INNER = "#65408C"
+ORANGE = "#DA6D25"
+GRID = "#E3E6E7"
+PINK = "#FBE0EB"
+TARGET = "#F3BCD2"
+PALETTE = {"Modification":"#B29BCB", "Nuclease":"#D9878C", "Cas":"#A8BF72",
+           "Abortive infection":"#7FAED0", "Other mechanisms":"#C6AD75", "Unresolved":"#D2D4D6",
+           "Former R-M residual":"#AAB2B8"}
+CELL = 3.15
+ROW = 3.05
+GAP = .8925
+MAJOR = 4.2
+BODY_TOP = 90.
+NUM = 8.82
+ROLE_COLUMNS = [
+    ("I_R","role","I","R",1), ("I_M","role","I","M",1), ("I_S","role","I","S",1),
+    ("I_MS","context","I","MS",1.5), ("I_RMS","context","I","RMS",2),
+    ("II_R","role","II","R",1.5), ("II_M","role","II","M",1),
+    ("III_R","role","III","R",1), ("III_M","role","III","M",1),
+    ("III_M","context","III","M",1.5), ("III_MR","context","III","MR",1.5),
+    ("IV_R","role","IV","R",1), ("IV_A","role","IV","A",1)]
+
+
+def radius(n):
+    return .84 * (.48 if n<2 else .68 if n<4 else .91 if n<8 else 1.15 if n<16 else 1.4)
+
+
+def _text(c,x,y,label,pt=NUM,**kw):
+    from .manuscript_text import draw_manuscript_text
+    label=str(label)
+    if "\n" in label:
+        lines=label.splitlines();step=pt*25.4/72*1.12
+        artists=[draw_manuscript_text(c,x,y+(i-(len(lines)-1)/2)*step,line,pt,**kw) for i,line in enumerate(lines)]
+        return artists[-1]
+    return draw_manuscript_text(c,x,y,label,pt,**kw)
+
+
+def _category(f):
+    cat=f.get("display_group",f.get("category","Unresolved"))
+    return {"CRISPR-Cas":"Cas","Other":"Other mechanisms","Former R-M residual":"Unresolved"}.get(cat,cat)
+
+
+def _color(cat,config):
+    cat={"CRISPR-Cas":"Cas","Other":"Other mechanisms"}.get(cat,cat)
+    return config.get("category_colors",{}).get(cat,PALETTE.get(cat,stable_color(cat)))
+
+
+def _cell(c,x,y,w,h,fill=None):
+    c.rect(x,y,w,h,fill or "none",GRID,.165)
+
+
+def _value(c,x,y,w,value,state,ref,blank_zero=False):
+    label=number(value,state)
+    if blank_zero and value==0 and status_kind(state)=="complete":label=""
+    if label:_text(c,x+w-.65,y,label,ha="right",role="numeric",ref=ref)
+
+
+def _mini_bar(c,x,y,w,value,state,scale,color,ref,reserve_width=None):
+    if value and status_kind(state) in ("complete","partial"):
+        # Keep one linear scale while reserving measured digits and a clear gap.
+        capacity=min(w-3.4,w-1.35-(reserve_width if reserve_width is not None else c.fonts.width(str(max(scale,value)),NUM)))
+        width=max(0.,capacity)*value/max(scale,value)
+        c.rect(x+.5,y-.675,width,1.35,color)
+        c.ledger["bars"].append({"bounds_mm":[x+.5,y-.675,width,1.35],"value":value,
+          "denominator":scale,"status":status_kind(state),"source_ref":ref,"kind":"atlas_source"})
+    _value(c,x,y,w,value,state,ref,True)
+
+
+def _fraction(c,x,y,w,n,den,state,kind,scale=None,denstate=None):
+    if status_kind(state)=="unassessed" or n is None or den is None:
+        _text(c,x+w-.7,y,"NA",ha="right",role="numeric")
+        return
+    if kind=="intersection":
+        track=5.;offsets=(10.2,10.95,11.65);base="#C8DDDA";fill="#68A19C"
+        bw=track if den else 0;fw=track*n/den if den else 0;left=x+.5
+    elif kind=="retained":
+        track=3.25;offsets=(6.,6.75,7.45);base=TEAL;fill="#124F4C";left=x+.4
+        bw=track*den/max(scale or den,den,1);fw=track*n/max(scale or den,den,1)
+    else:
+        track=3.7;offsets=(8.15,8.9,9.6);base="#F2D6C3";fill=PURPLE;left=x+.4
+        bw=track if den else 0;fw=track*n/den if den else 0
+    if bw:c.rect(left,y-.725,bw,1.45,base)
+    if fw:c.rect(left,y-.725,fw,1.45,fill)
+    c.ledger["bars"].append({"bounds_mm":[left,y-.725,bw,1.45],"value":n,"denominator":den,
+        "status":status_kind(state),"source_ref":{"endpoint":kind},"kind":"atlas_fraction"})
+    for i,(label,ha) in enumerate(zip((number(n,state),"/",number(den,denstate or state)),("right","center","left"))):
+        _text(c,x+offsets[i],y,label,ha=ha,bold=kind=="retained" and i==0,role="numeric")
+
+
+def _family_glyph(c,x,y,row,family,config):
+    n=row.get("N");a=row.get("associated_CDS");e=row.get("effector_CDS")
+    state=metric_state(row,"inventory");ast=metric_state(row,"associated");est=metric_state(row,"effector")
+    ref={"sample_id":row.get("sample_id"),"family_id":family["id"]}
+    outer=inner=0.
+    if n is None or status_kind(state)=="unassessed":
+        _text(c,x,y,"NA",6.7,ha="center",role="missing",ref=ref)
+    elif n==0 and status_kind(state)=="partial":
+        _text(c,x,y,"0+",6.7,ha="center",role="numeric",ref=ref)
+    elif n:
+        outer=radius(n);category=family.get("category","Unresolved")
+        c.circle(x,y,outer,_color(category,config))
+        if a and status_kind(ast) in ("complete","partial"):
+            c.circle(x,y,outer+.1,None,"white",.7875)
+            c.circle(x,y,outer+.1,None,PURPLE,.4125)
+        if e is not None and status_kind(est) in ("complete","partial"):
+            inner=outer*math.sqrt(e/n)
+            if inner:c.circle(x,y,inner,INNER)
+        if status_kind(est)=="unassessed" or status_kind(ast)=="unassessed":
+            _text(c,x,y,"?",6.7,ha="center",ref=ref)
+        if any(status_kind(s)=="partial" for s in (state,ast,est)):
+            _text(c,x+1.2,y-1.0,"+",6.7,ha="center",ref=ref)
+    c.ledger["glyphs"].append(dict(ref,total=n,associated=a,effector=e,
+      inventory_status=state,associated_status=ast,effector_status=est,
+      outer_radius_mm=outer,inner_radius_mm=inner,inner_area_fraction=e/n if n and inner else 0,
+      bounds_mm=[x-CELL/2,y-ROW/2,CELL,ROW],category=family.get("category"),activity_inferred=False))
+
+
+def _role_glyph(c,x,y,w,record,key,kind):
+    n=record.get("count");state=record.get("status")
+    if n is None or status_kind(state)=="unassessed":
+        _text(c,x+w/2,y,"NA",6.7,ha="center");return
+    if not n:
+        if status_kind(state)=="partial":_text(c,x+w/2,y,"0+",6.7,ha="center",role="numeric")
+        return
+    r=radius(n);cx=x+w/2;numeric=key in ("II_R","IV_R") or kind=="context"
+    if kind=="context":
+        orphan=key in ("I_MS","III_M");cx-=.9
+        c.circle(cx,y,r,"#D8CAE5" if orphan else "#BCD9D4","#81669C" if orphan else "#292929",.6)
+        if record.get("R_support_all") is True and not orphan:c.circle(cx,y,r+.254,None,TEAL,.7125)
+        if record.get("reference_any") is True:c.circle(cx,y,.34,REFERENCE)
+        _text(c,x+w/2+1.05,y,number(n,state),ha="center",role="numeric")
+    else:
+        color=TEAL if key.endswith("_R") else "#8EADA8" if key.endswith("_M") else "#B4C8C3"
+        if key.startswith("IV"):color="#54666D" if key.endswith("R") else "#89969A"
+        if key=="II_R":cx-=.9
+        from matplotlib.colors import to_rgba
+        c.circle(cx,y,r,to_rgba(color,.25 if numeric else .78))
+        if record.get("support_count",0) and status_kind(record.get("support_status")) in ("complete","partial"):
+            c.circle(cx,y,r+.104,None,TEAL,.7)
+        if numeric:_text(c,x+w/2+(1.05 if key=="II_R" else 0),y,number(n,state),ha="center",role="numeric")
+        elif status_kind(state)=="partial":_text(c,x+w-.1,y-1,"+",6.7,ha="right")
+    c.ledger.setdefault("rm_symbols",[]).append({"field":key,"kind":kind,"count":n,
+        "record":record,"center_mm":[cx,y],"radius_mm":r,"count_unit":"groups" if kind=="context" else "CDSs"})
+
+
+def _mask_order(n):
+    return ["".join("1" if j in selected else "0" for j in range(n))
+            for k in range(1,n+1) for selected in combinations(range(n),k)]
+
+
+def _remap_masks(row,old,new):
+    return {"".join(item["mask"][old.index(s)] for s in new):item
+            for item in row.get("noncanonical",{}).get("masks",[]) if len(item["mask"])==len(old)}
+
+
+def _layout(families,sources,refs,config):
+    panels=OrderedDict();x=6.04875
+    def add(name,width,gap=GAP):
+        nonlocal x
+        panels[name]={"left":x,"right":x+width};x+=width+gap
+    add("RM_callers",len(sources)*7.56)
+    if refs:add("REBASE",len(refs)*7.56)
+    add("RM_pool",17.85)
+    add("RM_integrated",sum(z[4]*CELL for z in ROLE_COLUMNS))
+    add("Retained_summary",11.76,MAJOR)
+    add("NonRM_callers",len(sources)*7.56,MAJOR)
+    masks=_mask_order(len(sources));exclusive=masks[:-1]
+    add("cases",len(exclusive)*CELL)
+    add("NonRM_summary",14.49,MAJOR)
+    groups=OrderedDict()
+    for f in families:groups.setdefault(_category(f),[]).append(f)
+    fpos={}
+    for cat,fs in groups.items():
+        width=len(fs)*CELL
+        add(cat,width,MAJOR if cat in ("Modification","Nuclease") else GAP)
+        for i,f in enumerate(fs):fpos[f["id"]]=panels[cat]["left"]+i*CELL
+    data_right=max(p["right"] for p in panels.values());sampleleft=data_right+2.6825
+    return panels,groups,fpos,masks,sampleleft,max(447.,data_right+91.)
+
+
+def _badge(c,x,y,n,color):
+    from matplotlib.colors import to_rgba
+    c.circle(x,y,2.1,to_rgba(color,.15),color,.6)
+    _text(c,x,y,n,10.5,bold=True,ha="center",color=color)
+
+
+def _headers(c,panels,groups,fpos,sources,refs,config,dy=0):
+    # The original five headings share one baseline, independent of leaf labels.
+    def text(x,y,*a,**kw):return _text(c,x,y+dy,*a,**kw)
+    text(3,58.2,"b",14,bold=True)
+    text(10,58.2,config.get("atlas_title") or "Comparative defense landscape across genomes",13,bold=True)
+    _badge(c,panels["RM_callers"]["left"]+2.1,64+dy,1,TEAL)
+    text(panels["RM_callers"]["left"]+5.8,64,"R-M evidence and curation",12,bold=True,color=TEAL)
+    nx=panels["NonRM_callers"]["left"]
+    _badge(c,nx+2.1,64+dy,2,"#829764")
+    text(nx+5.8,64,"Methylation-associated",12,bold=True,color="#829764")
+    text(nx+5.8,68.7,"evidence",12,bold=True,color="#829764")
+    if "Modification" in panels:
+        xx=panels["Modification"]["left"]
+        _badge(c,xx+2.1,64+dy,3,PALETTE["Modification"])
+        for k,label in enumerate(("Non-canonical","DNA modification","system")):
+            text(xx+5.8,64+k*4.7,label,12,bold=True,color=PALETTE["Modification"])
+    if "Nuclease" in panels:
+        xx=panels["Nuclease"]["left"]+21.5
+        _badge(c,xx,64+dy,4,PALETTE["Nuclease"])
+        text(xx+3.7,64,"Nuclease-associated",12,bold=True,color=PALETTE["Nuclease"])
+        text(xx+3.7,68.7,"evidence",12,bold=True,color=PALETTE["Nuclease"])
+    remaining=[panels[k] for k in groups if k not in ("Modification","Nuclease")]
+    if remaining:
+        ll=remaining[0]["left"];rr=remaining[-1]["right"]
+        c.line(ll,73+dy,rr,73+dy,"#AAB7BC",.5625)
+        c.line(ll,73+dy,ll,80+dy,"#AAB7BC",.5625);c.line(rr,73+dy,rr,80+dy,"#AAB7BC",.5625)
+        _badge(c,ll+17,64+dy,5,"#52626A")
+        text(ll+20.7,64,"Complementary defense priorities",12,bold=True)
+    p=panels
+    ref_right=p["REBASE"]["right"] if refs else p["RM_callers"]["right"]
+    text((p["RM_callers"]["left"]+ref_right)/2,80,"R-M CDSs in",9.24,bold=True,ha="center")
+    for name,keys in (("RM_callers",sources),("REBASE",refs),("NonRM_callers",sources)):
+        if not keys:continue
+        for i,source in enumerate(keys):text(p[name]["left"]+(i+.5)*7.56,85,alias(source,config),8.82,ha="center")
+    pp=p["RM_pool"];text((pp["left"]+pp["right"])/2,80,"Intersection",9.24,bold=True,ha="center")
+    text((pp["left"]+pp["right"])/2,85,"(n/R-M pool)",9.6,ha="center")
+    pp=p["RM_integrated"];text((pp["left"]+pp["right"])/2,72.4,"R-M subunits and contexts",10,bold=True,ha="center")
+    x=pp["left"];spans=OrderedDict()
+    for key,kind,typ,label,units in ROLE_COLUMNS:
+        w=units*CELL;spans.setdefault(typ,[x,x]);spans[typ][1]=x+w
+        if kind=="context":c.rect(x,80.9+dy,w,8.8,"#F6F8F7")
+        angle=55 if kind=="context" and len(label)>1 else 0
+        text(x+w/2,85.5 if angle else 87,label,8.82,ha="center",rotation=angle)
+        x+=w
+    for typ,(left,right) in spans.items():
+        text((left+right)/2,75.5,typ,8.8,bold=True,ha="center")
+        c.line(left+.3,77.5+dy,right-.3,77.5+dy,TEAL,.525)
+    x=pp["left"]
+    for typ in ("I","II","III","IV"):
+        cols=[z for z in ROLE_COLUMNS if z[2]==typ]
+        for kind in ("role","context"):
+            selected=[z for z in cols if z[1]==kind]
+            if selected:
+                width=sum(z[4]*CELL for z in selected)
+                if typ!="IV":text(x+width/2,79.5,"CDS" if kind=="role" else "Groups",7.3,ha="center")
+                x+=width
+    pp=p["Retained_summary"]
+    for yy,label,bold,size in ((76.4,"Retained",True,9.24),(80.6,"CDS",True,9.24),(84.9,"(R/total)",False,9.6)):
+        text((pp["left"]+pp["right"])/2,yy,label,size,bold=bold,ha="center")
+    pp=p["NonRM_callers"]
+    text((pp["left"]+pp["right"])/2,76,"Non-canonical",9.24,bold=True,ha="center")
+    text((pp["left"]+pp["right"])/2,80,"Annotated CDSs",9.24,bold=True,ha="center")
+    cx=(p["cases"]["left"]+p["NonRM_summary"]["right"])/2
+    text(cx,76,"Exclusive CDSs",9.24,bold=True,ha="center")
+    text(cx,80,"R-M-excluded union",9.6,ha="center")
+    pp=p["NonRM_summary"];text((pp["left"]+pp["right"])/2,85,"(n/pool)",9.6,ha="center")
+    for cat,fs in groups.items():
+        pp=p[cat];cx=(pp["left"]+pp["right"])/2
+        label="Other" if cat=="Other mechanisms" else cat
+        if cat=="Cas" or c.fonts.width(label,9.6,True)>pp["right"]-pp["left"]:
+            text(cx,85.8,label,9.6,bold=True,rotation=90,ha="left")
+        else:text(cx,80.8,label,9.6,bold=True,ha="center")
+    for name in ("RM_callers","REBASE","RM_pool","Retained_summary","NonRM_callers","cases","NonRM_summary"):
+        if name not in p:continue
+        pp=p[name];col="#C8DDDA" if name=="RM_pool" else PURPLE if name=="NonRM_summary" else ORANGE if name in ("cases","NonRM_callers") else TEAL
+        c.rect(pp["left"],87.1+dy,pp["right"]-pp["left"],1.7,col)
+    for cat,fs in groups.items():
+        for f in fs:
+            xx=fpos[f["id"]];segments=f.get("band_segments")
+            primary=_color(cat,config)
+            c.rect(xx,87.1+dy,CELL,1.7,primary)
+            tags=f.get("category_tags",[])
+            if isinstance(tags,str):tags=[tags]
+            secondary=[t for t in tags if t!=cat]
+            if f.get("category")!=cat and f.get("category") in PALETTE:secondary.insert(0,f["category"])
+            if segments and len(segments)>1:
+                yy=87.1+dy;total=sum(z["fraction"] for z in segments)
+                for z in segments:
+                    h=1.7*z["fraction"]/total;c.rect(xx,yy,CELL,h,_color(z["category"],config));yy+=h
+            elif secondary:c.rect(xx,87.95+dy,CELL,.85,_color(secondary[0],config))
+            overlay_secondary=f.get("secondary_category")
+            if overlay_secondary:
+                color=_color(overlay_secondary,config);yy=88.02+dy
+                if f.get("secondary_style") in ("striped","proposed_context"):
+                    c.rect(xx,yy,CELL,.78,"white")
+                    for offset in (.15,1.25,2.35):c.rect(xx+offset*CELL/3.2,yy,.65*CELL/3.2,.78,color)
+                else:c.rect(xx,yy,CELL,.78,color)
+            c.ledger["bands"].append({"family_id":f["id"],"primary":cat,"secondary":secondary,
+                "bounds_mm":[xx,87.1+dy,CELL,1.7]})
+        for left,right in zip(fs,fs[1:]):
+            if left.get("partner_group") and left.get("partner_group")==right.get("partner_group"):
+                c.line(fpos[left["id"]]+.15,86.7+dy,fpos[right["id"]]+CELL-.15,86.7+dy,"#9AA9AA",.375)
+
+
+def _strain_parts(row):
+    label=str(row.get("label",row["sample_id"]));display=row.get("display",{})
+    taxon=display.get("taxon_label");strain=display.get("strain_label")
+    if taxon is None:
+        if not row.get("genus") and not row.get("species"):
+            return "", label
+        bits=label.split();cut=1 if len(bits)<2 or bits[1] in ("sp.","genomosp.") else 2
+        taxon=" ".join(bits[:cut]);strain=" ".join(bits[cut:])
+    return str(taxon), str(strain or "")
+
+
+def _strain(c,x,y,row):
+    taxon,strain=_strain_parts(row)
+    if not taxon:
+        _text(c,x,y,strain,NUM,bold=bool(row.get("highlight")))
+        return
+    bold=bool(row.get("highlight"));t=_text(c,x,y,taxon,NUM,bold=bold,italic=True)
+    # Exact italic advance is measured with the selected font, not a character count.
+    from matplotlib.textpath import TextToPath
+    width=TextToPath().get_text_width_height_descent(taxon,t.get_fontproperties(),False)[0]*25.4/72
+    if strain:_text(c,x+width+.8,y,strain,NUM,bold=bold)
+
+
+def _legend(c,model,panels,groups,fpos,masks,sources,rows,bottom,sampleleft,config):
+    y=bottom+3.4
+    _text(c,6,y,"Coding",8.8,bold=True);_text(c,6,y+3,"sequences (CDSs)",8.8,bold=True)
+    for i,n in enumerate((1,2,4,8,16)):
+        cy=y+7+3*i;c.circle(7,cy,radius(n)/1.05,ORANGE)
+        _text(c,10,cy,("1","2-3","4-7","8-15","16+")[i],7.8)
+    _text(c,36,y,"Subunit groups",8.8,bold=True)
+    reference_label="Any REBASE-linked group" if model.get("reference_sources")==["REBASE"] else "Any reference-linked group"
+    for i,label in enumerate(("One symbol + group count","All groups R-supported",reference_label,"Orphan M(S)")):
+        cy=y+4+3*i
+        if i==2:c.circle(37,cy,.34,REFERENCE)
+        else:
+            c.circle(37,cy,.7,"#D8CAE5" if i==3 else "#BCD9D4","#81669C" if i==3 else "#292929",.6)
+            if i==1:c.circle(37,cy,.95,None,TEAL,.7125)
+        if i==0:_text(c,40.5,cy,"(n)",7.7,ha="center")
+        _text(c,45,cy,label,7.7)
+    _text(c,36,y+19,"Family evidence",8.8,bold=True)
+    for i,label in enumerate(("Putative nuclease-associated CDSs","Effector CDSs")):
+        cy=y+23+4*i;c.circle(37,cy,1.1,None,PURPLE,.45)
+        if i:c.circle(37,cy,.635,INNER)
+        _text(c,40,cy,label,7.7)
+    # Seven source masks are a legend, never mistaken for additional genomes.
+    ys=[bottom+32.4+4*i for i in range(len(sources))]
+    if sources:
+        for source,cy in zip(sources,ys):_text(c,panels["cases"]["left"]+.55,cy,alias(source,config),6.7,ha="right")
+        for i,mask in enumerate(masks):
+            xx=panels["NonRM_summary"]["left"]+1.8 if i==len(masks)-1 else panels["cases"]["left"]+(i+.5)*CELL
+            active=[ys[k] for k,bit in enumerate(mask) if bit=="1"];color=PURPLE if i==len(masks)-1 else ORANGE
+            if len(active)>1:c.line(xx,min(active),xx,max(active),color,.6)
+            for bit,cy in zip(mask,ys):c.circle(xx,cy,.65 if bit=="1" else .3,color if bit=="1" else "#E3E7E8")
+        _text(c,panels["NonRM_summary"]["left"]+5.5,ys[-1],"n/pool",8.4,bold=True)
+        outside=[_remap_masks(row,model["source_order"],sources).get("0"*len(sources),{}) for row in model["rows"]]
+        if any(item.get("count",0) for item in outside):
+            from .manuscript_model import _intersection_state
+            state=_intersection_state(item.get("status","unassessed") for item in outside)
+            label=number(sum(item.get("count") or 0 for item in outside),state)
+            _text(c,panels["cases"]["left"],ys[-1]+5,"Outside shown sources: "+label+" CDSs",7.7)
+    # Taxonomy colors are supplied metadata or deterministic generic defaults.
+    tx=sampleleft;genus=OrderedDict();species=OrderedDict()
+    for row in model["rows"]:
+        disp=row.get("display",{});g=row.get("genus");s=row.get("species")
+        if g:genus.setdefault(g,{"label":disp.get("genus_label",g),"color":disp.get("genus_color",stable_color(g))})
+        if s:species.setdefault((g,s),{"label":disp.get("species_label",s),"color":disp.get("species_color",stable_color(s))})
+    declared=model.get("taxonomy_legend",{})
+    if declared.get("genera"):genus=OrderedDict((z["key"],z) for z in declared["genera"])
+    if declared.get("species"):species=OrderedDict((z["key"],z) for z in declared["species"])
+    def legend_text(x,y,entry,genus=False):
+        runs=entry.get("label_runs")
+        if runs is None:
+            runs=([{"text":entry["abbreviation"],"italic":True},{"text":"=","italic":False},
+                   {"text":entry["label"],"italic":True}] if genus and entry.get("abbreviation")
+                  else [{"text":entry["label"],"italic":entry.get("italic",True)}])
+        from matplotlib.textpath import TextToPath
+        for run in runs:
+            artist=_text(c,x,y,run["text"],7.8,italic=bool(run.get("italic")))
+            x+=TextToPath().get_text_width_height_descent(run["text"],artist.get_fontproperties(),False)[0]*25.4/72+.65
+    _text(c,tx,y,"Genus",8.8,bold=True)
+    for i,(key,z) in enumerate(genus.items()):
+        xx=tx+(i%2)*40;yy=y+4+(i//2)*3
+        c.rect(xx,yy-1.2,2.2,2.2,z.get("color") or stable_color(str(key)));legend_text(xx+4,yy,z,True)
+    sy=y+8+max(0,(len(genus)-1)//2)*3;_text(c,tx,sy,"Species",8.1,bold=True)
+    for i,(key,z) in enumerate(species.items()):
+        xx=tx+(i%2)*40;yy=sy+4+(i//2)*3
+        c.rect(xx,yy-1.2,2.2,2.2,z.get("color") or stable_color(str(key)));legend_text(xx+4,yy,z)
+    fy=sy+4+math.ceil(len(species)/2)*3+2
+    extras=[("Other",PALETTE["Other mechanisms"]),("Target strain",TARGET),
+            ("Mechanism not assigned yet",PALETTE["Unresolved"])]
+    if any(r.get("display",{}).get("absence_family_ids") for r in model["rows"]):extras.append(("No "+str(model.get("absence_label","saved family")),"#D0CFE5"))
+    if any(r.get("display",{}).get("transformable") is True for r in model["rows"]):extras.append(("Transformable","#526A75"))
+    for i,(label,color) in enumerate(extras):
+        xx=tx+(i%2)*40;yy=fy+(i//2)*4
+        c.rect(xx,yy-1.2,2.2,2.2,color);_text(c,xx+4,yy,label,7.8)
+
+
+def manuscript_atlas_pages(result,fonts,config,page_factory):
+    from .manuscript_model import build_manuscript_atlas_model
+    from .manuscript_workflow import draw_manuscript_workflow
+    model=build_manuscript_atlas_model(result)
+    sources=list(model.get("source_order",[]))
+    desired=config.get("atlas_source_order",["PADLOC","DefenseFinder","DefensePredictor"])
+    sources=[s for s in desired if s in sources]+[s for s in sources if s not in desired]
+    refs=list(model.get("reference_sources",[]))
+    from matplotlib.colors import to_rgba
+    taxonomy_colors={field:{item["key"]:item.get("color") for item in model.get("taxonomy_legend",{}).get(plural,[])}
+                     for field,plural in (("genus","genera"),("species","species"))}
+    for row in model.get("rows",[]):
+        for field in taxonomy_colors:
+            explicit=row.get("display",{}).get(field+"_color")
+            declared=taxonomy_colors[field].get(row.get(field))
+            if explicit and declared and to_rgba(explicit)!=to_rgba(declared):
+                raise ValueError("Conflicting taxonomy colors between sample display and legend")
+    families=ordered_families(visible_rows(model.get("families",[])),config)
+    families=[f for f in families if f.get("category")!="R-M"]
+    family_pages=[];block=[]
+    maxwidth=config["atlas_page_size"][0]
+    for f in families:
+        trial=block+[f]
+        if block and (_layout(trial,sources,refs,config)[-1]>maxwidth or len(trial)>config["max_families_per_page"]):
+            family_pages.append(block);block=[]
+        block.append(f)
+    family_pages.append(block)
+    pages=[]
+    for fs in family_pages:
+        panels,groups,fpos,masks,sampleleft,width=_layout(fs,sources,refs,config)
+        # Preserve original header grammar. Small inventories use an explicit
+        # heading key above the matrix rather than colliding five long headings.
+        small=any(len(groups.get(k,[]))<v for k,v in (("Modification",7),("Nuclease",17)))
+        dy=max(15.,max((fonts.width("Other" if k=="Other mechanisms" else k,9.6,True)-12.8 for k in groups),default=0.)) if small else 0.
+        maxrows=max(1,min(config["max_rows_per_page"],int((config["atlas_page_size"][1]-BODY_TOP-dy-55)/ROW)))
+        allrows=model.get("rows",[])
+        labelwidth=max((sum(fonts.width(part,NUM,bool(r.get("highlight"))) for part in _strain_parts(r))+2 for r in allrows),default=58.)
+        width=max(width,min(maxwidth,sampleleft+labelwidth+8))
+        chunks=[allrows[i:i+maxrows] for i in range(0,len(allrows),maxrows)] or [[]]
+        for rows in chunks:
+            top=BODY_TOP+dy;bottom=top+len(rows)*ROW
+            longlabel=max((fonts.width(display_label(f),8.3) for f in fs),default=0.)
+            taxonomy_height=16+math.ceil(len({(r.get("genus"),r.get("species")) for r in allrows})/2)*3+12
+            height=max(160.,bottom+max(50.,longlabel+7,taxonomy_height))
+            if width>maxwidth or height>config["atlas_page_size"][1]:
+                raise ValueError("Manuscript labels/evidence columns exceed atlas_page_size; increase the page limit or provide shorter display labels")
+            c=page_factory(width,height,"atlas")
+            c.ledger["atlas_style"]="manuscript"
+            c.ledger["panel_bounds"]={k:dict(v,top=top,bottom=bottom) for k,v in panels.items()}
+            c.ledger["model_provenance"]=model.get("provenance",{})
+            draw_manuscript_workflow(c,result,config,[0,0,447.,55.53])
+            if small:
+                # Render the same headings in full-span slots; no data columns removed.
+                _headers_small(c,panels,groups,fpos,sources,refs,config,dy)
+            else:_headers(c,panels,groups,fpos,sources,refs,config)
+            _text(c,sampleleft,85+dy,"Strains",9.45,bold=True)
+            scale_rm=max([25]+[n for r in allrows for n in r.get("rm_original",{}).get("source_counts",{}).values() if isinstance(n,int)])
+            scale_ref=max([40]+[n for r in allrows for n in r.get("rm_original",{}).get("reference_counts",{}).values() if isinstance(n,int)])
+            scale_nc=max([80]+[n for r in allrows for n in r.get("noncanonical",{}).get("source_counts",{}).values() if isinstance(n,int)])
+            scale_ret=max([1]+[r.get("retained",{}).get("total_CDS") or 0 for r in allrows])
+            reservations={}
+            for panel,rootkey,countkey,statuskey,scale in (
+                ("RM_callers","rm_original","source_counts","source_status",scale_rm),
+                ("REBASE","rm_original","reference_counts","reference_status",scale_ref),
+                ("NonRM_callers","noncanonical","source_counts","source_status",scale_nc)):
+                widths=[fonts.width(str(scale),NUM)]
+                for row in allrows:
+                    record=row.get(rootkey,{})
+                    for source,count in record.get(countkey,{}).items():
+                        if count and status_kind(record.get(statuskey,{}).get(source)) in ("complete","partial"):
+                            widths.append(fonts.width(number(count,record[statuskey][source]),NUM))
+                reservations[panel]=max(widths)
+            for ri,row in enumerate(rows):
+                sid=row["sample_id"];y=top+ri*ROW;cy=y+ROW/2;display=row.get("display",{})
+                c.ledger["cells"].append({"kind":"strain","sample_id":sid,"highlight":bool(row.get("highlight")),"bounds_mm":[sampleleft,y,58,ROW]})
+                c.rect(panels["RM_callers"]["left"],y,sampleleft+58-panels["RM_callers"]["left"],ROW,PINK if row.get("highlight") else "white")
+                if row.get("highlight"):c.rect(sampleleft-.6825,y,58,ROW,TARGET)
+                for k,field in enumerate(("genus","species")):
+                    if row.get(field):c.rect(2.35+k*1.68,y,1.365,ROW,display.get(field+"_color") or taxonomy_colors[field].get(row[field]) or stable_color(row[field]))
+                if display.get("transformable") is True:c.rect(sampleleft-2.6825,y,1.3125,ROW,"#526A75")
+                _strain(c,sampleleft,cy,row)
+                raw=row.get("rm_original",{});nc=row.get("noncanonical",{})
+                for name,keys,data,status,scale,color in (
+                    ("RM_callers",sources,raw.get("source_counts",{}),raw.get("source_status",{}),scale_rm,"#8EADA8"),
+                    ("REBASE",refs,raw.get("reference_counts",{}),raw.get("reference_status",{}),scale_ref,"#B4C8C3"),
+                    ("NonRM_callers",sources,nc.get("source_counts",{}),nc.get("source_status",{}),scale_nc,"#AAB7BC")):
+                    if not keys:continue
+                    for j,source in enumerate(keys):
+                        x=panels[name]["left"]+j*7.56;_cell(c,x,y,7.56,ROW)
+                        _mini_bar(c,x,cy,7.56,data.get(source),status.get(source),scale,color,{"sample_id":sid,"source":source,"panel":name},reservations[name])
+                pp=panels["RM_pool"];_cell(c,pp["left"],y,pp["right"]-pp["left"],ROW)
+                _fraction(c,pp["left"],cy,17.85,raw.get("intersection_CDS"),raw.get("input_pool_CDS"),raw.get("intersection_status"),"intersection",denstate=raw.get("pool_status"))
+                for field,value,state in (("rm_pool_CDS",raw.get("input_pool_CDS"),raw.get("pool_status")),("rm_intersection_CDS",raw.get("intersection_CDS"),raw.get("intersection_status"))):
+                    c.ledger["cells"].append({"kind":"atlas_evidence","sample_id":sid,"field":field,"value":value,"status":state,"bounds_mm":[pp["left"],y,17.85,ROW]})
+                x=panels["RM_integrated"]["left"]
+                for key,kind,typ,label,units in ROLE_COLUMNS:
+                    w=units*CELL;fill=PINK if row.get("highlight") else "#FAF8FC" if key in ("I_MS","III_M") and kind=="context" else "#F6F8F7" if kind=="context" else None
+                    _cell(c,x,y,w,ROW,fill);rec=row.get("compositions" if kind=="context" else "rm_roles",{}).get(key,{})
+                    _role_glyph(c,x,cy,w,rec,key,kind);x+=w
+                    if key in ("I_RMS","II_M","III_MR","IV_A"):c.line(x,y,x,y+ROW,"#8C999E",.4875)
+                pp=panels["Retained_summary"];ret=row.get("retained",{});_cell(c,pp["left"],y,11.76,ROW)
+                _fraction(c,pp["left"],cy,11.76,ret.get("R_CDS"),ret.get("total_CDS"),ret.get("status"),"retained",scale_ret)
+                rowmasks=_remap_masks(row,model.get("source_order",[]),sources)
+                for j,mask in enumerate(masks[:-1]):
+                    x=panels["cases"]["left"]+j*CELL;_cell(c,x,y,CELL,ROW)
+                    item=rowmasks.get(mask,{});n=item.get("count");state=item.get("status")
+                    if n is None or status_kind(state)=="unassessed":_text(c,x+CELL/2,cy,"NA",6.7,ha="center")
+                    elif n:
+                        c.circle(x+CELL/2,cy,radius(n),"#E78E51")
+                        if status_kind(state)=="partial":_text(c,x+CELL-.1,cy-1,"+",6.7,ha="right")
+                    elif status_kind(state)=="partial":_text(c,x+CELL/2,cy,"0+",6.7,ha="center")
+                    c.ledger["cells"].append({"kind":"exclusive","sample_id":sid,"mask":mask,"count":n,"status":state,"bounds_mm":[x,y,CELL,ROW]})
+                pp=panels["NonRM_summary"];_cell(c,pp["left"],y,14.49,ROW)
+                _fraction(c,pp["left"],cy,14.49,nc.get("intersection_CDS"),nc.get("pool_CDS"),nc.get("intersection_status"),"noncanonical",denstate=nc.get("pool_status"))
+                for f in fs:
+                    x=fpos[f["id"]];cell=row.get("cells",{}).get(f["id"],{})
+                    absent=f["id"] in display.get("absence_family_ids",[]) and cell.get("N")==0 and status_kind(metric_state(cell,"inventory"))=="complete"
+                    _cell(c,x,y,CELL,ROW,"#D0CFE5" if absent else None)
+                    _family_glyph(c,x+CELL/2,cy,cell,f,config)
+                    selected=f.get("highlight_source")
+                    if selected and status_kind(cell.get("exclusive_source_status")) in ("complete","partial") and cell.get("exclusive_source_counts",{}).get(selected,0)>0:
+                        color=config.get("atlas_link_colors",{}).get(selected,"#D56B25" if selected=="PADLOC" else "#347DA7")
+                        c.rect(x+.02,cy-.85,.16,1.7,color)
+                if ri==len(rows)-1 or (row.get("species"),row.get("genus"))!=(rows[ri+1].get("species"),rows[ri+1].get("genus")):
+                    c.line(2.35,y+ROW,sampleleft+58,y+ROW,"#9EA8AC",.315)
+            for name,p in panels.items():
+                c.rect(p["left"],top,p["right"]-p["left"],len(rows)*ROW,"none",TEAL if name in ("RM_pool","Retained_summary") else "#8C999E",1.1625 if name in ("RM_pool","Retained_summary") else .3375)
+            for f in fs:
+                source=f.get("highlight_source");color=config.get("atlas_link_colors",{}).get(source,"#D56B25" if source=="PADLOC" else "#347DA7") if source else "black"
+                _text(c,fpos[f["id"]]+CELL/2,bottom+1.7,display_label(f),8.3,ha="right",rotation=90,color=color)
+            for j,mask in enumerate(masks[:-1]):
+                label=" + ".join(alias(s,config) for s,b in zip(sources,mask) if b=="1")
+                if mask.count("1")==1:label+=" only"
+                source=next((s for s,b in zip(sources,mask) if b=="1"),None)
+                color="black"
+                if mask.count("1")==1 and source in ("PADLOC","DefenseFinder"):
+                    from .manuscript_model import _intersection_state
+                    items=[_remap_masks(r,model["source_order"],sources).get(mask,{}) for r in allrows]
+                    count=sum(item.get("count") or 0 for item in items)
+                    status=_intersection_state(item.get("status","unassessed") for item in items)
+                    label+=f" ({number(count,status)} CDSs)";color="#D56B25" if source=="PADLOC" else "#347DA7"
+                _text(c,panels["cases"]["left"]+(j+.5)*CELL,bottom+1.7,label,7.7,ha="right",rotation=90,color=color)
+            x=panels["RM_integrated"]["left"]
+            for key,kind,typ,label,units in ROLE_COLUMNS:
+                if typ=="IV":_text(c,x+units*CELL/2,bottom+1.7,"R: nuclease" if key=="IV_R" else "A: auxiliary",7.7,ha="right",rotation=90)
+                x+=units*CELL
+            _legend(c,model,panels,groups,fpos,masks,sources,rows,bottom,sampleleft,config)
+            c.ledger["workflow"]={"operation":"saved_result_import_and_aggregation","new_engine_runs":False,"activity_assessed":False}
+            pages.append(c)
+    return pages
+
+
+def _headers_small(c,panels,groups,fpos,sources,refs,config,dy):
+    # A page with fewer observed families cannot fit the original group-anchored
+    # long headings. Retain the complete five headings in a fixed legend row.
+    before=len(c.text_artists);_headers(c,panels,groups,fpos,sources,refs,config,dy)
+    # Reposition only stage headings/badges through a separately measured key.
+    stage_texts=[]
+    for artist,meta in c.text_artists[before:]:
+        y=meta["anchor_mm"][1]
+        if abs(y-(58.2+dy))<1e-7:
+            artist.set_y(artist.get_position()[1]-dy);meta["anchor_mm"][1]=58.2
+            if "baseline_mm" in meta:meta["baseline_mm"][1]-=dy
+        if 62+dy<=y<=74+dy and (meta["font_pt"]==12 or meta["text"] in ("1","2","3","4","5")):
+            stage_texts.append((artist,meta))
+    titles=[("1 R-M evidence and curation",TEAL),("2 Methylation-associated evidence","#829764"),
+            ("3 Non-canonical DNA modification system",PALETTE["Modification"]),
+            ("4 Nuclease-associated evidence",PALETTE["Nuclease"]),("5 Complementary defense priorities","black")]
+    for artist,meta in stage_texts:artist.remove();c.text_artists.remove((artist,meta))
+    # Remove circular stage-badge patches from their displaced anchored row.
+    from matplotlib.patches import Circle
+    for patch in list(c.ax.patches):
+        if isinstance(patch,Circle) and abs(patch.radius-2.1)<1e-6 and abs(patch.center[1]-(64+dy))<1e-6:patch.remove()
+    slot=(c.width-12)/5
+    for i,(title,color) in enumerate(titles):
+        label=c.fonts.wrap(title,slot-3,10.5,True)
+        _text(c,6+i*slot,65,label,10.5,bold=True,color=color)
+    c.ledger["section_headings"]={"mode":"section_key","heading_count":5}
