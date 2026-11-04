@@ -50,9 +50,18 @@ different loci because their proteins have the same sequence.
 Optional sample `genus`, `species` and `display` metadata control taxonomy strips
 and labels. For example, `display: {"taxon_label": "Example species",
 "strain_label": "isolate A", "genus_color": "#537C83", "species_color": "#B29BCB"}`
-keeps the taxon italic and the strain upright. `display.transformable: true` is
-an explicit supplied annotation, never inferred from a strain name. Sample
-highlights still use `highlight`; absent metadata does not create phenotype labels.
+keeps the taxon italic and the strain upright. No study-specific target or
+transformability key is drawn by default. Sample highlights still use `highlight`
+without assigning a biological meaning. An optional layout `highlight_label`
+names the pink highlight only when highlighted samples are shown.
+
+For an explicitly supplied binary sample annotation, a layout may set
+`sample_marker: {"field": "reviewed", "label": "Reviewed sample", "color": "#526A75"}`.
+This marks only samples with `display.reviewed: true`; the marker and its key
+appear together. A stored `display.transformable` field has no special rendering
+behavior: it requires an explicit `sample_marker` configuration like any other
+annotation. Neither phenotype nor taxonomy is inferred from sample names.
+Taxonomy and category keys are limited to items shown on the current page.
 
 For nonstandard locations, sample-level `genes` and `fasta` paths can be supplied.
 `modules` accepts `defensefinder`, `padloc`, `defensepredictor`, and
