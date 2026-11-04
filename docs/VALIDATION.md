@@ -1,3 +1,53 @@
+# Release validation — 2.1.3
+
+## Saved R-M evidence and complete publication output
+
+Legacy native exports do not always contain executed retained decisions. The
+optional `--rm-evidence` bridge now evaluates complete, source-bound saved evidence
+with the unchanged DNMB policy. It preserves original calls, all candidate audit
+records and missing assessments. This is a fresh evaluation of stored evidence,
+followed by aggregation and rendering; it is not a detector or recognition-engine
+rerun. Newer exports can continue to use their saved decisions directly.
+
+The final source passed **772 automated tests** and a clean installed-wheel check
+(`CLEAN_INSTALL_OK`), with source hashes unchanged during both checks. Tests cover
+multipart input, saved classification decisions, identity and scope conflicts,
+retained context, partial assessment, explicit family mappings and figure layout.
+Windows CI exposed text-mode hashing and default-codec mistakes in two test
+fixtures. The fixtures now hash actual file bytes and read the UTF-8 layout
+ledger explicitly; new CRLF cases also reject newline-only artifact tampering.
+Production hashing and figure code were unchanged by these fixture corrections.
+Remote CI is authoritative for the operating-system/Python matrix.
+
+Three real native sample folders, including a separate external comparator, were
+freshly imported with their own bound evidence. Their retained counts are 11, 9
+and 9; adding separate reviewed annotations gives type-table totals 14, 11 and
+12. Missing external functional and orphan assessments remain unassessed. No
+primary-cohort review was borrowed for the external sample.
+
+Historical **51-genome** and current **52-genome** inputs were imported and checked
+separately. Independent source reconciliation passed **7,790** and **7,930** checks,
+respectively. Integrated unions remain 2,886 / 2,929; effector counts 491 / 497;
+annotation-based priority counts 494 / 500. Direct comparison against the original
+figure source also verified all 676 R-M role/context cells and 135 type-case
+numeric cells. These checks assess software and source reconciliation, not
+independent biological accuracy.
+
+Each cohort produces three pages: the detailed workflow/landscape a/b, R-M type
+tables, and a Letter portrait comparison. All 57 category/family rows fit the
+full-cohort comparison page at unchanged 7.8-point body size. Bars have equal
+track dimensions, Total/Effector counts occupy separate right-aligned columns,
+and observed PT partners are shown without inventing absent families. PDF and
+editable SVG come from the same render. Only synthetic inputs are distributed.
+
+Type-table assessment is conditional on the observed assigned-type pool; broader
+candidate assessment remains separately exported. Untyped no-hit nominees remain
+in the evaluation audit without inflating the R-M display pool. Partial counts
+and unavailable assessments remain distinct from zero. Actual Claude critique
+and its resolutions are recorded in [REVIEW.md](REVIEW.md).
+
+---
+
 # Release validation — 2.1.2
 
 ## Generic annotations and complete small-cohort figures

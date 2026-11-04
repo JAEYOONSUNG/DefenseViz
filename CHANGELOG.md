@@ -1,5 +1,15 @@
 # Changelog
 
+## 2.1.3
+
+- Connect complete, source-bound R-M evidence to the DNMBsuite workflow with `--rm-evidence`; export fresh policy decisions and their provenance alongside the figures.
+- Preserve original tool/reference calls and unassessed legacy candidates; reject incomplete evidence and stale protein/source bindings.
+- Reconcile retained context completeness after filtering and count reciprocal saved contexts once.
+- Preserve multipart DefenseFinder systems, saved DefensePredictor decisions and incomplete REBASE observations without conflating source coverage with candidate coverage.
+- Normalize known native family names for display while retaining source identities and explicit user mappings.
+- Export annotation-based prioritization separately from its stricter policy-support subset.
+- Keep the full manuscript atlas, type tables and Letter portrait comparisons for small cohorts.
+
 ## 2.0.0
 
 - Standalone Python API and CLI with explicit file/config inputs instead of working-directory and R global-environment dependencies.

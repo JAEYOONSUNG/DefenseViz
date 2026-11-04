@@ -14,7 +14,7 @@ render_publication(result, output_dir, *, title="DefenseViz", **layout_options) 
 
 `defenseviz from-suite ROOT --out OUTPUT` discovers one per-genome output directory
 or immediate children of a cohort directory. It also accepts `--manifest FILE`,
-`--supplement FILE`, `--rscript PATH`, and `--strict-inputs`. The manifest has
+`--supplement FILE`, `--rm-evidence FILE`, `--rscript PATH`, and `--strict-inputs`. The manifest has
 `schema_version: 1` and `samples` entries with `sample_id`, `path`, `label` and
 optional `highlight`, `genus`, `species`, `cohort`, `modules`. Manifest paths are
 relative to the manifest. Basenames are literal default sample identifiers;
@@ -98,6 +98,75 @@ Orphans and missing retained partners require explicit saved context assessments
 Type IV does not inherit a Type I–III methylation-partner requirement.
 R means a restriction-role annotation, M methylation, S specificity and A an
 auxiliary component. A context defect does not by itself establish inactivity.
+
+## Source-bound R-M reevaluation
+
+`apply_rm_evidence(data, path)` runs before review supplements and aggregation.
+The JSON object requires `schema_version: 1`, `input_sha256`, `selected_policy`,
+`records`, and `candidate_scope`. Paths resolve relative to that JSON file.
+The full `selected_policy` object must equal the packaged selected preset;
+this route does not fit or override thresholds.
+
+Each record requires `sample_id`, `gene_id`, `protein_sha256`, `evidence`, and
+hashed `source_refs`. `evidence` supplies every field of the current `Evidence`
+dataclass, including explicit optional-axis values. Missing boolean assessments
+cannot become false. Exact sample/gene identity performs the join; a matching
+protein hash alone never merges paralogs or resolves an identifier.
+Optional `context_state`/`orphan` need separate `context_source_refs`.
+`old_context` is a scoring axis, not a current retained-system assessment.
+Optional `expected_decision` contains `keep`, `score_total`, and hashed
+`source_refs`; a mismatch against fresh evaluation is an error. New evidence
+without a prior evaluation does not need an expected decision.
+
+Each candidate scope names a bound `sample_id`, distinct `gene_ids`, hashed
+`source_refs`, and `status` (`complete` or `partial`). Complete scope cannot hide
+unmapped native candidates, unresolved candidate-count conflicts, omitted
+decisions, or added candidates outside the original native candidate set.
+Partial scope exports the remaining unassessed and added identities explicitly.
+
+`decision_mode` defaults to `evaluate_unassessed`, which rejects a conflict with
+an existing assessed decision. Explicit `replace_scoped` selects the fresh
+evaluation for the declared samples: all their previous decisions are preserved
+in the audit record, and omitted candidates become unassessed. Their original
+tool/reference calls are unchanged. Native saved-retention coverage and
+old-to-current transitions are also preserved. This selection never edits a
+source artifact.
+
+The policy's `integrated_R_component_support` remains separate from retained R
+annotation counts. Primary `priority` preserves annotation-based triage: retained
+or reviewed R roles union effectors. The separate `priority_support_qualified`
+endpoint requires positive policy R support, an independently accepted R review,
+or effector evidence. An unmet policy nuclease route is not an R-negative or an
+inactivity result. Both membership flags and per-CDS three-state policy support
+are exported; `R_only_policy_unmet_CDS` identifies candidates retained in the
+broad endpoint without that narrower support. No computational support field
+establishes experimental activity. Pre-retention
+native contexts do not become current assessments merely because all members
+were retained after reevaluation.
+
+Review groups can explicitly name `supersedes_group_ids` for earlier DNMB saved
+contexts. They must belong to the same sample, stay within the original member
+boundary and carry hashed sources; native detector systems cannot be replaced.
+Displaced contexts remain in `suite.superseded_context_groups`. Complex records
+cannot reference a displaced active group.
+
+See the [runnable synthetic example](../examples/suite_rm_evidence/README.md).
+The figures retain `+` for partial counts. `rm_evaluation.json` records every
+Evidence object, policy decision, source binding and actual evaluation count.
+
+Type tables condition on their observed assigned-type pool. Their
+`within_pool_counts_status` and `within_pool_role_states` determine the displayed
+assessment state. For example, all nine assessed members of a nine-CDS pool are
+exact within that pool even if an unrelated historical nominee is unassessed.
+An unknown member inside the pool keeps its DNMB subset partial. Broader
+`counts_status` and sample retention coverage remain separate exported fields;
+a zero inside an empty observed typed pool is not genome-wide absence evidence.
+
+`rm_candidate_scope.member_keys` preserves the complete selected evaluation
+scope. `typed_member_keys` and `untyped_member_keys` partition it without dropping
+decisions. Only typed current candidates supplement original R-M/reference
+memberships in the atlas input denominator. The typed table pool, the broader
+atlas input pool, and the full evaluation candidate scope are distinct endpoints.
 
 ## Analysis outputs for the renderer
 

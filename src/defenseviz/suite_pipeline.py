@@ -57,16 +57,19 @@ def suite_warnings(data, result):
                                *result.get("warnings", [])]))
 
 
-def prepare_suite(root, *, manifest=None, supplement=None, rscript=None, strict_inputs=False):
+def prepare_suite(root, *, manifest=None, supplement=None, rm_evidence=None, rscript=None, strict_inputs=False):
     from .io.suite import load_suite
     data = load_suite(Path(root), manifest=manifest, rscript=rscript, strict_inputs=strict_inputs)
+    if rm_evidence is not None:
+        from .rm_evaluation import apply_rm_evidence
+        data = apply_rm_evidence(data, rm_evidence)
     if supplement is not None:
         from .supplement import apply_supplement
         data = apply_supplement(data, supplement)
     return data
 
 
-def run_suite(root, output_dir, *, manifest=None, supplement=None, rscript=None,
+def run_suite(root, output_dir, *, manifest=None, supplement=None, rm_evidence=None, rscript=None,
               strict_inputs=False, title="DefenseViz", layout=None, argv=None):
     """Import native exports, aggregate saved evidence, publish a fresh directory."""
     from .analysis.saved import analyze_saved
@@ -81,7 +84,7 @@ def run_suite(root, output_dir, *, manifest=None, supplement=None, rscript=None,
     if not isinstance(title, str) or not title.strip():
         raise ValueError("Title must be nonempty text")
     software_before = software_state()
-    data = prepare_suite(source_root, manifest=manifest, supplement=supplement,
+    data = prepare_suite(source_root, manifest=manifest, supplement=supplement, rm_evidence=rm_evidence,
                          rscript=rscript, strict_inputs=strict_inputs)
     import_seconds = time.monotonic() - started
     layout_options = {}
@@ -105,6 +108,9 @@ def run_suite(root, output_dir, *, manifest=None, supplement=None, rscript=None,
     try:
         tick = time.monotonic()
         result = analyze_saved(data)
+        if data.get("rm_evaluation"):
+            result.setdefault("provenance", {})["rm_evaluation"] = data["rm_evaluation"]
+            result["provenance"]["scoring_runs"] = data["rm_evaluation"]["scoring_runs"]
         from .plot.publication.manuscript_model import enrich_manuscript_model
         result = enrich_manuscript_model(data, result)
         analysis_seconds = time.monotonic() - tick
@@ -119,10 +125,16 @@ def run_suite(root, output_dir, *, manifest=None, supplement=None, rscript=None,
             raise ValueError("Analysis availability must be an object")
         write_json(stage / "native_bundle.json", native_export)
         write_json(stage / "analysis.json", analysis_export)
+        if "rm_evaluation" in native_export:
+            write_json(stage / "rm_evaluation.json", native_export["rm_evaluation"])
         table_dir = stage / "tables"
         table_dir.mkdir()
         for name, headers in RESULT_TABLES.items():
             _write_table(table_dir / f"{name}.tsv", _table_rows(analysis_export[name], name), headers)
+        if "context_assessments" in analysis_export:
+            _write_table(table_dir / "context_assessments.tsv",
+                         _table_rows(analysis_export["context_assessments"], "context_assessments"),
+                         ("sample_id", "group_ids", "original_context_state", "context_state"))
         inventory = analysis_export["inventory_rows"]
         if not isinstance(inventory, dict) or not {"categories", "families"} <= set(inventory):
             raise ValueError("Analysis inventory_rows requires categories and families")
@@ -158,11 +170,13 @@ def run_suite(root, output_dir, *, manifest=None, supplement=None, rscript=None,
         receipt = {
             "schema_version": 1, "tool": "DefenseViz", "version": __version__,
             "created_at": datetime.now(timezone.utc).isoformat(),
-            "operation": "saved_suite_result_import_aggregation_and_render",
+            "operation": ("saved_suite_evidence_reevaluation_aggregation_and_render" if rm_evidence is not None
+                          else "saved_suite_result_import_aggregation_and_render"),
+            "scoring_runs": data.get("rm_evaluation", {}).get("scoring_runs", 0),
             "detector_runs": 0, "structure_prediction_runs": 0, "threshold_fitting": False,
             "argv": argv if argv is not None else sys.argv, "exit_code": 0,
             "elapsed_seconds": time.monotonic() - started,
-            "stages": [{"name": "native_import", "elapsed_seconds": import_seconds},
+            "stages": [{"name": "native_import_and_rm_reevaluation" if rm_evidence is not None else "native_import", "elapsed_seconds": import_seconds},
                        {"name": "saved_evidence_aggregation", "elapsed_seconds": analysis_seconds},
                        {"name": "publication_render", "elapsed_seconds": render_seconds}],
             "input_path_base": "supplied suite root",
@@ -171,6 +185,7 @@ def run_suite(root, output_dir, *, manifest=None, supplement=None, rscript=None,
             "source_metadata": native_export.get("source_metadata", []),
             "options": {"manifest": provenance_path(Path(manifest).resolve(), source_root) if manifest else None,
                         "supplement": provenance_path(Path(supplement).resolve(), source_root) if supplement else None,
+                        "rm_evidence": provenance_path(Path(rm_evidence).resolve(), source_root) if rm_evidence else None,
                         "rscript": rscript, "strict_inputs": strict_inputs, "title": title, "layout": layout_options},
             "conflicts": native_export.get("suite", {}).get("conflicts", []),
             "external_processes": _serializable(data.get("suite", {}).get("commands", [])),

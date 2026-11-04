@@ -1,3 +1,57 @@
+# DefenseViz 2.1.3 native retention and completeness review
+
+Actual read-only Claude Opus critique reviewed the implementation, source-bound
+ledgers and all nine final figure pages across separate historical, current and
+external-comparator cohorts. The final software review found no remaining blocker
+or High issue. It identified one Medium input-metadata omission: an external
+sample used a custom cohort string, so its case header lacked the supported
+external styling. The corrected manifest uses the existing `external` value and
+an explicit display label; no specimen rule or scientific assignment is added.
+A narrow Claude follow-up inspected the corrected PNG/SVG and metadata delta,
+confirmed the external-label finding closed, and found no new clipping or
+typographic defect. Independent parity checks confirm unchanged scientific data.
+
+The review drove the following corrections and independent checks:
+
+- Complete saved R-M Evidence is evaluated through the unchanged policy with
+  exact native-artifact, gene and whole-protein bindings. Missing evidence is not
+  filled with false values, and conflicting expected decisions fail explicitly.
+- Current retained context is recomputed within the original system boundary.
+  Displaced or pre-retention records remain in the audit, and unrelated historical
+  nominees cannot make a fully assessed observed type pool appear unassessed.
+- The R-M display pool includes original native R-M memberships, reference hits
+  and explicitly typed current candidates. Untyped no-hit nominees remain in the
+  evaluation ledger without inflating that display denominator.
+- Source-level no-hit normalization in the external legacy input was checked
+  against individual successful search scopes and exact protein identities.
+  Missing executed orphan assessments remain unassessed.
+- Multipart calls, saved classification flags, native family identities and
+  explicit user family mappings remain distinct from display aliases and reviews.
+- The full workflow, detailed atlas and comparison preserve observed rows and
+  proportional effector glyphs. Count banks, uniform bar tracks, typography,
+  observed PT pairs and partial states were inspected in actual PDF/SVG output.
+
+Claude retracted two unsupported interpretations after direct source checks:
+one apparent lost Type-IV value was actually the neighboring retained-summary
+numerator, and a narrow policy-support flag cannot justify excluding an otherwise
+retained R annotation from the broad annotation-based prioritization endpoint.
+That broad endpoint and its stricter support-qualified subset remain separate.
+Generic figures intentionally do not infer target-strain or transformability
+legends from study-specific metadata.
+
+Independent reviewers checked original source arrays, exact scientific sets,
+installed execution and final figure geometry. Root ran the tests and clean-wheel
+checks; Claude read their receipts and did not execute them. These reviews verify
+source reconciliation and software behavior, not biological activity, exhaustive
+nuclease detection, or predictive accuracy. See [validation](VALIDATION.md) for
+executed checks; remote CI results remain separately reported by GitHub Actions.
+Subsequent Windows CI findings were isolated to fixture newline hashing and
+default text decoding. Their assertions were retained, explicit byte/UTF-8
+handling was added, and two CRLF tamper regressions strengthen the fixture scope.
+No production rule or renderer changed after the Claude artifact closeout.
+
+---
+
 # DefenseViz 2.1.1 manuscript fidelity correction
 
 The first 2.1 publication layout preserved counts but simplified the approved figure too far. This correction ports the original five-card vector workflow and detailed landscape, and checks them against the original geometric ledger and rendered image. It restores source mini-bars, 13 R-M role/context columns, exclusive-membership symbols, family glyph areas, paired category bands, taxonomy, pink rows, font styles and grouped legends. The compact view remains opt-in.
