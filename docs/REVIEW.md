@@ -1,3 +1,13 @@
+# DefenseViz 2.1.1 manuscript fidelity correction
+
+The first 2.1 publication layout preserved counts but simplified the approved figure too far. This correction ports the original five-card vector workflow and detailed landscape, and checks them against the original geometric ledger and rendered image. It restores source mini-bars, 13 R-M role/context columns, exclusive-membership symbols, family glyph areas, paired category bands, taxonomy, pink rows, font styles and grouped legends. The compact view remains opt-in.
+
+Actual Claude review exposed generic boundary defects that the original-cohort match alone did not exercise. Explicitly excluded saved-group members are now excluded from composition and badge binding; incomplete type/role information stays partial. HMM-only providers do not become native atlas sources, and general-defense projection only applies to the actual generic predictions. Native and reference channels remain distinct, including mixed-provider fallback. Display-evidence merging is order independent; conflicting saved criteria cannot be overridden by layout configuration.
+
+Partial zero cells have explicit marks, source-pattern totals honor coverage, out-of-shown-source members are disclosed without changing their pool, and taxonomy strips agree with the declared key. Role-level and group-level support semantics are stated separately in the accompanying figure caption, preserving the approved short in-figure legend. Micro-adjusted mini-bar tracks reserve measured number widths; all count scaling remains linear.
+
+---
+
 # DefenseViz 2.1 review resolutions
 
 Independent input, analysis and renderer reviewers cross-checked each other's work. Actual Claude Opus critique reviewed the implementation and rendered PNGs; the review was read-only and did not execute tests. Root independently executed the regression and installation checks. The final Claude closeout found no unresolved High findings or blockers; its readiness verdict was conditional on the final tests, installation and native-folder runs, which passed locally.

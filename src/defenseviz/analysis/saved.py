@@ -751,7 +751,7 @@ def analyze_saved(data):
         if k in P:
             r["selection_route"] = "R_and_effector" if k in R&E else "R_only" if k in R else "effector_only"
         ledger.append(r)
-    source_out = [dict(id=s,label=s,kind="mixed" if len(source_kind[s])>1 else "reference_annotation" if source_kind[s]=={"reference_hit"} else "native_final_member",coverage_status=_status(cov.get((sid,s),"missing") for sid in sample_ids)) for s in sources]
+    source_out = [dict(id=s,label=s,kind="hmm_evidence" if not source_kind[s] else "mixed" if len(source_kind[s])>1 else "reference_annotation" if source_kind[s]=={"reference_hit"} else "native_final_member",coverage_status=_status(cov.get((sid,s),"missing") for sid in sample_ids)) for s in sources]
     global_summary = dict(integrated_CDS=len(U),native_union_CDS=len(native),retained_CDS=len(retained),reviewed_CDS=len(reviewed),
         DNMB_only_CDS=len(U-native),retained_only_CDS=len(retained-native),reviewed_only_CDS=len(reviewed-(native|retained)),
         final_RM_CDS=len(final_rm),restriction_role_CDS=len(R),individual_effector_CDS=len(individual),complex_core_CDS=len(cores),
@@ -764,9 +764,12 @@ def analyze_saved(data):
         if call["evidence_kind"] != "hmm_hit" and call.get("selected", True) and (call.get("category") == "R-M" or _type(call.get("rm_type")) in {"Type I","Type II","Type III","Type IV"}):
             raw_rm_sources[call["caller"]].add(key(call,"original R-M source"))
     raw_rm_pool = set.union(set(), *raw_rm_sources.values()) | set(saved)
-    generic_prediction_sources = {call["caller"] for call in calls if call["evidence_kind"] == "final_member" and call.get("family") == "General defense"}
-    for provider in generic_prediction_sources:
-        raw_rm_sources[provider] |= source_members[provider] & raw_rm_pool
+    generic_predictions = defaultdict(set)
+    for call in calls:
+        if call["evidence_kind"] == "final_member" and call.get("selected",True) and call.get("family") == "General defense":
+            generic_predictions[call["caller"]].add(key(call,"general defense prediction"))
+    for provider,members in generic_predictions.items():
+        raw_rm_sources[provider] |= members & raw_rm_pool
     current_rm_pool = category_pools.get("R-M",set())
     sample_summary = []
     for sid in sample_ids:
