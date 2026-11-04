@@ -329,6 +329,15 @@ def _strain(c,x,y,row):
     if strain:_text(c,x+width+.8,y,strain,NUM,bold=bold)
 
 
+def _absence_cell(row,fid):
+    cell=row.get("cells",{}).get(fid,{})
+    return fid in row.get("display",{}).get("absence_family_ids",[]) and cell.get("N")==0 and status_kind(metric_state(cell,"inventory"))=="complete"
+
+
+def _marker_selected(row,marker):
+    return marker is not None and row.get("display",{}).get(marker["field"]) is True
+
+
 def _legend(c,model,panels,groups,fpos,masks,sources,rows,bottom,sampleleft,config,taxonomy_colors):
     y=bottom+3.4
     _text(c,6,y,"Coding",8.8,bold=True);_text(c,6,y+3,"sequences (CDSs)",8.8,bold=True)
@@ -368,13 +377,15 @@ def _legend(c,model,panels,groups,fpos,masks,sources,rows,bottom,sampleleft,conf
             _text(c,panels["cases"]["left"],ys[-1]+5,"Outside shown sources: "+label+" CDSs",7.7)
     # Taxonomy colors are supplied metadata or deterministic generic defaults.
     tx=sampleleft;genus=OrderedDict();species=OrderedDict()
-    for row in model["rows"]:
+    for row in rows:
         disp=row.get("display",{});g=row.get("genus");s=row.get("species")
         if g:genus.setdefault(g,{"label":disp.get("genus_label",g),"color":disp.get("genus_color",stable_color(g))})
         if s:species.setdefault((g,s),{"label":disp.get("species_label",s),"color":disp.get("species_color",stable_color(s))})
     declared=model.get("taxonomy_legend",{})
-    if declared.get("genera"):genus=OrderedDict((z["key"],z) for z in declared["genera"])
-    if declared.get("species"):species=OrderedDict((z["key"],z) for z in declared["species"])
+    if declared.get("genera"):genus=OrderedDict((z["key"],z) for z in declared["genera"] if z["key"] in genus)
+    if declared.get("species"):
+        present_species={r.get("species") for r in rows}
+        species=OrderedDict((z["key"],z) for z in declared["species"] if z["key"] in present_species)
     def legend_text(x,y,entry,genus=False):
         runs=entry.get("label_runs")
         if runs is None:
@@ -385,20 +396,24 @@ def _legend(c,model,panels,groups,fpos,masks,sources,rows,bottom,sampleleft,conf
         for run in runs:
             artist=_text(c,x,y,run["text"],7.8,italic=bool(run.get("italic")))
             x+=TextToPath().get_text_width_height_descent(run["text"],artist.get_fontproperties(),False)[0]*25.4/72+.65
-    _text(c,tx,y,"Genus",8.8,bold=True)
+    if genus:_text(c,tx,y,"Genus",8.8,bold=True)
     for i,(key,z) in enumerate(genus.items()):
         xx=tx+(i%2)*40;yy=y+4+(i//2)*3
         c.rect(xx,yy-1.2,2.2,2.2,taxonomy_colors["genus"].get(key) or z.get("color") or stable_color(str(key)));legend_text(xx+4,yy,z,True)
-    sy=y+8+max(0,(len(genus)-1)//2)*3;_text(c,tx,sy,"Species",8.1,bold=True)
+    sy=y+8+max(0,(len(genus)-1)//2)*3 if genus else y
+    if species:_text(c,tx,sy,"Species",8.1,bold=True)
     for i,(key,z) in enumerate(species.items()):
         xx=tx+(i%2)*40;yy=sy+4+(i//2)*3
         species_key=key[-1] if isinstance(key,tuple) else key
         c.rect(xx,yy-1.2,2.2,2.2,taxonomy_colors["species"].get(species_key) or z.get("color") or stable_color(str(species_key)));legend_text(xx+4,yy,z)
-    fy=sy+4+math.ceil(len(species)/2)*3+2
-    extras=[("Other",PALETTE["Other mechanisms"]),("Target strain",TARGET),
-            ("Mechanism not assigned yet",PALETTE["Unresolved"])]
-    if any(r.get("display",{}).get("absence_family_ids") for r in model["rows"]):extras.append(("No "+str(model.get("absence_label","saved family")),"#D0CFE5"))
-    if any(r.get("display",{}).get("transformable") is True for r in model["rows"]):extras.append(("Transformable","#526A75"))
+    fy=sy+4+math.ceil(len(species)/2)*3+2 if species else sy
+    extras=[]
+    if groups.get("Other mechanisms"):extras.append(("Other",_color("Other mechanisms",config)))
+    if config.get("highlight_label") and any(r.get("highlight") for r in rows):extras.append((config["highlight_label"],TARGET))
+    if groups.get("Unresolved"):extras.append(("Mechanism not assigned yet",_color("Unresolved",config)))
+    if any(_absence_cell(r,fid) for r in rows for fid in fpos):extras.append(("No "+str(model.get("absence_label","saved family")),"#D0CFE5"))
+    marker=config.get("sample_marker")
+    if any(_marker_selected(r,marker) for r in rows):extras.append((marker["label"],marker["color"]))
     for i,(label,color) in enumerate(extras):
         xx=tx+(i%2)*40;yy=fy+(i//2)*4
         c.rect(xx,yy-1.2,2.2,2.2,color);_text(c,xx+4,yy,label,7.8)
@@ -484,7 +499,11 @@ def manuscript_atlas_pages(result,fonts,config,page_factory):
                 if row.get("highlight"):c.rect(sampleleft-.6825,y,58,ROW,TARGET)
                 for k,field in enumerate(("genus","species")):
                     if row.get(field):c.rect(2.35+k*1.68,y,1.365,ROW,display.get(field+"_color") or taxonomy_colors[field].get(row[field]) or stable_color(row[field]))
-                if display.get("transformable") is True:c.rect(sampleleft-2.6825,y,1.3125,ROW,"#526A75")
+                marker=config.get("sample_marker")
+                if _marker_selected(row,marker):
+                    bounds=[sampleleft-2.6825,y,1.3125,ROW]
+                    c.rect(*bounds,marker["color"])
+                    c.ledger.setdefault("sample_annotations",[]).append({"sample_id":sid,**marker,"bounds_mm":bounds})
                 _strain(c,sampleleft,cy,row)
                 raw=row.get("rm_original",{});nc=row.get("noncanonical",{})
                 for name,keys,data,status,scale,color in (
@@ -521,7 +540,7 @@ def manuscript_atlas_pages(result,fonts,config,page_factory):
                 _fraction(c,pp["left"],cy,14.49,nc.get("intersection_CDS"),nc.get("pool_CDS"),nc.get("intersection_status"),"noncanonical",denstate=nc.get("pool_status"))
                 for f in fs:
                     x=fpos[f["id"]];cell=row.get("cells",{}).get(f["id"],{})
-                    absent=f["id"] in display.get("absence_family_ids",[]) and cell.get("N")==0 and status_kind(metric_state(cell,"inventory"))=="complete"
+                    absent=_absence_cell(row,f["id"])
                     _cell(c,x,y,CELL,ROW,"#D0CFE5" if absent else None)
                     _family_glyph(c,x+CELL/2,cy,cell,f,config)
                     selected=f.get("highlight_source")
