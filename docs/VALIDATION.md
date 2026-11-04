@@ -1,4 +1,33 @@
-# Release validation — 2.0.0
+# Release validation — 2.1.0
+
+## Saved DNMBsuite input
+
+The `from-suite` command imports native saved output directories and exports an atlas, R-M type tables, original/prioritized source overlaps and category/family inventories. It aggregates saved annotations and explicit evidence; it does not rerun defense detectors, recognition algorithms or structure prediction.
+
+Validation separates two data sources: seven read-only native folders spanning multiple saved-output versions (a mixed primary/external set), and a separate 52-genome source-plus-review regression. The latter includes later source-bound functional/context reviews; it is not evidence that old native files contain all those reviews. Only synthetic examples are distributed.
+
+## Executed checks
+
+- **313 automated tests passed** locally on Python 3.14, including native input, legacy compatibility, scientific set boundaries, plotting and complete CLI execution.
+- A built wheel installed into a fresh virtual environment passes legacy and native demos, inspection, standalone execution and analytical equivalence outside the checkout (`CLEAN_INSTALL_OK`).
+- All **seven real native folders** import and render through `from-suite`; consumed input hashes remain unchanged. Existing metadata/export conflicts remain explicit, not silently repaired. Tests also cover strict rejection.
+- The separate **52-genome source-plus-review regression passes 17,965 checks**. Its integrated union (2,929), effector CDSs (497) and annotation-based priorities (500) remain identical to the pinned reviewed inputs.
+- Root visually inspected native, synthetic and private-cohort outputs. Geometry checks cover text/track collisions, right-aligned numbers, fixed bar dimensions, exact intersections, type states, nested glyph areas, pagination and editable text.
+
+
+The private regression checks exact membership and all family/category/cell/source intersections, typed-pool partitions and case context/orphan subsets. It does not tune thresholds or assess biological accuracy. Final gene-union and priority quantities remain equal to the pinned reviewed inputs. Sources and producer versions remain explicit; unknown historical producer versions are not backfilled from a newer checkout.
+
+## Review and limitations
+
+Independent input, analysis and rendering reviewers identified and corrected native ID/schema variants, contradictory duplicate context, false zero states, non-RM contamination of typed totals, review/native provenance confusion and small-cohort layout collisions. Actual Claude Opus review was used for the code and rendered figures; its material findings were reproduced and fixed before publication. See [review resolutions](REVIEW.md).
+
+Automatic effector transfer uses exact annotated components and complete required cores. Raw motif/domain/orthology observations remain separate. Older exports without saved curation or detailed functional review remain unassessed or lower bounds. Context completeness does not demonstrate activity. No broad accuracy metrics or superiority claims are made.
+
+SVG retains editable text; PDF preserves vector geometry. Arial is used when installed, with actual font hashes and explicit fallbacks. Letter comparison pages paginate without shrinking numbers or dropping rows. Remote CI runs the documented matrix; the Actions result is authoritative for its status.
+
+---
+
+# Historical validation — 2.0.0
 
 ## Local execution
 

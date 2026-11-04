@@ -1,0 +1,1451 @@
+{
+  "schema_version": 1,
+  "version": "1.1.0",
+  "scope": "Exact selected native component annotations and explicit complete-module identities. No cohort counts, observed minima, activity or motif validation. Unknown models unassessed.",
+  "component_rules": [
+    {
+      "rule_id": "rna_component_1",
+      "provider": "DefenseFinder",
+      "exact_models": [
+        "MazEF__MazF"
+      ],
+      "component": "MazF",
+      "assignment_kind": "individual_nuclease_effector",
+      "substrate": "RNA",
+      "primary_sources": [
+        "https://pmc.ncbi.nlm.nih.gov/articles/PMC2168618/"
+      ],
+      "functional_scope": "RNA_cleavage_family_annotation"
+    },
+    {
+      "rule_id": "rna_component_2",
+      "provider": "DefenseFinder",
+      "exact_models": [
+        "RloC__RloC"
+      ],
+      "component": "RloC",
+      "assignment_kind": "individual_nuclease_effector",
+      "substrate": "RNA",
+      "primary_sources": [
+        "https://pmc.ncbi.nlm.nih.gov/articles/PMC2610378/"
+      ],
+      "functional_scope": "tRNA_cleavage"
+    },
+    {
+      "rule_id": "rna_component_3",
+      "provider": "DefenseFinder",
+      "exact_models": [
+        "cas4_I_II_III_IV_V_VI_1"
+      ],
+      "component": "Cas4",
+      "assignment_kind": "nuclease_other_role",
+      "substrate": "DNA",
+      "primary_sources": [
+        "https://pubmed.ncbi.nlm.nih.gov/24171432/"
+      ],
+      "functional_scope": "adaptation_processing"
+    },
+    {
+      "rule_id": "rna_component_4",
+      "provider": "DefenseFinder",
+      "exact_models": [
+        "cas4_I_II_III_IV_V_VI_6"
+      ],
+      "component": "Cas4",
+      "assignment_kind": "nuclease_other_role",
+      "substrate": "DNA",
+      "primary_sources": [
+        "https://pubmed.ncbi.nlm.nih.gov/24171432/"
+      ],
+      "functional_scope": "adaptation_processing"
+    },
+    {
+      "rule_id": "rna_component_5",
+      "provider": "DefenseFinder",
+      "exact_models": [
+        "cas5_I-C_11"
+      ],
+      "component": "Cas5d",
+      "assignment_kind": "nuclease_other_role",
+      "substrate": "RNA",
+      "primary_sources": [
+        "https://pmc.ncbi.nlm.nih.gov/articles/PMC3479641/"
+      ],
+      "functional_scope": "crRNA_processing"
+    },
+    {
+      "rule_id": "rna_component_6",
+      "provider": "DefenseFinder",
+      "exact_models": [
+        "cas5_I-C_5"
+      ],
+      "component": "Cas5d",
+      "assignment_kind": "nuclease_other_role",
+      "substrate": "RNA",
+      "primary_sources": [
+        "https://pmc.ncbi.nlm.nih.gov/articles/PMC3479641/"
+      ],
+      "functional_scope": "crRNA_processing"
+    },
+    {
+      "rule_id": "rna_component_7",
+      "provider": "DefenseFinder",
+      "exact_models": [
+        "cas6_I_II_III_IV_V_VI_14"
+      ],
+      "component": "CRISPR_Cas6",
+      "assignment_kind": "nuclease_other_role",
+      "substrate": "RNA",
+      "primary_sources": [
+        "https://pubmed.ncbi.nlm.nih.gov/19141480/"
+      ],
+      "functional_scope": "crRNA_processing"
+    },
+    {
+      "rule_id": "rna_component_8",
+      "provider": "DefenseFinder",
+      "exact_models": [
+        "cas6_I_II_III_IV_V_VI_17"
+      ],
+      "component": "CRISPR_Cas6",
+      "assignment_kind": "nuclease_other_role",
+      "substrate": "RNA",
+      "primary_sources": [
+        "https://pubmed.ncbi.nlm.nih.gov/19141480/"
+      ],
+      "functional_scope": "crRNA_processing"
+    },
+    {
+      "rule_id": "rna_component_9",
+      "provider": "DefenseFinder",
+      "exact_models": [
+        "cas6_I_II_III_IV_V_VI_20"
+      ],
+      "component": "CRISPR_Cas6",
+      "assignment_kind": "nuclease_other_role",
+      "substrate": "RNA",
+      "primary_sources": [
+        "https://pubmed.ncbi.nlm.nih.gov/19141480/"
+      ],
+      "functional_scope": "crRNA_processing"
+    },
+    {
+      "rule_id": "rna_component_10",
+      "provider": "DefenseFinder",
+      "exact_models": [
+        "cas6_I_II_III_IV_V_VI_7"
+      ],
+      "component": "CRISPR_Cas6",
+      "assignment_kind": "nuclease_other_role",
+      "substrate": "RNA",
+      "primary_sources": [
+        "https://pubmed.ncbi.nlm.nih.gov/19141480/"
+      ],
+      "functional_scope": "crRNA_processing"
+    },
+    {
+      "rule_id": "rna_component_11",
+      "provider": "DefenseFinder",
+      "exact_models": [
+        "cmr4gr7_III-B_III-C_1"
+      ],
+      "component": "CRISPR_Cmr4_Csm3",
+      "assignment_kind": "individual_nuclease_effector",
+      "substrate": "RNA",
+      "primary_sources": [
+        "https://pubmed.ncbi.nlm.nih.gov/25482566/"
+      ],
+      "functional_scope": "RNA_cleavage_family_annotation"
+    },
+    {
+      "rule_id": "rna_component_12",
+      "provider": "DefenseFinder",
+      "exact_models": [
+        "cmr4gr7_III-B_III-C_2"
+      ],
+      "component": "CRISPR_Cmr4_Csm3",
+      "assignment_kind": "individual_nuclease_effector",
+      "substrate": "RNA",
+      "primary_sources": [
+        "https://pubmed.ncbi.nlm.nih.gov/25482566/"
+      ],
+      "functional_scope": "RNA_cleavage_family_annotation"
+    },
+    {
+      "rule_id": "rna_component_13",
+      "provider": "DefenseFinder",
+      "exact_models": [
+        "csm3gr7_III-A_III-D_2"
+      ],
+      "component": "CRISPR_Cmr4_Csm3",
+      "assignment_kind": "individual_nuclease_effector",
+      "substrate": "RNA",
+      "primary_sources": [
+        "https://pubmed.ncbi.nlm.nih.gov/25482566/"
+      ],
+      "functional_scope": "RNA_cleavage_family_annotation"
+    },
+    {
+      "rule_id": "rna_component_14",
+      "provider": "DefenseFinder",
+      "exact_models": [
+        "csm3gr7_III-D_2"
+      ],
+      "component": "CRISPR_Cmr4_Csm3",
+      "assignment_kind": "individual_nuclease_effector",
+      "substrate": "RNA",
+      "primary_sources": [
+        "https://pubmed.ncbi.nlm.nih.gov/25482566/"
+      ],
+      "functional_scope": "RNA_cleavage_family_annotation"
+    },
+    {
+      "rule_id": "rna_component_15",
+      "provider": "DefenseFinder",
+      "exact_models": [
+        "csm3gr7_III-D_3"
+      ],
+      "component": "CRISPR_Cmr4_Csm3",
+      "assignment_kind": "individual_nuclease_effector",
+      "substrate": "RNA",
+      "primary_sources": [
+        "https://pubmed.ncbi.nlm.nih.gov/25482566/"
+      ],
+      "functional_scope": "RNA_cleavage_family_annotation"
+    },
+    {
+      "rule_id": "rna_component_16",
+      "provider": "DefenseFinder",
+      "exact_models": [
+        "csm3gr7_III_1"
+      ],
+      "component": "CRISPR_Cmr4_Csm3",
+      "assignment_kind": "individual_nuclease_effector",
+      "substrate": "RNA",
+      "primary_sources": [
+        "https://pubmed.ncbi.nlm.nih.gov/25482566/"
+      ],
+      "functional_scope": "RNA_cleavage_family_annotation"
+    },
+    {
+      "rule_id": "rna_component_17",
+      "provider": "DefenseFinder",
+      "exact_models": [
+        "csm3gr7_III_IV"
+      ],
+      "component": "CRISPR_Cmr4_Csm3",
+      "assignment_kind": "individual_nuclease_effector",
+      "substrate": "RNA",
+      "primary_sources": [
+        "https://pubmed.ncbi.nlm.nih.gov/25482566/"
+      ],
+      "functional_scope": "RNA_cleavage_family_annotation"
+    },
+    {
+      "rule_id": "rna_component_18",
+      "provider": "DefenseFinder",
+      "exact_models": [
+        "csx1_III_17"
+      ],
+      "component": "CRISPR_CARF_RNase",
+      "assignment_kind": "individual_nuclease_effector",
+      "substrate": "RNA",
+      "primary_sources": [
+        "https://pmc.ncbi.nlm.nih.gov/articles/PMC4712672/"
+      ],
+      "functional_scope": "HEPN_Csx1_family_or_domain_annotation"
+    },
+    {
+      "rule_id": "rna_component_19",
+      "provider": "DefenseFinder",
+      "exact_models": [
+        "csx1_III_19"
+      ],
+      "component": "CRISPR_CARF_RNase",
+      "assignment_kind": "individual_nuclease_effector",
+      "substrate": "RNA",
+      "primary_sources": [
+        "https://pmc.ncbi.nlm.nih.gov/articles/PMC4712672/"
+      ],
+      "functional_scope": "HEPN_Csx1_family_or_domain_annotation"
+    },
+    {
+      "rule_id": "rna_component_20",
+      "provider": "DefenseFinder",
+      "exact_models": [
+        "csx1_III_9"
+      ],
+      "component": "CRISPR_CARF_RNase",
+      "assignment_kind": "individual_nuclease_effector",
+      "substrate": "RNA",
+      "primary_sources": [
+        "https://pmc.ncbi.nlm.nih.gov/articles/PMC4712672/"
+      ],
+      "functional_scope": "HEPN_Csx1_family_or_domain_annotation"
+    },
+    {
+      "rule_id": "rna_component_21",
+      "provider": "PADLOC",
+      "exact_models": [
+        "CARF2--CARF_HEPN_MK_CARF_00101038"
+      ],
+      "component": "CRISPR_CARF_RNase",
+      "assignment_kind": "individual_nuclease_effector",
+      "substrate": "RNA",
+      "primary_sources": [
+        "https://pmc.ncbi.nlm.nih.gov/articles/PMC4712672/"
+      ],
+      "functional_scope": "HEPN_Csx1_family_or_domain_annotation"
+    },
+    {
+      "rule_id": "rna_component_22",
+      "provider": "PADLOC",
+      "exact_models": [
+        "Cas4b_WP_019267510.1"
+      ],
+      "component": "Cas4",
+      "assignment_kind": "nuclease_other_role",
+      "substrate": "DNA",
+      "primary_sources": [
+        "https://pubmed.ncbi.nlm.nih.gov/24171432/"
+      ],
+      "functional_scope": "adaptation_processing"
+    },
+    {
+      "rule_id": "rna_component_23",
+      "provider": "PADLOC",
+      "exact_models": [
+        "Cas4c_WP_149685095.1"
+      ],
+      "component": "Cas4",
+      "assignment_kind": "nuclease_other_role",
+      "substrate": "DNA",
+      "primary_sources": [
+        "https://pubmed.ncbi.nlm.nih.gov/24171432/"
+      ],
+      "functional_scope": "adaptation_processing"
+    },
+    {
+      "rule_id": "rna_component_24",
+      "provider": "PADLOC",
+      "exact_models": [
+        "Cas6b_WP_066632526.1"
+      ],
+      "component": "CRISPR_Cas6",
+      "assignment_kind": "nuclease_other_role",
+      "substrate": "RNA",
+      "primary_sources": [
+        "https://pubmed.ncbi.nlm.nih.gov/19141480/"
+      ],
+      "functional_scope": "crRNA_processing"
+    },
+    {
+      "rule_id": "rna_component_25",
+      "provider": "PADLOC",
+      "exact_models": [
+        "Cas6b_WP_086036083.1"
+      ],
+      "component": "CRISPR_Cas6",
+      "assignment_kind": "nuclease_other_role",
+      "substrate": "RNA",
+      "primary_sources": [
+        "https://pubmed.ncbi.nlm.nih.gov/19141480/"
+      ],
+      "functional_scope": "crRNA_processing"
+    },
+    {
+      "rule_id": "rna_component_26",
+      "provider": "PADLOC",
+      "exact_models": [
+        "Cas7_IIId_WP_033024066.1"
+      ],
+      "component": "CRISPR_Cmr4_Csm3",
+      "assignment_kind": "individual_nuclease_effector",
+      "substrate": "RNA",
+      "primary_sources": [
+        "https://pubmed.ncbi.nlm.nih.gov/25482566/"
+      ],
+      "functional_scope": "RNA_cleavage_family_annotation"
+    },
+    {
+      "rule_id": "rna_component_27",
+      "provider": "PADLOC",
+      "exact_models": [
+        "Cas7_IIId_WP_048037777.1"
+      ],
+      "component": "CRISPR_Cmr4_Csm3",
+      "assignment_kind": "individual_nuclease_effector",
+      "substrate": "RNA",
+      "primary_sources": [
+        "https://pubmed.ncbi.nlm.nih.gov/25482566/"
+      ],
+      "functional_scope": "RNA_cleavage_family_annotation"
+    },
+    {
+      "rule_id": "rna_component_28",
+      "provider": "PADLOC",
+      "exact_models": [
+        "Cas7_IIId_WP_060827137.1"
+      ],
+      "component": "CRISPR_Cmr4_Csm3",
+      "assignment_kind": "individual_nuclease_effector",
+      "substrate": "RNA",
+      "primary_sources": [
+        "https://pubmed.ncbi.nlm.nih.gov/25482566/"
+      ],
+      "functional_scope": "RNA_cleavage_family_annotation"
+    },
+    {
+      "rule_id": "rna_component_29",
+      "provider": "PADLOC",
+      "exact_models": [
+        "Cas7_IIId_WP_096232353.1"
+      ],
+      "component": "CRISPR_Cmr4_Csm3",
+      "assignment_kind": "individual_nuclease_effector",
+      "substrate": "RNA",
+      "primary_sources": [
+        "https://pubmed.ncbi.nlm.nih.gov/25482566/"
+      ],
+      "functional_scope": "RNA_cleavage_family_annotation"
+    },
+    {
+      "rule_id": "rna_component_30",
+      "provider": "PADLOC",
+      "exact_models": [
+        "Type_VI_Csx1_HEPN_domain"
+      ],
+      "component": "CRISPR_CARF_RNase",
+      "assignment_kind": "individual_nuclease_effector",
+      "substrate": "RNA",
+      "primary_sources": [
+        "https://pmc.ncbi.nlm.nih.gov/articles/PMC4712672/"
+      ],
+      "functional_scope": "HEPN_Csx1_family_or_domain_annotation"
+    },
+    {
+      "rule_id": "rna_component_31",
+      "provider": "PADLOC",
+      "exact_models": [
+        "cas_RAMP_Cmr4"
+      ],
+      "component": "CRISPR_Cmr4_Csm3",
+      "assignment_kind": "individual_nuclease_effector",
+      "substrate": "RNA",
+      "primary_sources": [
+        "https://pubmed.ncbi.nlm.nih.gov/25482566/"
+      ],
+      "functional_scope": "RNA_cleavage_family_annotation"
+    },
+    {
+      "rule_id": "rna_component_32",
+      "provider": "PADLOC",
+      "exact_models": [
+        "cas_cas6"
+      ],
+      "component": "CRISPR_Cas6",
+      "assignment_kind": "nuclease_other_role",
+      "substrate": "RNA",
+      "primary_sources": [
+        "https://pubmed.ncbi.nlm.nih.gov/19141480/"
+      ],
+      "functional_scope": "crRNA_processing"
+    },
+    {
+      "rule_id": "rna_component_33",
+      "provider": "PADLOC",
+      "exact_models": [
+        "cd09683"
+      ],
+      "component": "CRISPR_Cmr4_Csm3",
+      "assignment_kind": "individual_nuclease_effector",
+      "substrate": "RNA",
+      "primary_sources": [
+        "https://pubmed.ncbi.nlm.nih.gov/25482566/"
+      ],
+      "functional_scope": "RNA_cleavage_family_annotation"
+    },
+    {
+      "rule_id": "rna_component_34",
+      "provider": "PADLOC",
+      "exact_models": [
+        "cls000253"
+      ],
+      "component": "CRISPR_Cmr4_Csm3",
+      "assignment_kind": "individual_nuclease_effector",
+      "substrate": "RNA",
+      "primary_sources": [
+        "https://pubmed.ncbi.nlm.nih.gov/25482566/"
+      ],
+      "functional_scope": "RNA_cleavage_family_annotation"
+    },
+    {
+      "rule_id": "rna_component_35",
+      "provider": "PADLOC",
+      "exact_models": [
+        "csm3_IIIAD_maka_1"
+      ],
+      "component": "CRISPR_Cmr4_Csm3",
+      "assignment_kind": "individual_nuclease_effector",
+      "substrate": "RNA",
+      "primary_sources": [
+        "https://pubmed.ncbi.nlm.nih.gov/25482566/"
+      ],
+      "functional_scope": "RNA_cleavage_family_annotation"
+    },
+    {
+      "rule_id": "rna_component_36",
+      "provider": "PADLOC",
+      "exact_models": [
+        "mkCas0066"
+      ],
+      "component": "CRISPR_Cas6",
+      "assignment_kind": "nuclease_other_role",
+      "substrate": "RNA",
+      "primary_sources": [
+        "https://pubmed.ncbi.nlm.nih.gov/19141480/"
+      ],
+      "functional_scope": "crRNA_processing"
+    },
+    {
+      "rule_id": "rna_component_37",
+      "provider": "PADLOC",
+      "exact_models": [
+        "pfam01881"
+      ],
+      "component": "CRISPR_Cas6",
+      "assignment_kind": "nuclease_other_role",
+      "substrate": "RNA",
+      "primary_sources": [
+        "https://pubmed.ncbi.nlm.nih.gov/19141480/"
+      ],
+      "functional_scope": "crRNA_processing"
+    },
+    {
+      "rule_id": "rna_component_38",
+      "provider": "PADLOC",
+      "exact_models": [
+        "shah_acc_0023"
+      ],
+      "component": "CRISPR_CARF_RNase",
+      "assignment_kind": "individual_nuclease_effector",
+      "substrate": "RNA",
+      "primary_sources": [
+        "https://pmc.ncbi.nlm.nih.gov/articles/PMC4712672/"
+      ],
+      "functional_scope": "HEPN_Csx1_family_or_domain_annotation"
+    },
+    {
+      "rule_id": "defensefinder_jetd",
+      "provider": "DefenseFinder",
+      "exact_models": [
+        "Wadjet__JetD_I",
+        "Wadjet__JetD_II",
+        "Wadjet__JetD_III"
+      ],
+      "component": "JetD",
+      "assignment_kind": "individual_nuclease_effector",
+      "substrate": "DNA",
+      "primary_sources": [
+        "https://pmc.ncbi.nlm.nih.gov/articles/PMC9637719/"
+      ],
+      "functional_scope": "specific_native_selected_nuclease_component_annotation"
+    },
+    {
+      "rule_id": "padloc_jetd",
+      "provider": "PADLOC",
+      "exact_models": [
+        "JetD1_00001",
+        "JetD1_00002",
+        "JetD1_00003",
+        "JetD1_00004",
+        "JetD1_00005",
+        "JetD1_00006",
+        "JetD1_00007",
+        "JetD1_00008",
+        "JetD1_00009",
+        "JetD1_00010",
+        "JetD1_00011",
+        "JetD1_00012",
+        "JetD1_00013",
+        "JetD1_00014",
+        "JetD2_00001",
+        "JetD2_00002",
+        "JetD2_00003",
+        "JetD3_00001",
+        "JetD3_00002",
+        "JetD3_00003",
+        "JetD3_00004",
+        "JetD3_00005"
+      ],
+      "component": "JetD",
+      "assignment_kind": "individual_nuclease_effector",
+      "substrate": "DNA",
+      "primary_sources": [
+        "https://pmc.ncbi.nlm.nih.gov/articles/PMC9637719/"
+      ],
+      "functional_scope": "specific_native_selected_nuclease_component_annotation"
+    },
+    {
+      "rule_id": "defensefinder_sspf_module_identity",
+      "provider": "DefenseFinder",
+      "exact_models": [
+        "SspBCDE__SspF"
+      ],
+      "component": "SspF",
+      "assignment_kind": "module_component_only",
+      "substrate": "unresolved",
+      "primary_sources": [
+        "https://pmc.ncbi.nlm.nih.gov/articles/PMC8092258/",
+        "https://pmc.ncbi.nlm.nih.gov/articles/PMC10470545/"
+      ],
+      "display_family": "SspE / SspFGH (PT)",
+      "display_category": "Nuclease",
+      "display_metadata": {
+        "display_group": "Modification",
+        "category_tags": [
+          "Modification",
+          "Nuclease"
+        ],
+        "partner_group": "PT Ssp",
+        "band_segments": [
+          {
+            "category": "Modification",
+            "fraction": 0.5
+          },
+          {
+            "category": "Nuclease",
+            "fraction": 0.5
+          }
+        ],
+        "partner_order": 1
+      }
+    },
+    {
+      "rule_id": "defensefinder_sspg_module_identity",
+      "provider": "DefenseFinder",
+      "exact_models": [
+        "SspBCDE__SspG"
+      ],
+      "component": "SspG",
+      "assignment_kind": "module_component_only",
+      "substrate": "unresolved",
+      "primary_sources": [
+        "https://pmc.ncbi.nlm.nih.gov/articles/PMC8092258/",
+        "https://pmc.ncbi.nlm.nih.gov/articles/PMC10470545/"
+      ],
+      "display_family": "SspE / SspFGH (PT)",
+      "display_category": "Nuclease",
+      "display_metadata": {
+        "display_group": "Modification",
+        "category_tags": [
+          "Modification",
+          "Nuclease"
+        ],
+        "partner_group": "PT Ssp",
+        "band_segments": [
+          {
+            "category": "Modification",
+            "fraction": 0.5
+          },
+          {
+            "category": "Nuclease",
+            "fraction": 0.5
+          }
+        ],
+        "partner_order": 1
+      }
+    },
+    {
+      "rule_id": "defensefinder_ssph_module_identity",
+      "provider": "DefenseFinder",
+      "exact_models": [
+        "SspBCDE__SspH"
+      ],
+      "component": "SspH",
+      "assignment_kind": "module_component_only",
+      "substrate": "unresolved",
+      "primary_sources": [
+        "https://pmc.ncbi.nlm.nih.gov/articles/PMC8092258/",
+        "https://pmc.ncbi.nlm.nih.gov/articles/PMC10470545/"
+      ],
+      "display_family": "SspE / SspFGH (PT)",
+      "display_category": "Nuclease",
+      "display_metadata": {
+        "display_group": "Modification",
+        "category_tags": [
+          "Modification",
+          "Nuclease"
+        ],
+        "partner_group": "PT Ssp",
+        "band_segments": [
+          {
+            "category": "Modification",
+            "fraction": 0.5
+          },
+          {
+            "category": "Nuclease",
+            "fraction": 0.5
+          }
+        ],
+        "partner_order": 1
+      }
+    },
+    {
+      "rule_id": "padloc_sspf_module_identity",
+      "provider": "PADLOC",
+      "exact_models": [
+        "SspF_00004"
+      ],
+      "component": "SspF",
+      "assignment_kind": "module_component_only",
+      "substrate": "unresolved",
+      "primary_sources": [
+        "https://pmc.ncbi.nlm.nih.gov/articles/PMC8092258/",
+        "https://pmc.ncbi.nlm.nih.gov/articles/PMC10470545/"
+      ],
+      "display_family": "SspE / SspFGH (PT)",
+      "display_category": "Nuclease",
+      "display_metadata": {
+        "display_group": "Modification",
+        "category_tags": [
+          "Modification",
+          "Nuclease"
+        ],
+        "partner_group": "PT Ssp",
+        "band_segments": [
+          {
+            "category": "Modification",
+            "fraction": 0.5
+          },
+          {
+            "category": "Nuclease",
+            "fraction": 0.5
+          }
+        ],
+        "partner_order": 1
+      }
+    },
+    {
+      "rule_id": "padloc_sspg_module_identity",
+      "provider": "PADLOC",
+      "exact_models": [
+        "SspG_00003"
+      ],
+      "component": "SspG",
+      "assignment_kind": "module_component_only",
+      "substrate": "unresolved",
+      "primary_sources": [
+        "https://pmc.ncbi.nlm.nih.gov/articles/PMC8092258/",
+        "https://pmc.ncbi.nlm.nih.gov/articles/PMC10470545/"
+      ],
+      "display_family": "SspE / SspFGH (PT)",
+      "display_category": "Nuclease",
+      "display_metadata": {
+        "display_group": "Modification",
+        "category_tags": [
+          "Modification",
+          "Nuclease"
+        ],
+        "partner_group": "PT Ssp",
+        "band_segments": [
+          {
+            "category": "Modification",
+            "fraction": 0.5
+          },
+          {
+            "category": "Nuclease",
+            "fraction": 0.5
+          }
+        ],
+        "partner_order": 1
+      }
+    },
+    {
+      "rule_id": "padloc_ssph_module_identity",
+      "provider": "PADLOC",
+      "exact_models": [
+        "SspH_00002",
+        "SspH_00004"
+      ],
+      "component": "SspH",
+      "assignment_kind": "module_component_only",
+      "substrate": "unresolved",
+      "primary_sources": [
+        "https://pmc.ncbi.nlm.nih.gov/articles/PMC8092258/",
+        "https://pmc.ncbi.nlm.nih.gov/articles/PMC10470545/"
+      ],
+      "display_family": "SspE / SspFGH (PT)",
+      "display_category": "Nuclease",
+      "display_metadata": {
+        "display_group": "Modification",
+        "category_tags": [
+          "Modification",
+          "Nuclease"
+        ],
+        "partner_group": "PT Ssp",
+        "band_segments": [
+          {
+            "category": "Modification",
+            "fraction": 0.5
+          },
+          {
+            "category": "Nuclease",
+            "fraction": 0.5
+          }
+        ],
+        "partner_order": 1
+      }
+    },
+    {
+      "rule_id": "defensefinder_sspe_specific_component",
+      "provider": "DefenseFinder",
+      "exact_models": [
+        "SspBCDE__SspE"
+      ],
+      "component": "SspE",
+      "assignment_kind": "individual_nuclease_effector",
+      "substrate": "DNA",
+      "primary_sources": [
+        "https://pmc.ncbi.nlm.nih.gov/articles/PMC9646914/"
+      ],
+      "functional_scope": "specific_native_final_selected_component_annotation_not_shared_domain_alias",
+      "display_family": "SspE / SspFGH (PT)",
+      "display_category": "Nuclease",
+      "display_metadata": {
+        "display_group": "Modification",
+        "category_tags": [
+          "Modification",
+          "Nuclease"
+        ],
+        "partner_group": "PT Ssp",
+        "band_segments": [
+          {
+            "category": "Modification",
+            "fraction": 0.5
+          },
+          {
+            "category": "Nuclease",
+            "fraction": 0.5
+          }
+        ],
+        "partner_order": 1
+      }
+    },
+    {
+      "rule_id": "dna_gaja_df",
+      "provider": "DefenseFinder",
+      "exact_models": [
+        "Gabija__GajA"
+      ],
+      "component": "GajA",
+      "assignment_kind": "individual_nuclease_effector",
+      "substrate": "DNA",
+      "primary_sources": [
+        "https://doi.org/10.1038/s41586-023-06855-2"
+      ],
+      "functional_scope": "GajA_Toprim_nuclease_component_not_GajB_motor",
+      "transfer_scope": "Putative component annotation from an exact selected native model; no experimental activity, motif completeness or complete-system claim. Supported noncatalytic adjudications take precedence."
+    },
+    {
+      "rule_id": "dna_gaja_padloc",
+      "provider": "PADLOC",
+      "exact_models": [
+        "GajA_00009",
+        "GajA_00010",
+        "GajA_00017",
+        "GajA_00025",
+        "GajA_00031"
+      ],
+      "component": "GajA",
+      "assignment_kind": "individual_nuclease_effector",
+      "substrate": "DNA",
+      "primary_sources": [
+        "https://doi.org/10.1038/s41586-023-06855-2"
+      ],
+      "functional_scope": "GajA_Toprim_nuclease_component_not_generic_Toprim_fold",
+      "transfer_scope": "Putative component annotation from an exact selected native model; no experimental activity, motif completeness or complete-system claim. Supported noncatalytic adjudications take precedence."
+    },
+    {
+      "rule_id": "dna_cas3_df",
+      "provider": "DefenseFinder",
+      "exact_models": [
+        "cas3_I_2",
+        "cas3_I_5",
+        "cas3HD_I_1"
+      ],
+      "component": "Cas3_nuclease",
+      "assignment_kind": "individual_nuclease_effector",
+      "substrate": "DNA",
+      "primary_sources": [
+        "https://doi.org/10.1038/emboj.2011.41",
+        "https://doi.org/10.1038/emboj.2011.377"
+      ],
+      "functional_scope": "whole_Cas3_or_specific_HD_component_excluding_helicase_only_Cas3_prime",
+      "transfer_scope": "Putative component annotation from an exact selected native model; no experimental activity, motif completeness or complete-system claim. Supported noncatalytic adjudications take precedence."
+    },
+    {
+      "rule_id": "dna_cas3_padloc",
+      "provider": "PADLOC",
+      "exact_models": [
+        "Cas3b_WP_098917028.1",
+        "Cas3b_WP_162272993.1",
+        "Cas3b_WP_184405015.1",
+        "Cas3c_WP_004513240.1",
+        "cd09641"
+      ],
+      "component": "Cas3_nuclease",
+      "assignment_kind": "individual_nuclease_effector",
+      "substrate": "DNA",
+      "primary_sources": [
+        "https://doi.org/10.1038/emboj.2011.41",
+        "https://www.ncbi.nlm.nih.gov/Structure/cdd/cd09641"
+      ],
+      "functional_scope": "whole_Cas3_or_specific_HD_component_excluding_cd09710_helicase",
+      "transfer_scope": "Putative component annotation from an exact selected native model; no experimental activity, motif completeness or complete-system claim. Supported noncatalytic adjudications take precedence."
+    },
+    {
+      "rule_id": "dna_cas9_df",
+      "provider": "DefenseFinder",
+      "exact_models": [
+        "cas9_II-A_II-B_II-C_3"
+      ],
+      "component": "Cas9",
+      "assignment_kind": "individual_nuclease_effector",
+      "substrate": "DNA",
+      "primary_sources": [
+        "https://doi.org/10.1126/science.1225829"
+      ],
+      "functional_scope": "Cas9_component_annotation_not_generic_RuvC_or_HNH_fold",
+      "transfer_scope": "Putative component annotation from an exact selected native model; no experimental activity, motif completeness or complete-system claim. Supported noncatalytic adjudications take precedence."
+    },
+    {
+      "rule_id": "dna_cas9_padloc",
+      "provider": "PADLOC",
+      "exact_models": [
+        "COG3513"
+      ],
+      "component": "Cas9",
+      "assignment_kind": "individual_nuclease_effector",
+      "substrate": "DNA",
+      "primary_sources": [
+        "https://doi.org/10.1126/science.1225829"
+      ],
+      "functional_scope": "selected_native_Cas9_component_annotation",
+      "transfer_scope": "Putative component annotation from an exact selected native model; no experimental activity, motif completeness or complete-system claim. Supported noncatalytic adjudications take precedence."
+    },
+    {
+      "rule_id": "dna_pago_longa_df",
+      "provider": "DefenseFinder",
+      "exact_models": [
+        "pAgo__pAgo_LongA"
+      ],
+      "component": "pAgo_LongA",
+      "assignment_kind": "individual_nuclease_effector",
+      "substrate": "DNA",
+      "primary_sources": [
+        "https://doi.org/10.1038/nature12971"
+      ],
+      "functional_scope": "long_A_Argonaute_component_annotation_not_all_Argonaute_families",
+      "transfer_scope": "Putative component annotation from an exact selected native model; no experimental activity, motif completeness or complete-system claim. Supported noncatalytic adjudications take precedence."
+    },
+    {
+      "rule_id": "dna_pago_longa_padloc",
+      "provider": "PADLOC",
+      "exact_models": [
+        "pAgo_WP_096885432.1"
+      ],
+      "component": "pAgo_LongA",
+      "assignment_kind": "individual_nuclease_effector",
+      "substrate": "DNA",
+      "primary_sources": [
+        "https://doi.org/10.1038/nature12971"
+      ],
+      "functional_scope": "specific_long_Argonaute_component_annotation_not_generic_PIWI_domain",
+      "transfer_scope": "Putative component annotation from an exact selected native model; no experimental activity, motif completeness or complete-system claim. Supported noncatalytic adjudications take precedence."
+    },
+    {
+      "rule_id": "dnd_f_module_component_df",
+      "provider": "DefenseFinder",
+      "exact_models": [
+        "Dnd_ABCDEFGH__DptF"
+      ],
+      "component": "DndF",
+      "assignment_kind": "module_component_only",
+      "substrate": "DNA",
+      "primary_sources": [
+        "https://doi.org/10.1038/s41929-022-00884-2"
+      ],
+      "functional_scope": "Required component of DndFGH restriction complex; no individual nuclease assignment.",
+      "display_family": "DndFGH (PT)",
+      "display_category": "Nuclease",
+      "display_metadata": {
+        "display_group": "Modification",
+        "category_tags": [
+          "Modification",
+          "Nuclease"
+        ],
+        "partner_group": "PT Dnd",
+        "partner_order": 1,
+        "band_segments": [
+          {
+            "category": "Modification",
+            "fraction": 0.5
+          },
+          {
+            "category": "Nuclease",
+            "fraction": 0.5
+          }
+        ]
+      }
+    },
+    {
+      "rule_id": "dnd_g_module_component_df",
+      "provider": "DefenseFinder",
+      "exact_models": [
+        "Dnd_ABCDEFGH__DptG"
+      ],
+      "component": "DndG",
+      "assignment_kind": "module_component_only",
+      "substrate": "DNA",
+      "primary_sources": [
+        "https://doi.org/10.1038/s41929-022-00884-2"
+      ],
+      "functional_scope": "Required component of DndFGH restriction complex; no individual nuclease assignment.",
+      "display_family": "DndFGH (PT)",
+      "display_category": "Nuclease",
+      "display_metadata": {
+        "display_group": "Modification",
+        "category_tags": [
+          "Modification",
+          "Nuclease"
+        ],
+        "partner_group": "PT Dnd",
+        "partner_order": 1,
+        "band_segments": [
+          {
+            "category": "Modification",
+            "fraction": 0.5
+          },
+          {
+            "category": "Nuclease",
+            "fraction": 0.5
+          }
+        ]
+      }
+    },
+    {
+      "rule_id": "dnd_h_module_component_df",
+      "provider": "DefenseFinder",
+      "exact_models": [
+        "Dnd_ABCDEFGH__DptH"
+      ],
+      "component": "DndH",
+      "assignment_kind": "module_component_only",
+      "substrate": "DNA",
+      "primary_sources": [
+        "https://doi.org/10.1038/s41929-022-00884-2"
+      ],
+      "functional_scope": "Required component of DndFGH restriction complex; no individual nuclease assignment.",
+      "display_family": "DndFGH (PT)",
+      "display_category": "Nuclease",
+      "display_metadata": {
+        "display_group": "Modification",
+        "category_tags": [
+          "Modification",
+          "Nuclease"
+        ],
+        "partner_group": "PT Dnd",
+        "partner_order": 1,
+        "band_segments": [
+          {
+            "category": "Modification",
+            "fraction": 0.5
+          },
+          {
+            "category": "Nuclease",
+            "fraction": 0.5
+          }
+        ]
+      }
+    },
+    {
+      "rule_id": "dnd_f_module_component_padloc",
+      "provider": "PADLOC",
+      "exact_models": [
+        "DndF_00001",
+        "DndF_00002",
+        "DndF_00003"
+      ],
+      "component": "DndF",
+      "assignment_kind": "module_component_only",
+      "substrate": "DNA",
+      "primary_sources": [
+        "https://doi.org/10.1038/s41929-022-00884-2"
+      ],
+      "functional_scope": "Required component of DndFGH restriction complex; no individual nuclease assignment.",
+      "display_family": "DndFGH (PT)",
+      "display_category": "Nuclease",
+      "display_metadata": {
+        "display_group": "Modification",
+        "category_tags": [
+          "Modification",
+          "Nuclease"
+        ],
+        "partner_group": "PT Dnd",
+        "partner_order": 1,
+        "band_segments": [
+          {
+            "category": "Modification",
+            "fraction": 0.5
+          },
+          {
+            "category": "Nuclease",
+            "fraction": 0.5
+          }
+        ]
+      }
+    },
+    {
+      "rule_id": "dnd_g_module_component_padloc",
+      "provider": "PADLOC",
+      "exact_models": [
+        "DndG_00001",
+        "DndG_00002",
+        "DndG_00003",
+        "DndG_00004"
+      ],
+      "component": "DndG",
+      "assignment_kind": "module_component_only",
+      "substrate": "DNA",
+      "primary_sources": [
+        "https://doi.org/10.1038/s41929-022-00884-2"
+      ],
+      "functional_scope": "Required component of DndFGH restriction complex; no individual nuclease assignment.",
+      "display_family": "DndFGH (PT)",
+      "display_category": "Nuclease",
+      "display_metadata": {
+        "display_group": "Modification",
+        "category_tags": [
+          "Modification",
+          "Nuclease"
+        ],
+        "partner_group": "PT Dnd",
+        "partner_order": 1,
+        "band_segments": [
+          {
+            "category": "Modification",
+            "fraction": 0.5
+          },
+          {
+            "category": "Nuclease",
+            "fraction": 0.5
+          }
+        ]
+      }
+    },
+    {
+      "rule_id": "dnd_h_module_component_padloc",
+      "provider": "PADLOC",
+      "exact_models": [
+        "DndH_00001",
+        "DndH_00002",
+        "DndH_00003",
+        "DndH_00004",
+        "DndH_00005",
+        "DndH_00006",
+        "DndH_00007"
+      ],
+      "component": "DndH",
+      "assignment_kind": "module_component_only",
+      "substrate": "DNA",
+      "primary_sources": [
+        "https://doi.org/10.1038/s41929-022-00884-2"
+      ],
+      "functional_scope": "Required component of DndFGH restriction complex; no individual nuclease assignment.",
+      "display_family": "DndFGH (PT)",
+      "display_category": "Nuclease",
+      "display_metadata": {
+        "display_group": "Modification",
+        "category_tags": [
+          "Modification",
+          "Nuclease"
+        ],
+        "partner_group": "PT Dnd",
+        "partner_order": 1,
+        "band_segments": [
+          {
+            "category": "Modification",
+            "fraction": 0.5
+          },
+          {
+            "category": "Nuclease",
+            "fraction": 0.5
+          }
+        ]
+      }
+    }
+  ],
+  "complex_rules": [
+    {
+      "rule_id": "complete_native_SspFGH",
+      "required_components": [
+        "SspF",
+        "SspG",
+        "SspH"
+      ],
+      "individual_catalysis": "unassigned",
+      "primary_sources": [
+        "https://pmc.ncbi.nlm.nih.gov/articles/PMC8092258/",
+        "https://pmc.ncbi.nlm.nih.gov/articles/PMC10470545/"
+      ]
+    },
+    {
+      "rule_id": "complete_dndfgh_native_module",
+      "required_components": [
+        "DndF",
+        "DndG",
+        "DndH"
+      ],
+      "primary_sources": [
+        "https://doi.org/10.1038/s41929-022-00884-2"
+      ],
+      "functional_scope": "Exact same native system with all three required components; complete genomic core, not activity or individual catalysis."
+    }
+  ],
+  "guards": [
+    "No substring model matching.",
+    "Csm6 CARF-only, generic CARF/HEPN/CDD folds, Cas3-prime helicase, McrB recognition/motor and arbitrary nuclease-domain presence have no automatic effector rule.",
+    "Specific domain/site/TypeIV architecture reviews require separate source-bound evidence.",
+    "SspE shared GmrSD-like domains alone cannot establish specific SspE identity; generic domain-only observations stay unassessed."
+  ],
+  "display_aliases": [
+    {
+      "provider": "DefenseFinder",
+      "native_family": "Wadjet_II",
+      "family": "Wadjet II",
+      "category": "Nuclease"
+    },
+    {
+      "provider": "DefenseFinder",
+      "native_family": "Wadjet_III",
+      "family": "Wadjet III",
+      "category": "Nuclease"
+    },
+    {
+      "provider": "PADLOC",
+      "native_family": "wadjet_type_II",
+      "family": "Wadjet II",
+      "category": "Nuclease"
+    },
+    {
+      "provider": "PADLOC",
+      "native_family": "wadjet_type_III",
+      "family": "Wadjet III",
+      "category": "Nuclease"
+    },
+    {
+      "provider": "PADLOC",
+      "native_family": "wadjet_other",
+      "family": "Wadjet other",
+      "category": "Nuclease"
+    },
+    {
+      "provider": "DefenseFinder",
+      "native_family": "SspBCDE",
+      "family": "SspBCD (PT)",
+      "category": "Modification",
+      "display_metadata": {
+        "display_group": "Modification",
+        "category_tags": [
+          "Modification"
+        ],
+        "partner_group": "PT Ssp",
+        "band_segments": [
+          {
+            "category": "Modification",
+            "fraction": 1.0
+          }
+        ],
+        "partner_order": 0
+      }
+    },
+    {
+      "provider": "PADLOC",
+      "native_family": "PT_SspABCD",
+      "family": "SspBCD (PT)",
+      "category": "Modification",
+      "display_metadata": {
+        "display_group": "Modification",
+        "category_tags": [
+          "Modification"
+        ],
+        "partner_group": "PT Ssp",
+        "band_segments": [
+          {
+            "category": "Modification",
+            "fraction": 1.0
+          }
+        ],
+        "partner_order": 0
+      }
+    },
+    {
+      "provider": "DefenseFinder",
+      "native_family": "Dnd_ABCDE",
+      "family": "DndABCDE (PT)",
+      "category": "Modification",
+      "display_metadata": {
+        "display_group": "Modification",
+        "category_tags": [
+          "Modification"
+        ],
+        "partner_group": "PT Dnd",
+        "partner_order": 0,
+        "band_segments": [
+          {
+            "category": "Modification",
+            "fraction": 1.0
+          }
+        ]
+      }
+    },
+    {
+      "provider": "DefenseFinder",
+      "native_family": "Dnd_ABCDEFGH",
+      "family": "DndABCDE (PT)",
+      "category": "Modification",
+      "display_metadata": {
+        "display_group": "Modification",
+        "category_tags": [
+          "Modification"
+        ],
+        "partner_group": "PT Dnd",
+        "partner_order": 0,
+        "band_segments": [
+          {
+            "category": "Modification",
+            "fraction": 1.0
+          }
+        ]
+      }
+    },
+    {
+      "provider": "DefenseFinder",
+      "native_family": "Wadjet_I",
+      "family": "Wadjet I",
+      "category": "Nuclease"
+    },
+    {
+      "provider": "PADLOC",
+      "native_family": "wadjet_type_I",
+      "family": "Wadjet I",
+      "category": "Nuclease"
+    }
+  ],
+  "display_catalog_defaults": {
+    "SspABCD (PT)": {
+      "label": "SspBCD (PT)",
+      "display_group": "Modification",
+      "category_tags": [
+        "Modification"
+      ],
+      "partner_group": "PT Ssp",
+      "partner_order": 0,
+      "band_segments": [
+        {
+          "category": "Modification",
+          "fraction": 1.0
+        }
+      ]
+    },
+    "SspBCD (PT)": {
+      "label": "SspBCD (PT)",
+      "display_group": "Modification",
+      "category_tags": [
+        "Modification"
+      ],
+      "partner_group": "PT Ssp",
+      "partner_order": 0,
+      "band_segments": [
+        {
+          "category": "Modification",
+          "fraction": 1.0
+        }
+      ]
+    },
+    "SspFGH (PT)": {
+      "label": "SspE / SspFGH (PT)",
+      "display_group": "Modification",
+      "category_tags": [
+        "Modification",
+        "Nuclease"
+      ],
+      "partner_group": "PT Ssp",
+      "partner_order": 1,
+      "band_segments": [
+        {
+          "category": "Modification",
+          "fraction": 0.5
+        },
+        {
+          "category": "Nuclease",
+          "fraction": 0.5
+        }
+      ]
+    },
+    "SspE / SspFGH (PT)": {
+      "label": "SspE / SspFGH (PT)",
+      "display_group": "Modification",
+      "category_tags": [
+        "Modification",
+        "Nuclease"
+      ],
+      "partner_group": "PT Ssp",
+      "partner_order": 1,
+      "band_segments": [
+        {
+          "category": "Modification",
+          "fraction": 0.5
+        },
+        {
+          "category": "Nuclease",
+          "fraction": 0.5
+        }
+      ]
+    },
+    "DndABCDE (PT)": {
+      "display_group": "Modification",
+      "category_tags": [
+        "Modification"
+      ],
+      "partner_group": "PT Dnd",
+      "partner_order": 0,
+      "band_segments": [
+        {
+          "category": "Modification",
+          "fraction": 1.0
+        }
+      ]
+    },
+    "DndFGH (PT)": {
+      "display_group": "Modification",
+      "category_tags": [
+        "Modification",
+        "Nuclease"
+      ],
+      "partner_group": "PT Dnd",
+      "partner_order": 1,
+      "band_segments": [
+        {
+          "category": "Modification",
+          "fraction": 0.5
+        },
+        {
+          "category": "Nuclease",
+          "fraction": 0.5
+        }
+      ]
+    }
+  }
+}

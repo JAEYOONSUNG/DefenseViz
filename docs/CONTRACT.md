@@ -1,6 +1,6 @@
 # DefenseViz v2 interface contract
 
-Python >=3.10 installable package and CLI, offline by default. Product DefenseViz; evidence policy DNMB. Preserve original repositories; use existing policy and registry logic with pinned source provenance. Generic tables, arbitrary sample identifiers/counts and novel families, no manuscript identities in production code. No claim of activity or independent predictive performance. Figure 2 scope: a policy/evidence workflow; b comparative defense landscape. Other figure panels out of scope.
+Python >=3.10 installable package and CLI, offline by default. Product DefenseViz; evidence policy DNMB. Preserve original repositories; use existing policy and registry logic with pinned source provenance. Generic tables, arbitrary sample identifiers/counts and novel families, no manuscript identities in production code. No claim of activity or independent predictive performance. This document describes the retained normalized-project API. The additive DNMBsuite input, saved-evidence aggregation and full publication figures are specified in [SUITE_CONTRACT.md](SUITE_CONTRACT.md).
 
 ## Canonical in-memory data (JSON-serializable dictionaries)
 - samples: list of {sample_id: nonempty str, label: str, genus: str optional, species: str optional, highlight: bool optional}. IDs unique, order preserved; arbitrary Unicode labels.

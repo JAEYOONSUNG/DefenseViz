@@ -40,8 +40,12 @@ def _write_table(path: Path, rows: list[dict], required: tuple[str, ...] = ()) -
 def software_state() -> dict:
     base = Path(__file__).resolve().parent
     state = {'defenseviz': __version__, 'python': platform.python_version(), 'platform': platform.platform(),
-             'source_sha256': {str(p.relative_to(base)): digest(p) for p in sorted(base.rglob('*')) if p.is_file() and p.suffix in {'.py', '.json'}},
+             'source_sha256': {str(p.relative_to(base)): digest(p) for p in sorted(base.rglob('*')) if p.is_file() and p.suffix in {'.py', '.json', '.R'}},
              'dependencies': {name: importlib.metadata.version(name) for name in ('matplotlib', 'numpy')}}
+    try:
+        state['dependencies']['openpyxl'] = importlib.metadata.version('openpyxl')
+    except importlib.metadata.PackageNotFoundError:
+        pass
     # A wheel install has no repository; do not attribute it to an unrelated parent git tree.
     repo = base.parent.parent
     if (repo / '.git').exists():
