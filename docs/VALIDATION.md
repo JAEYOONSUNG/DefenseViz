@@ -17,7 +17,10 @@ Windows CI exposed text-mode hashing and default-codec mistakes in two test
 fixtures. The fixtures now hash actual file bytes and read the UTF-8 layout
 ledger explicitly; new CRLF cases also reject newline-only artifact tampering.
 Production hashing and figure code were unchanged by these fixture corrections.
-Remote CI is authoritative for the operating-system/Python matrix.
+Remote CI is authoritative for the operating-system/Python matrix. Its macOS
+job is pinned to the supported `macos-15-intel` runner after hosted ARM capacity
+cancelled a job before any step ran; the test and installation commands are
+unchanged. Local ARM validation is reported separately from remote CI.
 
 Three real native sample folders, including a separate external comparator, were
 freshly imported with their own bound evidence. Their retained counts are 11, 9

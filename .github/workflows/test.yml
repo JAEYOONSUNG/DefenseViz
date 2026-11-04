@@ -13,7 +13,8 @@ jobs:
           - python-version: '3.12'
             os: windows-latest
           - python-version: '3.12'
-            os: macos-latest
+            # Pin Intel macOS: hosted arm64 capacity can cancel jobs before startup.
+            os: macos-15-intel
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
