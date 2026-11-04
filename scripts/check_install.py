@@ -30,8 +30,8 @@ def main():
         venv.EnvBuilder(with_pip=True).create(work/'venv')
         bindir = work/'venv'/('Scripts' if os.name=='nt' else 'bin')
         python = bindir/('python.exe' if os.name=='nt' else 'python')
-        run([python, '-m', 'pip', 'install', '--disable-pip-version-check', wheel], work)
-        assert 'DefenseViz 2.0.0' in run([python, '-m', 'defenseviz', 'version'], work)
+        run([python, '-m', 'pip', 'install', '--disable-pip-version-check', str(wheel) + '[suite]'], work)
+        assert 'DefenseViz 2.1.0' in run([python, '-m', 'defenseviz', 'version'], work)
         run([python, '-m', 'defenseviz', 'demo', '--out', work/'demo'], work)
         run([python, '-m', 'defenseviz', 'validate', work/'demo/inputs/project.json'], work)
         run([python, '-m', 'defenseviz', 'run', work/'demo/inputs/project.json', '--out', work/'rerun'], work)
@@ -43,6 +43,21 @@ def main():
         receipt=json.loads((work/'rerun/receipt.json').read_text(encoding='utf-8'))
         assert receipt['detector_runs']==0 and receipt['exit_code']==0
         assert receipt['software']['git']['status']=='not_a_source_checkout'
+        run([python, '-m', 'defenseviz', 'demo', '--suite', '--out', work/'suite-demo'], work)
+        native=work/'suite-demo/inputs'
+        run([python, '-m', 'defenseviz', 'inspect-suite', native/'runs', '--manifest', native/'cohort.json',
+             '--supplement', native/'review.json'], work)
+        run([python, '-m', 'defenseviz', 'from-suite', native/'runs', '--manifest', native/'cohort.json',
+             '--supplement', native/'review.json', '--layout', native/'layout.json',
+             '--title', 'Synthetic defense annotation comparison', '--out', work/'suite-rerun'], work)
+        first=json.loads((work/'suite-demo/results/analysis.json').read_text(encoding='utf-8'))
+        second=json.loads((work/'suite-rerun/analysis.json').read_text(encoding='utf-8'))
+        assert first==second, 'Native demo and standalone suite run must have identical analytical results'
+        assert (work/'suite-rerun/figures/publication.pdf').stat().st_size>1000
+        assert list((work/'suite-rerun/figures').glob('*.svg'))
+        native_receipt=json.loads((work/'suite-rerun/receipt.json').read_text(encoding='utf-8'))
+        assert native_receipt['software']['git']['status']=='not_a_source_checkout'
+        assert native_receipt['detector_runs']==0 and native_receipt['exit_code']==0
         print('CLEAN_INSTALL_OK')
 
 if __name__=='__main__':main()
