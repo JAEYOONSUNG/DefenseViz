@@ -45,6 +45,10 @@ checks; Claude read their receipts and did not execute them. These reviews verif
 source reconciliation and software behavior, not biological activity, exhaustive
 nuclease detection, or predictive accuracy. See [validation](VALIDATION.md) for
 executed checks; remote CI results remain separately reported by GitHub Actions.
+Subsequent Windows CI findings were isolated to fixture newline hashing and
+default text decoding. Their assertions were retained, explicit byte/UTF-8
+handling was added, and two CRLF tamper regressions strengthen the fixture scope.
+No production rule or renderer changed after the Claude artifact closeout.
 
 ---
 

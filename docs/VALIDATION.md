@@ -9,10 +9,14 @@ records and missing assessments. This is a fresh evaluation of stored evidence,
 followed by aggregation and rendering; it is not a detector or recognition-engine
 rerun. Newer exports can continue to use their saved decisions directly.
 
-The final source passed **770 automated tests** and a clean installed-wheel check
+The final source passed **772 automated tests** and a clean installed-wheel check
 (`CLEAN_INSTALL_OK`), with source hashes unchanged during both checks. Tests cover
 multipart input, saved classification decisions, identity and scope conflicts,
 retained context, partial assessment, explicit family mappings and figure layout.
+Windows CI exposed text-mode hashing and default-codec mistakes in two test
+fixtures. The fixtures now hash actual file bytes and read the UTF-8 layout
+ledger explicitly; new CRLF cases also reject newline-only artifact tampering.
+Production hashing and figure code were unchanged by these fixture corrections.
 Remote CI is authoritative for the operating-system/Python matrix.
 
 Three real native sample folders, including a separate external comparator, were

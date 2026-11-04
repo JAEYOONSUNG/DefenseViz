@@ -13,7 +13,11 @@ from defenseviz.rm_evaluation import apply_rm_evidence
 
 
 def sha(value):
-    return hashlib.sha256(value.encode()).hexdigest()
+    return hashlib.sha256(value.encode("utf-8")).hexdigest()
+
+
+def file_sha(path):
+    return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
 def evidence(**updates):
@@ -32,11 +36,11 @@ def evidence(**updates):
 
 def setup(tmp_path, count=1, *, sample="sample"):
     native = tmp_path / "native.tsv"
-    native.write_text("gene\tstate\n" + "".join(f"gene{i}\tlegacy\n" for i in range(count)))
+    native.write_text("gene\tstate\n" + "".join(f"gene{i}\tlegacy\n" for i in range(count)), encoding="utf-8")
     source = tmp_path / "stored_evidence.json"
-    source.write_text("{\"description\":\"synthetic complete measured evidence fixture\"}")
-    source_ref = dict(path=source.name, sha256=sha(source.read_text()), record_index=0)
-    native_ref = dict(path=str(native), sha256=sha(native.read_text()), row=2)
+    source.write_text("{\"description\":\"synthetic complete measured evidence fixture\"}", encoding="utf-8")
+    source_ref = dict(path=source.name, sha256=file_sha(source), record_index=0)
+    native_ref = dict(path=str(native), sha256=file_sha(native), row=2)
     genes = [dict(sample_id=sample, gene_id=f"gene{i}", protein_sha256=sha(f"protein{i}")) for i in range(count)]
     d = dict(samples=[dict(sample_id=sample, label="Synthetic sample")], genes=genes,
              calls=[dict(sample_id=sample, gene_id=g["gene_id"], caller="OriginalTool", family="Type II",
@@ -59,7 +63,7 @@ def setup(tmp_path, count=1, *, sample="sample"):
 
 
 def apply(d, doc, path):
-    path.write_text(json.dumps(doc))
+    path.write_text(json.dumps(doc), encoding="utf-8")
     return apply_rm_evidence(d, path)
 
 
@@ -82,8 +86,39 @@ def test_evaluates_exact_frozen_predicate_and_preserves_native_data(tmp_path):
     assert meta["scoring_runs"] == 1 and meta["policy_evaluations"] == 2
     assert meta["detector_runs"] == meta["structure_prediction_runs"] == 0
     assert meta["thresholds_changed"] is False and meta["activity_inferred"] is False
-    assert out["input_sha256"][str(path)] == sha(path.read_text())
+    assert out["input_sha256"][str(path)] == file_sha(path)
     assert analyze_saved(out)["global_summary"]["retained_CDS"] == 1
+
+
+@pytest.mark.parametrize("artifact,message", [("native", "native artifact changed"), ("source", "source hash")])
+def test_crlf_file_bytes_are_bound_and_newline_only_tampering_rejected(tmp_path, artifact, message):
+    d, doc, path = setup(tmp_path)
+    native = tmp_path / "native.tsv"
+    source = tmp_path / "stored_evidence.json"
+    native.write_bytes(b"gene\tstate\r\ngene0\tlegacy\r\n")
+    source.write_bytes('{\r\n"description": "synthetic café evidence"\r\n}\r\n'.encode("utf-8"))
+    native_hash = file_sha(native)
+    d["input_sha256"][str(native)] = native_hash
+    for row in [*d["calls"], *d["saved_decisions"]]:
+        row["source_ref"]["sha256"] = native_hash
+    doc["input_sha256"][native.name] = native_hash
+    for row in [*doc["records"], *doc["candidate_scope"]]:
+        row["source_refs"][0]["sha256"] = file_sha(source)
+    doc["description"] = "synthetic café evidence"
+    path.write_bytes((json.dumps(doc, ensure_ascii=False, indent=2) + "\n").replace("\n", "\r\n").encode("utf-8"))
+
+    out = apply_rm_evidence(d, path)
+    assert out["saved_decisions"][0]["state"] == "retained"
+    for bound in (native, source, path):
+        assert out["input_sha256"][str(bound)] == file_sha(bound)
+        assert file_sha(bound) != sha(bound.read_text(encoding="utf-8"))
+
+    changed = {"native": native, "source": source}[artifact]
+    unchanged_text = changed.read_text(encoding="utf-8")
+    changed.write_bytes(changed.read_bytes().replace(b"\r\n", b"\n"))
+    assert changed.read_text(encoding="utf-8") == unchanged_text
+    with pytest.raises(ValueError, match=message):
+        apply_rm_evidence(d, path)
 
 
 def test_140_legacy_candidates_23_evaluated_are_partial_not_na_or_complete(tmp_path):
@@ -142,7 +177,7 @@ def test_identity_and_source_boundary_rejections(tmp_path, mutation, message):
     if mutation == "protein": doc["records"][0]["protein_sha256"] = "a"*64
     elif mutation == "source": doc["records"][0]["source_refs"][0]["sha256"] = "a"*64
     elif mutation == "native": doc["input_sha256"]["native.tsv"] = "a"*64
-    elif mutation == "native_changed": (tmp_path/"native.tsv").write_text("changed")
+    elif mutation == "native_changed": (tmp_path/"native.tsv").write_text("changed", encoding="utf-8")
     elif mutation == "no_native_role": d["input_roles"] = {}
     elif mutation == "sample": doc["records"][0]["sample_id"] = "unknown"
     elif mutation == "gene": doc["records"][0]["gene_id"] = "unknown"

@@ -30,7 +30,8 @@ def rendered(data,path,**config):
     before=deepcopy(data)
     render_publication(data,path,sections=['comparison'],**config)
     assert data==before
-    result=json.loads((path/'publication_layout.json').read_text())
+    # The ledger is UTF-8 even when the platform's default text codec is not.
+    result=json.loads((path/'publication_layout.json').read_text(encoding='utf-8'))
     assert all(not p['validation']['errors'] for p in result['pages'])
     return result
 
