@@ -75,7 +75,11 @@ can still have unresolved functional evidence.
 Some legacy exports lack reference lengths and the original DNMB profile search.
 They cannot yield full-length homology support from identity alone. To evaluate
 original reference nominees against a current DNMB reference cache in the same
-invocation, provide its resource directory:
+invocation, provide its resource directory. This legacy partial-evaluation
+example requires no configured full engine: neither `DEFENSEVIZ_ENGINE_CONFIG`
+nor the default `~/.config/defenseviz/engine.json` (or its `XDG_CONFIG_HOME`
+equivalent) may select one. With a configured engine, including the DNMBsuite
+container, use the full command above and its configured references instead.
 
 ```sh
 defenseviz from-suite /path/to/results --reference-cache /path/to/rebase/cache --out evaluated
@@ -106,8 +110,12 @@ accessories require their own evidence.
 
 ## Select and label samples
 
-Default sample IDs and labels are literal directory basenames. To choose a cohort,
-order rows, supply concise display labels or highlight strains, use a manifest:
+For native outputs, default sample IDs use the assembly accession declared in
+the source GenBank records; labels use their organism and strain qualifiers.
+Explicit equivalent strain aliases are preserved in provenance and displayed
+with one unambiguous source alias. Directory basenames are the fallback when
+the corresponding source metadata is absent. A manifest can choose a cohort,
+order rows, supply display labels or highlight strains:
 
 ```json
 {

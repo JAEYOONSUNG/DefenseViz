@@ -3,7 +3,10 @@
 DefenseViz can install its required R namespaces directly from pinned GitHub
 source. A previous benchmark workspace or local patched source archive is not
 required by this installer. Databases, compatible third-party R dependencies and
-original DNMBsuite outputs remain separate inputs.
+original DNMBsuite outputs remain separate inputs. For a new installation,
+prepare a source-bound database directory using [resource-preparation.md](resource-preparation.md).
+The [DNMBsuite container](dnmbsuite-container.md) already includes the compatible
+Python, R and native tool environment described below.
 
 Install the Python package first, then run the setup script from its source
 checkout:
@@ -67,7 +70,8 @@ evaluated annotation lists, tables and figures. Original DF/PAD/DP annotations
 remain saved observations; this does not rerun those tools or InterPro/EggNOG.
 
 REBASE and HMM databases are not downloaded by this source installer. Use the
-exact prepared databases and profile metadata in your resource configuration,
+[resource preparation commands](resource-preparation.md) to prepare the exact
+databases and profile metadata in your resource configuration,
 with their license/version provenance. A source clone does not reproduce a
 historical, unversioned reference snapshot. The separate
 [runtime bundle exporter](runtime-bundle.md) preserves exact local resources and
