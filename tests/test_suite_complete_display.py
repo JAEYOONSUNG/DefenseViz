@@ -108,14 +108,14 @@ def test_publication_distinguishes_missing_from_zero_with_one_scope_note(tmp_pat
     before=deepcopy(result)
     render_publication(result,tmp_path,sections=["comparison","type_benchmarks"])
     assert result==before
-    layout=json.loads((tmp_path/"publication_layout.json").read_text())
+    layout=json.loads((tmp_path/"publication_layout.json").read_text(encoding="utf-8"))
     labels=[t["text"] for p in layout["pages"] for t in p["texts"]]
     assert not any("unassessed" in t or "(NA)" in t for t in labels)
     assert not {"NA","?","+","0+"}.intersection(labels)
     effectors=[t for p in layout["pages"] for t in p["texts"] if (t.get("source_ref") or {}).get("field")=="effector"]
     assert effectors and all(t["text"]=="—" for t in effectors)
     assert any("Counts: recorded annotations" in t for t in labels)
-    caption=(tmp_path/"publication_caption.md").read_text()
+    caption=(tmp_path/"publication_caption.md").read_text(encoding="utf-8")
     assert "unassessed" not in caption
     assert "M(S)-only composition does not establish orphanhood" in caption
 
@@ -125,7 +125,7 @@ def test_missing_overlap_is_explicit_and_does_not_render_zero_counts(tmp_path):
     for field in ("overlap_regions","priority_overlap_regions"):
         result[field].update(coverage_status="unassessed",sample_ids=[],excluded_sample_ids=["sample/0"])
     render_publication(result,tmp_path,sections=["comparison"])
-    layout=json.loads((tmp_path/"publication_layout.json").read_text())
+    layout=json.loads((tmp_path/"publication_layout.json").read_text(encoding="utf-8"))
     labels=[t for p in layout["pages"] for t in p["texts"]]
     assert [t["text"] for t in labels if t["role"]=="missing_overlap"]==["Source overlap: unavailable"]
     assert not any(t["role"]=="venn_count" for t in labels)
@@ -183,7 +183,7 @@ def test_comparison_observed_zero_needs_explicit_analysis_count_availability(tmp
     before=deepcopy(result)
     render_publication(result,tmp_path,sections=['comparison'])
     assert result==before
-    layout=json.loads((tmp_path/'publication_layout.json').read_text())
+    layout=json.loads((tmp_path/'publication_layout.json').read_text(encoding="utf-8"))
     values={t['source_ref']['table']:t['text'] for p in layout['pages'] for t in p['texts']
             if t['role']=='numeric' and t['source_ref']['field']=='effector'}
     assert values=={'categories':'0','families':'—'}

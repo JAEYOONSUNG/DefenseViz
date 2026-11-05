@@ -48,7 +48,7 @@ def fixture(samples=2, families=5, sources=4):
 
 
 def ledger(path):
-    return json.loads((path/"publication_layout.json").read_text())
+    return json.loads((path/"publication_layout.json").read_text(encoding="utf-8"))
 
 
 def test_comparison_right_alignment_split_columns_and_source_order(tmp_path):
@@ -78,7 +78,7 @@ def test_nested_glyph_area_dual_bands_and_pink_highlight(tmp_path):
     for glyph in page["glyphs"]:
         assert glyph["inner_radius_mm"]**2/glyph["outer_radius_mm"]**2==pytest.approx(.3)
     assert any(c.get("highlight") for c in page["cells"])
-    raw=(tmp_path/"publication_page001.svg").read_text()
+    raw=(tmp_path/"publication_page001.svg").read_text(encoding="utf-8")
     assert "#fbe0eb" in raw and "#7953a2" in raw
 
 

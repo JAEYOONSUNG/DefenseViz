@@ -167,7 +167,7 @@ def test_failed_full_publication_preserves_logs_without_success_output(tmp_path,
 def test_runtime_bootstraps_configured_tools_and_R_libraries(tmp_path,monkeypatch):
     import os,shutil
     from defenseviz.native_pipeline import _runtime_environment
-    binary=tmp_path/'tool dir'/'blastp';binary.parent.mkdir();binary.write_text('executable');binary.chmod(0o755)
+    binary=tmp_path/'tool dir'/('blastp.exe' if os.name=='nt' else 'blastp');binary.parent.mkdir();binary.write_text('executable');binary.chmod(0o755)
     monkeypatch.setenv('PATH','/usr/bin');monkeypatch.setenv('R_LIBS','/existing/R')
     env=_runtime_environment({'blastp':str(binary),'r_libraries':['/private/R']},tmp_path/'cache')
     assert shutil.which('blastp',path=env['PATH'])==str(binary)
@@ -230,12 +230,18 @@ def test_actual_native_runtime_must_match_preflight(tmp_path,mutation):
     ('ref1\tMAAA\n','absent'),
     ('ref1\tMAAA\nref2\tMQ*\nref3\tMQQ\n','absent'),
 ])
-def test_reference_indexes_must_match_every_fasta_entry(tmp_path,indexed,error):
+def test_reference_indexes_must_match_every_fasta_entry(tmp_path,indexed,error,monkeypatch):
     import os
+    from defenseviz import native_pipeline as module
     from defenseviz.native_pipeline import _validate_reference_index
     fasta=tmp_path/'ref.faa';fasta.write_text('>ref1\nMAAA<>\n>ref2\nMQ*\n')
     executable=tmp_path/'blastdbcmd'
-    executable.write_text('#!'+sys.executable+'\nimport sys\nsys.stdout.write('+repr(indexed)+')\n');executable.chmod(0o755)
+    executable.write_text('synthetic index-stream executable')
+    popen=module.subprocess.Popen
+    def stream(argv,**kwargs):
+        assert argv==[str(executable),'-db',str(fasta),'-entry','all','-outfmt','%t\t%s']
+        return popen([sys.executable,'-c','import sys;sys.stdout.write('+repr(indexed)+')'],**kwargs)
+    monkeypatch.setattr(module.subprocess,'Popen',stream)
     output=tmp_path/'validation.json'
     if error:
         with pytest.raises(ValueError,match=error):_validate_reference_index(fasta,executable,output,dict(os.environ))
