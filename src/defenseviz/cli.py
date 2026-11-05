@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+import tempfile
 from pathlib import Path
 from . import __version__
 
@@ -30,6 +31,9 @@ def parser():
         s.add_argument('root', type=Path, help='One completed suite folder or a parent containing per-genome folders')
         s.add_argument('--manifest', type=Path, help='Explicit sample paths, identities and display metadata')
         s.add_argument('--supplement', type=Path, help='Optional source-bound saved reviews')
+        s.add_argument('--reference-cache', type=Path, help='Optional current DNMB REBASE cache for fresh, source-pinned homology evaluation of saved candidates')
+        s.add_argument('--evaluation', choices=['auto', 'stored'], default='auto',
+                       help='Automatically evaluate stored evidence (default), or replay saved decisions only')
         s.add_argument('--rm-evidence', type=Path, help='Source-bound complete R-M evidence for fresh DNMB policy evaluation')
         s.add_argument('--system-review-rules', type=Path, help='Optional exact, versioned rules for reviewing newly observed systems')
         s.add_argument('--system-review-evidence', type=Path, help='Registry and candidate paths for source-bound domain/site review')
@@ -61,7 +65,7 @@ def main(argv=None):
         if args.command in {'from-suite', 'inspect-suite'}:
             from .suite_pipeline import prepare_suite, run_suite, suite_warnings
             kwargs = dict(manifest=args.manifest, supplement=args.supplement,
-                          rm_evidence=args.rm_evidence,
+                          rm_evidence=args.rm_evidence, evaluation=args.evaluation, reference_cache=args.reference_cache,
                           system_review_rules=args.system_review_rules,
                           system_review_evidence=args.system_review_evidence,
                           rscript=args.rscript, strict_inputs=args.strict_inputs)
@@ -70,8 +74,10 @@ def main(argv=None):
                                      layout=args.layout, argv=['defenseviz', *(argv or sys.argv[1:])])
             else:
                 from .analysis.saved import analyze_saved
-                data = prepare_suite(args.root, **kwargs)
-                result = analyze_saved(data)
+                from .suite_pipeline import analyze_suite
+                with tempfile.TemporaryDirectory(prefix='defenseviz-inspect-') as work:
+                    data = prepare_suite(args.root, **kwargs, evidence_workspace=Path(work))
+                    data, result = analyze_suite(data)
                 from .knowledge import describe_systems
                 information = describe_systems(data, result)
                 response = {'valid': True, 'samples': len(data['samples']),

@@ -118,8 +118,12 @@ def analyze_saved(data):
     options = d.get("options") or {}
     if not isinstance(options, dict):
         raise ValueError("options must be an object")
+    evaluation_meta = d.get("rm_evaluation") or {}
+    policy_attempts = evaluation_meta.get("policy_evaluations", evaluation_meta.get("scoring_runs",0))
+    policy_decisions = evaluation_meta.get("policy_decisions",policy_attempts)
     warnings = [("Stored R-M evidence reevaluated with the selected DNMB policy; no detector run."
-                 if d.get("rm_evaluation") else "Saved-result import and aggregation; no detector or scoring run."),
+                 if policy_decisions else "Stored R-M evidence evaluated; all new retention decisions remain unassessed. Native decisions replayed."
+                 if policy_attempts else "Saved-result import and aggregation; no detector or scoring run."),
                 "Annotation evidence does not establish activity. Missing evidence is unassessed.",
                 "Family/category rows can overlap; sums are not a unique CDS union."]
 
@@ -268,6 +272,7 @@ def analyze_saved(data):
     # broader native candidate audit. Completeness here describes that exact
     # observed selection, never the exhaustiveness of discovery.
     current_scopes = {}
+    current_scope_coverage = {}
     for scope in (d.get("rm_evaluation") or {}).get("candidate_scope", []):
         if "gene_ids" not in scope:
             continue
@@ -279,13 +284,21 @@ def analyze_saved(data):
         if not members <= set(genes):
             raise ValueError("Current candidate scope contains unknown genes")
         current_scopes[sid] = members
+        # Automatic scopes explicitly carry export/inventory completeness.
+        # Historical reviewed gene_ids scopes are exact selected universes;
+        # their broader native audit may intentionally have status=partial.
+        current_scope_coverage[sid] = scope.get("coverage_status", "complete")
+    def current_selection_status(sid, members, known):
+        if sid not in current_scopes:
+            return saved_status_by_sample[sid]
+        if current_scope_coverage[sid] != "complete":
+            return "partial" if known else "unassessed"
+        return "complete" if known == members else "partial" if known else "unassessed"
     current_saved_states = []
     for sid in sample_ids:
         members = current_scopes.get(sid, {k for k in saved if k[0] == sid})
         known = members & decision_assessed
-        state = ("complete" if known == members else "partial" if known else "unassessed")
-        if sid not in current_scopes:
-            state = saved_status_by_sample[sid]
+        state = current_selection_status(sid, members, known)
         current_saved_states.append(dict(sample_id=sid, status=state, record_count=len(members),
             member_keys=_keys(members), unassessed_member_keys=_keys(members-known),
             scope="explicit current observed candidate selection" if sid in current_scopes else "native saved candidate assessment",
@@ -996,10 +1009,7 @@ def analyze_saved(data):
             retained_r_state = "partial"
         retention_assessment_members = current_scopes.get(sid, {k for k in saved if k[0] == sid}) | retained_members
         retention_assessed = retention_assessment_members & decision_assessed
-        current_retained_state = ("complete" if retention_assessed == retention_assessment_members else
-                                  "partial" if retention_assessed else "unassessed")
-        if sid not in current_scopes:
-            current_retained_state = saved_status_by_sample[sid]
+        current_retained_state = current_selection_status(sid, retention_assessment_members, retention_assessed)
         current_retained_rm_state = ("partial" if current_retained_state == "complete"
                                      and retained_members-final_rm else current_retained_state)
         current_retained_r_state = current_retained_rm_state
@@ -1067,7 +1077,7 @@ def analyze_saved(data):
             complete_context_state="observed_saved_assessment" if any(g["sample_id"] == sid and g["membership_kind"] == "saved_context" and g.get("context_state") is not None for g in group_index.values()) else "unassessed",
             rm_scope_definitions={"rm_pool":"original R-M source/reference union plus explicitly typed current DNMB candidates; untyped and broader historical nominees stay in audit", "intersection":"legacy all-configured-source intersection, including reference providers; rm_intersection_CDS and rm_all_source_intersection_CDS are aliases, with status from source coverage only", "native_intersection":"native final R-M members across rm_native_intersection_sources, including selected general predictions projected into the observed R-M pool; reference and HMM-only channels excluded; status from native endpoint coverage only", "general_prediction_RM":"saved general predictions intersect original R-M candidate pool; not a native RM type call", "noncanonical":"current integrated union minus current R-M display-category pool; source counts intersect this same pool"}))
     result = dict(schema_version="saved-results-v1",samples=samples,sources=source_out,sample_summary=sample_summary,
-        selected_policy=deepcopy(evaluation.get("policy")) if evaluation else None,
+        selected_policy=deepcopy(evaluation.get("policy")) if policy_decisions else None,
         source_sets=[dict(source_id=s,endpoint=source_out[i]["kind"],member_keys=_keys(source_members[s]),count=len(source_members[s]),coverage_status=source_out[i]["coverage_status"]) for i,s in enumerate(sources)],
         global_summary=global_summary,overlap_regions=overlap(),priority_overlap_regions=overlap(P),
         inventory_rows=dict(categories=category_rows,families=family_rows),cells=cells,rm_components=components,type_tables=type_tables,
@@ -1090,8 +1100,9 @@ def analyze_saved(data):
             inventory_by_sample=inventory_by_sample, assessment_coverage_by_sample=assessment_by_sample,
             assessment_coverage_provenance_by_sample=assessment_provenance),
         workflow_capabilities=deepcopy((d.get("suite") or {}).get("capabilities",{})),
-        provenance=dict(operation="stored_evidence_evaluation_and_aggregation" if evaluation else "saved_result_import_and_aggregation",detector_runs=0,
+        provenance=dict(operation="stored_evidence_evaluation_and_aggregation" if policy_decisions else "stored_evidence_bounds_and_saved_result_aggregation" if policy_attempts else "saved_result_import_and_aggregation",detector_runs=0,
             scoring_runs=evaluation.get("scoring_runs", 0),
+            policy_evaluations=policy_attempts,policy_decisions=policy_decisions,
             component_registry_version=registry["version"],component_registry_sha256=registry_sha,
             automatic_component_assignments=automatic,source_metadata=tables["source_metadata"],input_sha256=d.get("input_sha256",{})))
     from .system_review import review_all_systems

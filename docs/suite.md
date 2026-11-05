@@ -1,7 +1,9 @@
 # Use saved DNMBsuite results
 
-DefenseViz reads saved DNMBsuite outputs. It does not install or rerun DNMB,
-DefenseFinder, PADLOC, DefensePredictor, REBASE searches or structure prediction.
+DefenseViz reads saved DNMBsuite outputs and evaluates their evidence automatically.
+It does not rerun DefenseFinder, PADLOC, DefensePredictor or structure prediction.
+An explicitly configured current REBASE cache enables a fresh homology search
+for the original reference nominees; its provenance remains separate from saved calls.
 The public analysis pipeline name is **DNMB**; historical source paths and module
 names remain in provenance.
 
@@ -18,10 +20,57 @@ directories. Discovery is limited to immediate children. Original files are
 read-only, and the output directory must be new. `inspect-suite` validates and
 reports available endpoints without generating figures.
 
-R is used only to read saved RDS completion/version metadata through a fixed
-packaged helper. Set `--rscript /path/to/Rscript` when it is not on `PATH`.
+R reads saved RDS completion/version metadata and, when requested, current
+reference metadata through fixed packaged helpers. Set `--rscript /path/to/Rscript` when it is not on `PATH`.
 No original DNMB R code is sourced. Missing completion evidence must remain
 explicit; a directory without results is not a successful zero-hit run.
+
+
+## Automatic evaluation
+
+The default command collects source-bound candidate annotations, evaluates the
+original DNMB motif and architecture rules on exact stored proteins, applies the
+unchanged numerical policy, reassesses current retained contexts and reviews all
+observed defense systems. It writes candidate, retained, not-retained, unresolved
+and out-of-scope lists beside the original atlas and comparison figures.
+
+Missing measurements stay unknown. `score_min` and `score_max` bound all
+admissible completions of the missing evidence. A decision is confirmed only
+when the entire interval gives the same retention outcome. This robustness
+assessment is not experimental validation. A completed computational review
+can still have unresolved functional evidence.
+
+Some legacy exports lack reference lengths and the original DNMB profile search.
+They cannot yield full-length homology support from identity alone. To evaluate
+original reference nominees against a current DNMB reference cache in the same
+invocation, provide its resource directory:
+
+```sh
+defenseviz from-suite /path/to/results --reference-cache /path/to/rebase/cache --out evaluated
+```
+
+This optional step requires BLAST+ `blastp` on `PATH` and reads the reference
+FASTA plus metadata without changing them. The output records the current
+database hashes, exact protein pairs, alignment command and search count.
+All HSP intervals for each nominated pair are merged using the native coverage
+and identity rules. A weak/no-hit result for one nominated subject cannot prove
+that all homology evidence is absent. Original REBASE overlap memberships remain
+unchanged. A current reference resource is never represented as the missing
+historical database.
+
+`--evaluation stored` disables automatic reevaluation for a saved-decision
+replay. `--rm-evidence evidence.json` retains the existing explicit complete
+measurement workflow. There is no need to construct that file for the automatic
+path. Neither mode treats an absent annotation as a biological negative.
+
+A below-cutoff R remains a gene in the genome: absence from the retained subset
+does not create an orphan M/S annotation. Current retained-context composition
+is stored separately from preserved native decisions.
+
+System review coverage is calculated per displayed CDS set. A missing motif for
+one family does not make an independently established effector in another family
+unassessed. Exact multi-component catalytic cores count their distinct CDSs;
+accessories require their own evidence.
 
 ## Select and label samples
 
@@ -113,7 +162,7 @@ precedence over built-in display aliases.
 
 The importer supports version-dependent augmented REBASE tables and legacy
 workbooks. Explicit saved `curation_keep` and final role/type fields are preserved
-when available. Older exports without those fields remain unassessed; their
+when available. Older exports without those fields enter automatic evidence evaluation; their
 historical BLAST filter is not substituted for modern DNMB retention. Synthetic context labels never serve as REBASE reference identifiers. A
 structured supplemental subject/identity pair can supply the reference match,
 while its context role and type remain separate. Raw features,
@@ -202,10 +251,31 @@ assigning individual catalytic activity to each member.
 ## Output and interpretation
 
 The output includes an editable publication PDF, SVG pages, layout measurements,
-`analysis.json`, `native_bundle.json`, tabular gene/priority/family/category
-results and `receipt.json`. The receipt pins inputs, implementation files,
+`analysis.json`, original `native_bundle.json`, derived `analysis_bundle.json`,
+tabular gene/priority/family/category results and `receipt.json`. The receipt pins inputs, implementation files,
 available tool/database metadata, command, elapsed times and output hashes.
 Unknown producer versions and absent database hashes are not invented.
+
+`native_bundle.json` and `tables/imported_*` retain the original imported channels.
+`analysis_bundle.json` and `tables/analysis_*` contain the evaluated inputs used for
+the figures. `rm_evaluation.json` records every candidate's source scope, evidence,
+unknown axes and decision; `tables/rm_candidate_evaluation.tsv` and the separate
+retained/not-retained/unassessed/out-of-scope tables make those decisions inspectable.
+`automatic_system_review.json` records component and effector review coverage.
+Original final tool memberships are never augmented by later DNMB decisions.
+
+Automatic nomination includes native DNMB candidates and original final R-M tool
+members. The latter have their own `source_scope`; they are downstream integration
+candidates, not a new independent detector. Existing assessed DNMB decisions are
+preserved with their original provenance. New policy decisions and replayed
+native decisions have separate counts and execution-stage labels in the receipt.
+`policy_evaluations` counts attempted bounds evaluations; `policy_decisions` counts
+newly resolved retention outcomes. The field-level `decision_transitions` and
+`stored_vs_auto_summary` also expose assignment, evidence and coverage changes
+when a record remains unassessed.
+When `--rm-evidence` supplies a complete reviewed evidence file, the automatic
+compiler/context/system stages are skipped explicitly to preserve that reviewed
+workflow; this is recorded under `evaluation_execution`.
 
 Input references are exported relative to the supplied root when possible.
 Execution receipts deliberately retain exact executed command arguments and may

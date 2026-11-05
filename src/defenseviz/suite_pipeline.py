@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
+from copy import deepcopy
 from pathlib import Path
 import json
 import shutil
@@ -81,27 +82,66 @@ def suite_warnings(data, result):
 
 
 def prepare_suite(root, *, manifest=None, supplement=None, rm_evidence=None, rscript=None, strict_inputs=False,
-                  system_review_rules=None, system_review_evidence=None):
+                  system_review_rules=None, system_review_evidence=None, evaluation="auto",
+                  reference_cache=None, evidence_workspace=None):
     from .io.suite import load_suite
+    if evaluation not in {"auto", "stored"}:
+        raise ValueError("evaluation must be auto or stored")
     data = load_suite(Path(root), manifest=manifest, rscript=rscript, strict_inputs=strict_inputs)
+    original_import = deepcopy(data)
     if rm_evidence is not None:
         from .rm_evaluation import apply_rm_evidence
         data = apply_rm_evidence(data, rm_evidence)
     if supplement is not None:
         from .supplement import apply_supplement
         data = apply_supplement(data, supplement)
-    if supplement is not None or rm_evidence is not None:
+    if supplement is not None or rm_evidence is not None or evaluation == "auto":
         from .io.suite import attach_system_review_annotations
         data = attach_system_review_annotations(data, root, strict_inputs=strict_inputs)
     if system_review_rules is not None or system_review_evidence is not None:
         from .system_review_inputs import apply_system_review_inputs
         data = apply_system_review_inputs(data, rules_path=system_review_rules, evidence_path=system_review_evidence)
+    if reference_cache is not None:
+        if evaluation != "auto" or rm_evidence is not None:
+            raise ValueError("reference_cache requires automatic evaluation without explicit rm_evidence")
+        if evidence_workspace is None:
+            raise ValueError("Fresh reference evaluation requires an evidence workspace")
+        from .automatic_reference import enrich_reference_evidence
+        data = enrich_reference_evidence(data, reference_cache, evidence_workspace, rscript=rscript)
+        data["derived_artifact_sha256"] = {
+            str(Path(p).resolve()): digest(Path(p))
+            for p in data.get("suite", {}).get("automatic_reference", {}).get("artifacts", [])}
+    if evaluation == "auto" and rm_evidence is None:
+        from .automatic import apply_automatic_rm
+        data = apply_automatic_rm(data)
+        from .automatic_context import apply_current_context_review
+        data = apply_current_context_review(data)
+        from .automatic import refresh_decision_audit
+        data = refresh_decision_audit(data)
+        data["automatic_evaluation"] = True
+    data["evaluation_execution"] = {
+        "requested_mode": evaluation,
+        "rm_mode": "explicit_complete_evidence" if rm_evidence is not None else "automatic" if evaluation == "auto" else "stored_replay",
+        "automatic_system_review": "enabled" if data.get("automatic_evaluation") else "skipped_explicit_review_path" if rm_evidence is not None else "skipped_stored_replay",
+        "explicit_reviewed_outputs_preserved": rm_evidence is not None,
+    }
+    data["_native_import_bundle"] = original_import
     return data
+
+
+def analyze_suite(data):
+    """Run system review and scoped aggregation after optional R-M evaluation."""
+    from .analysis.saved import analyze_saved
+    result = analyze_saved(data)
+    if data.get("automatic_evaluation"):
+        from .automatic_systems_output import apply_system_review
+        data, result = apply_system_review(data, result)
+    return data, result
 
 
 def run_suite(root, output_dir, *, manifest=None, supplement=None, rm_evidence=None, rscript=None,
               strict_inputs=False, title="DefenseViz", layout=None, argv=None,
-              system_review_rules=None, system_review_evidence=None):
+              system_review_rules=None, system_review_evidence=None, evaluation="auto", reference_cache=None):
     """Import native exports, aggregate saved evidence, publish a fresh directory."""
     from .analysis.saved import analyze_saved
     from .plot.publication import render_publication
@@ -115,33 +155,39 @@ def run_suite(root, output_dir, *, manifest=None, supplement=None, rm_evidence=N
     if not isinstance(title, str) or not title.strip():
         raise ValueError("Title must be nonempty text")
     software_before = software_state()
-    data = prepare_suite(source_root, manifest=manifest, supplement=supplement, rm_evidence=rm_evidence,
-                         rscript=rscript, strict_inputs=strict_inputs,
-                         system_review_rules=system_review_rules, system_review_evidence=system_review_evidence)
-    import_seconds = time.monotonic() - started
-    layout_options = {}
-    if layout is not None:
-        layout_path = Path(layout).resolve()
-        reader = Reader(layout_path)
-        layout_options = reader.json(layout_path)
-        if not isinstance(layout_options, dict):
-            raise ValueError("Layout configuration must be an object")
-        if "title" in layout_options:
-            raise ValueError("Set the figure title with --title, not the layout file")
-        data.setdefault("inputs", []).extend(reader.inputs)
-        data.setdefault("input_sha256", {}).update(reader.hashes)
-    paths = sorted({Path(p).resolve() for p in data.get("inputs", [])})
-    pinned = {str(p): digest(p) for p in paths}
-    for p, sha in data.get("input_sha256", {}).items():
-        if pinned.get(str(Path(p).resolve())) != sha:
-            raise ValueError(f"Input changed during suite import: {p}")
     out.parent.mkdir(parents=True, exist_ok=True)
     stage = Path(tempfile.mkdtemp(prefix=f".{out.name}.staging-", dir=out.parent))
     try:
+        data = prepare_suite(source_root, manifest=manifest, supplement=supplement, rm_evidence=rm_evidence,
+                             rscript=rscript, strict_inputs=strict_inputs,
+                             system_review_rules=system_review_rules, system_review_evidence=system_review_evidence,
+                             evaluation=evaluation, reference_cache=reference_cache,
+                             evidence_workspace=stage / "evidence" / "reference")
+        original_import = data.pop("_native_import_bundle", None) or dict(data)
+        import_seconds = time.monotonic() - started
+        layout_options = {}
+        if layout is not None:
+            layout_path = Path(layout).resolve()
+            reader = Reader(layout_path)
+            layout_options = reader.json(layout_path)
+            if not isinstance(layout_options, dict):
+                raise ValueError("Layout configuration must be an object")
+            if "title" in layout_options:
+                raise ValueError("Set the figure title with --title, not the layout file")
+            data.setdefault("inputs", []).extend(reader.inputs)
+            data.setdefault("input_sha256", {}).update(reader.hashes)
+        paths = sorted({Path(p).resolve() for p in data.get("inputs", [])})
+        pinned = {str(p): digest(p) for p in paths}
+        for p, sha in data.get("input_sha256", {}).items():
+            if pinned.get(str(Path(p).resolve())) != sha:
+                raise ValueError(f"Input changed during suite import: {p}")
         tick = time.monotonic()
-        result = analyze_saved(data)
+        data, result = analyze_suite(data)
         if data.get("rm_evaluation"):
-            result.setdefault("provenance", {})["rm_evaluation"] = data["rm_evaluation"]
+            # Execution timings belong to the evaluation receipt, not the
+            # deterministic scientific model consumed by the renderer.
+            result.setdefault("provenance", {})["rm_evaluation"] = {
+                k: v for k, v in data["rm_evaluation"].items() if k != "elapsed_seconds"}
             result["provenance"]["scoring_runs"] = data["rm_evaluation"]["scoring_runs"]
         from .plot.publication.manuscript_model import enrich_manuscript_model
         result = enrich_manuscript_model(data, result)
@@ -150,14 +196,28 @@ def run_suite(root, output_dir, *, manifest=None, supplement=None, rm_evidence=N
         analysis_seconds = time.monotonic() - tick
         path_map = {str(p): provenance_path(p, source_root) for p in paths}
         path_map[str(source_root)] = "."
+        for source in data.get("suite", {}).get("sources", []):
+            label, resolved = source.get("path"), source.get("resolved_path")
+            if label and resolved and str(Path(resolved).resolve()) in pinned:
+                if pinned[str(Path(resolved).resolve())] != source.get("sha256"):
+                    raise ValueError("Source registry hash conflicts with imported input")
+                portable = provenance_path(Path(resolved).resolve(), source_root)
+                if label in path_map and path_map[label] != portable:
+                    raise ValueError("Ambiguous source label in publication provenance")
+                path_map[label] = portable
+        for artifact in stage.rglob("*"):
+            if artifact.is_file():
+                path_map[str(artifact.resolve())] = artifact.relative_to(stage).as_posix()
         native_export = _portable(_serializable(data), path_map)
+        imported_export = _portable(_serializable(original_import), path_map)
         analysis_export = _portable(_serializable(result), path_map)
         required = {*RESULT_TABLES, "inventory_rows", "availability", "global_summary", "warnings"}
         if not required <= set(result):
             raise ValueError(f"Analysis is missing required outputs: {sorted(required - set(result))}")
         if not isinstance(result["availability"], dict):
             raise ValueError("Analysis availability must be an object")
-        write_json(stage / "native_bundle.json", native_export)
+        write_json(stage / "native_bundle.json", imported_export)
+        write_json(stage / "analysis_bundle.json", native_export)
         write_json(stage / "analysis.json", analysis_export)
         review = analysis_export["system_review"]
         write_json(stage / "system_review.json", review)
@@ -165,6 +225,34 @@ def run_suite(root, output_dir, *, manifest=None, supplement=None, rm_evidence=N
             write_json(stage / "rm_evaluation.json", native_export["rm_evaluation"])
         table_dir = stage / "tables"
         table_dir.mkdir()
+        if "automatic_system_review" in analysis_export:
+            automatic_review = analysis_export["automatic_system_review"]
+            write_json(stage / "automatic_system_review.json", automatic_review)
+            _write_table(table_dir / "automatic_gene_assessments.tsv", automatic_review["gene_assessments"],
+                         ("sample_id", "gene_id", "review_execution"))
+        if native_export.get("automatic_evaluation"):
+            evaluation_rows = []
+            for row in native_export["rm_evaluation"]["records"]:
+                decision = row.get("decision") or {}
+                facts = row.get("evidence") or {}
+                evaluation_rows.append({
+                    "sample_id": row["sample_id"], "gene_id": row["gene_id"],
+                    "state": row["state"], "reason": row["reason"],
+                    "rm_type": facts.get("family"), "role": facts.get("role"),
+                    "score_min": decision.get("score_min"), "score_max": decision.get("score_max"),
+                    "score_total": decision.get("score_total"),
+                    "R_component_support": decision.get("integrated_R_component_support"),
+                    "unknown_axes": row.get("unknown_axes", []),
+                    "protein_sha256": row.get("protein_sha256"),
+                    "source_refs": row.get("source_refs", []),
+                    "assessment": decision.get("assessment"),
+                })
+            _write_table(table_dir / "rm_candidate_evaluation.tsv", evaluation_rows,
+                         ("sample_id", "gene_id", "state", "reason"))
+            for state in ("retained", "not_retained", "unassessed", "out_of_scope"):
+                _write_table(table_dir / ("rm_" + state + ".tsv"),
+                             [r for r in evaluation_rows if r["state"] == state],
+                             ("sample_id", "gene_id", "state", "reason"))
         from .knowledge_output import write_system_information
         write_system_information(stage, analysis_export['system_information'])
         for name, headers in RESULT_TABLES.items():
@@ -198,8 +286,16 @@ def run_suite(root, output_dir, *, manifest=None, supplement=None, rm_evidence=N
                      ("endpoint", "state"))
         write_json(table_dir / "availability.json", analysis_export["availability"])
         for name in ("calls", "coverage", "saved_decisions", "annotations", "effector_evidence", "groups", "complexes"):
-            _write_table(table_dir / f"imported_{name}.tsv", _table_rows(native_export.get(name, []), name),
+            _write_table(table_dir / f"imported_{name}.tsv", _table_rows(imported_export.get(name, []), name),
                          ("sample_id", "caller", "status") if name == "coverage" else ("sample_id", "gene_id"))
+        for name in ("saved_decisions", "annotations", "effector_evidence", "groups", "complexes", "coverage"):
+            export_rows = _table_rows(native_export.get(name, []), name)
+            if name == "saved_decisions" and native_export.get("automatic_evaluation"):
+                scopes = {(r["sample_id"],r["gene_id"]):r.get("source_scope",[])
+                          for r in native_export["rm_evaluation"]["records"]}
+                export_rows = [dict(r,source_scope=scopes.get((r["sample_id"],r["gene_id"]),[])) for r in export_rows]
+            _write_table(table_dir / f"analysis_{name}.tsv", export_rows,
+                         ("sample_id", "gene_id"))
         tick = time.monotonic()
         figure_dir = stage / "figures"
         figure_dir.mkdir()
@@ -220,26 +316,53 @@ def run_suite(root, output_dir, *, manifest=None, supplement=None, rm_evidence=N
         for p in paths:
             if digest(p) != pinned[str(p)]:
                 raise ValueError(f"Input changed during suite publication: {p}")
+        for path, expected in data.get("derived_artifact_sha256", {}).items():
+            if digest(Path(path)) != expected:
+                raise ValueError(f"Derived evidence changed during publication: {path}")
         software_after = software_state()
         if software_before["source_sha256"] != software_after["source_sha256"]:
             raise ValueError("DefenseViz implementation changed during execution; run again from a stable checkout")
+        rm_meta = data.get("rm_evaluation", {})
+        ref_meta = data.get("suite", {}).get("automatic_reference", {})
+        rm_seconds = rm_meta.get("elapsed_seconds", 0)
+        ref_seconds = ref_meta.get("elapsed_seconds", 0)
+        policy_decisions = rm_meta.get("policy_decisions",rm_meta.get("policy_evaluations",rm_meta.get("scoring_runs",0)))
+        stages = [{"name": "native_import_and_context_preparation", "elapsed_seconds": max(0, import_seconds-rm_seconds-ref_seconds)}]
+        if ref_meta:
+            stages.append({"name": "fresh_reference_alignment", "elapsed_seconds": ref_seconds,
+                           "homology_search_runs": ref_meta.get("homology_search_runs",0)})
+        if rm_meta:
+            stages.append({"name": "stored_feature_collection_and_policy_evaluation" if policy_decisions else "stored_feature_collection_and_unresolved_policy_bounds" if rm_meta.get("policy_evaluations") else "stored_feature_collection_and_native_decision_replay",
+                           "elapsed_seconds": rm_seconds, "policy_evaluations": rm_meta.get("policy_evaluations",0),
+                           "policy_decisions": policy_decisions,
+                           "preserved_decisions": rm_meta.get("preserved_decisions",0)})
+        stages += [{"name": "system_review_and_aggregation", "elapsed_seconds": analysis_seconds},
+                   {"name": "publication_render", "elapsed_seconds": render_seconds}]
         receipt = {
             "schema_version": 1, "tool": "DefenseViz", "version": __version__,
             "created_at": datetime.now(timezone.utc).isoformat(),
-            "operation": ("saved_suite_evidence_reevaluation_aggregation_and_render" if rm_evidence is not None
+            "operation": ("saved_suite_with_fresh_reference_evaluation_and_render" if data.get("suite", {}).get("automatic_reference", {}).get("homology_search_runs") else
+                          "saved_suite_evidence_reevaluation_aggregation_and_render" if policy_decisions
+                          else "saved_suite_unresolved_evidence_bounds_and_replay_render" if rm_meta.get("policy_evaluations")
                           else "saved_suite_result_import_aggregation_and_render"),
             "scoring_runs": data.get("rm_evaluation", {}).get("scoring_runs", 0),
             "detector_runs": 0, "structure_prediction_runs": 0, "threshold_fitting": False,
+            "homology_search_runs": data.get("suite", {}).get("automatic_reference", {}).get("homology_search_runs", 0),
+            "sequence_feature_evaluations": data.get("rm_evaluation", {}).get("compiler", {}).get("motif_scans", 0),
             "argv": argv if argv is not None else sys.argv, "exit_code": 0,
             "elapsed_seconds": time.monotonic() - started,
-            "stages": [{"name": "native_import_and_rm_reevaluation" if rm_evidence is not None else "native_import", "elapsed_seconds": import_seconds},
-                       {"name": "saved_evidence_aggregation", "elapsed_seconds": analysis_seconds},
-                       {"name": "publication_render", "elapsed_seconds": render_seconds}],
+            "stages": stages,
+            "evaluation_execution": data.get("evaluation_execution", {}),
+            "policy_evaluations": rm_meta.get("policy_evaluations",0),
+            "policy_decisions": policy_decisions,
+            "stored_vs_auto_summary": native_export.get("rm_evaluation",{}).get("stored_vs_auto_summary"),
+            "preserved_native_decisions": rm_meta.get("preserved_decisions",0),
+            "output_bundles": {"native_bundle.json":"original imported channels", "analysis_bundle.json":"current source-bound derived analysis input"},
             "input_path_base": "supplied suite root",
             "inputs": [{"path": provenance_path(p, source_root), "sha256": pinned[str(p)]} for p in paths],
             "software": software_before, "software_after": software_after,
             "source_metadata": native_export.get("source_metadata", []),
-            "options": {"manifest": provenance_path(Path(manifest).resolve(), source_root) if manifest else None,
+            "options": {"evaluation": evaluation, "reference_cache": str(Path(reference_cache).resolve()) if reference_cache else None, "manifest": provenance_path(Path(manifest).resolve(), source_root) if manifest else None,
                         "supplement": provenance_path(Path(supplement).resolve(), source_root) if supplement else None,
                         "rm_evidence": provenance_path(Path(rm_evidence).resolve(), source_root) if rm_evidence else None,
                         "system_review_rules": provenance_path(Path(system_review_rules).resolve(), source_root) if system_review_rules else None,
@@ -254,7 +377,7 @@ def run_suite(root, output_dir, *, manifest=None, supplement=None, rm_evidence=N
             "system_information": {"accounting": analysis_export['system_information']['accounting'],
                                    "provenance": analysis_export['system_information']['provenance']},
             "warnings": suite_warnings(data, result),
-            "scientific_scope": "Saved annotation/evidence only. Missing is unassessed; neither activity nor independent performance is inferred.",
+            "scientific_scope": "Saved calls plus automatic stored/sequence evidence evaluation; optional explicitly configured fresh homology search. Missing is unassessed; neither activity nor independent performance is inferred.",
             "outputs": {p.relative_to(stage).as_posix(): digest(p) for p in sorted(stage.rglob("*")) if p.is_file()},
         }
         write_json(stage / "receipt.json", receipt)
