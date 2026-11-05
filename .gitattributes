@@ -1,2 +1,4 @@
 # Preserve the bytes of source-hash-bound examples on every checkout platform.
 examples/** text=auto eol=lf
+# Frozen upstream native modules are SHA256-bound, including original whitespace.
+src/defenseviz/data/native/source/** -text whitespace=-blank-at-eol,-blank-at-eof

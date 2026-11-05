@@ -1,5 +1,17 @@
 # Release validation
 
+## 2.5.0 full R-M execution
+
+Five external DNMBsuite outputs were processed by the public `from-suite --evaluation full` CLI. The run executed five all-protein R-M HMM searches and seven full-reference BLAST invocations, evaluated all 412 nominated CDSs with the unchanged selected policy, and retained 17. Every translated previous candidate was searched; original DF/PAD/DP memberships were unchanged. These are fresh R-M computations, not fresh runs of the three original defense tools or structure prediction.
+
+The independent audit reconciled every candidate's exact protein, source hashes, factor scores and decision with the published gene and context tables. Completed MS/RMS/MR inventories now report actual numbers. Qualified retained R-component support propagates to putative effectors; an R annotation without the qualified nuclease route does not become an effector. Completed observed annotation counts remain separate from unresolved biological function.
+
+The four-page output passed an independent visual/data audit, including Arial, section labels 1–5, right-aligned separate Total/Effector columns, DF/PAD/DP order, and context support markers. Repeated uncertainty suffixes are removed; genuinely unavailable measurements remain an em dash. A separate 51-genome explicitly reviewed historical replay retained fifteen byte-identical scientific tables. Current-source reaggregation also reproduced its selected memberships, context projection and eight aggregate tables. This replay is not an engine rerun.
+
+An actual Claude Opus 5.5 review was invoked with maximum effort on a preceding source snapshot. Its five P1 and three P2 findings were reproduced and corrected with regression controls; three unresolved questions received separate source/actual-run audits. The final implementation was independently tested, not subsequently approved by Claude. Controls cover comparator-only nomination, terminal stop normalization, exact supplemental reference metadata, candidate-search closure, untranslated groups, required schemas and complete database/runtime/source binding.
+
+Database and runtime resources remain external. Their exact local versions and hashes must be preserved to reproduce a result. The synthetic clean-install test checks the installed native helpers and frozen source inventory; it does not imply that licensed databases are included in the wheel. See the [runtime preservation guide](runtime-bundle.md).
+
 ## 2.3.1 external saved-export compatibility
 
 Five external assemblies from one family exercise older saved DNMB outputs.
