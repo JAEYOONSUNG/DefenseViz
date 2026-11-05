@@ -53,6 +53,7 @@ def test_df_casfinder_native_namespace_and_legacy_grammar_normalize(tmp_path, fa
     ("PDC-M69", "PDC-M (pooled)", "Unresolved"),
     ("PDC-M01", "PDC-M (pooled)", "Unresolved"),
     ("PDC-S73", "PDC-S (pooled)", "Unresolved"),
+    ("shedu", "Shedu", "Nuclease"),
 ])
 def test_padloc_native_family_grammar_is_not_limited_to_one_cohort(tmp_path, family, display, category):
     native = {"system": family, "hmm.name": "Synthetic_profile"}
@@ -101,6 +102,11 @@ def test_padloc_solo_argonaute_does_not_claim_long_a_or_nuclease_role(tmp_path):
     ("DefensePredictor", "CBASS_II", {}),
     ("PADLOC", "SspABCD", {}),
     ("PADLOC", "SspBCD", {}),
+    ("PADLOC", "Shedu", {}),
+    ("PADLOC", "shedu_like", {}),
+    ("PADLOC", "shedu", {"system": "unrelated"}),
+    ("DefenseFinder", "shedu", {}),
+    ("DefenseFinder", "Shedu", {"model_fqn": "custom/Shedu"}),
 ])
 def test_unknown_lookalikes_and_other_endpoints_are_not_inferred(tmp_path, provider, family, native):
     _, call = imported(tmp_path, provider, family, native)
@@ -112,6 +118,19 @@ def test_hmm_profile_is_not_a_native_system_taxonomy_call(tmp_path):
     _, call = imported(tmp_path, "DefenseFinder", "CBASS_II", {"type": "CBASS"}, kind="hmm_hit")
     assert call["family"] == "CBASS_II" and "family_mapping_rule" not in call
     assert call["selected"] is False
+
+
+def test_shedu_alias_unifies_display_but_preserves_original_calls(tmp_path):
+    reader, first = imported(tmp_path, "DefenseFinder", "Shedu", {
+        "type": "Shedu", "subtype": "Shedu", "model_fqn": "defense-finder-models/DefenseFinder/Shedu/Shedu"})
+    second = reader.call("sample", "geneA", "PADLOC", "shedu", "pad_system",
+        {"path": "pad.csv", "sha256": "1" * 64, "row": 2}, native={"system": "shedu"}, model="native_component")
+    assert first["family"] == second["family"] == "Shedu"
+    assert first["category"] == second["category"] == "Nuclease"
+    assert len(reader.data["calls"]) == 2
+    assert {c["native_family"] for c in reader.data["calls"]} == {"Shedu", "shedu"}
+    assert first["role"] is second["role"] is None
+    assert reader.data["saved_decisions"] == reader.data["effector_evidence"] == []
 
 
 @pytest.mark.parametrize("key", [(None, "CAS_Class1-Subtype-IV-A"), ("DefenseFinder", "CAS_Class1-Subtype-IV-A")])

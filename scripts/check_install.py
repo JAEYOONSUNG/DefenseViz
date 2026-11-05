@@ -74,7 +74,7 @@ def main():
         run([python, '-m', 'defenseviz', 'inspect-suite', native/'runs', '--manifest', native/'cohort.json',
              '--supplement', native/'review.json'], work)
         run([python, '-m', 'defenseviz', 'from-suite', native/'runs', '--manifest', native/'cohort.json',
-             '--supplement', native/'review.json', '--layout', native/'layout.json',
+             '--supplement', native/'review.json', '--layout', native/'layout.json', '--evaluation', 'stored',
              '--title', 'Synthetic defense annotation comparison', '--out', work/'suite-rerun'], work)
         first=json.loads((work/'suite-demo/results/analysis.json').read_text(encoding='utf-8'))
         second=json.loads((work/'suite-rerun/analysis.json').read_text(encoding='utf-8'))
