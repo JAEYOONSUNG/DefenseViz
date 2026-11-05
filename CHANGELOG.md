@@ -1,5 +1,21 @@
 # Changelog
 
+## 2.4.0
+
+- Make source-bound R-M feature collection, frozen-policy evaluation and current-context review the default DNMBsuite path.
+- Evaluate exact protein motif architecture and preserve unknown measurements through conservative score bounds; export every candidate disposition.
+- Review all observed systems and calculate functional count coverage over each actual displayed CDS set.
+- Support explicit current-reference homology evaluation when legacy exports lack coverage; preserve original reference and detector memberships.
+- Keep stored-decision replay and the explicit reviewed-evidence path available.
+- Preserve incomplete and quarantined R-M scopes; never infer orphanhood from a retention cutoff.
+- Merge reference HSPs under native measurement rules and separate subject-specific negatives from missing global evidence.
+- Audit field-level assignment/coverage changes and distinguish attempted evaluations from resolved decisions.
+
+## 2.3.1
+
+- Read legacy source taxonomy, gene worksheet labels and supplemental reference identities without changing native memberships.
+- Qualify incomplete priorities and improve short-cohort label spacing.
+
 ## 2.3.0
 
 - Add source-pinned offline system information from the official DefenseFinder wiki, DefenseFinder definitions and CasFinder definitions.
