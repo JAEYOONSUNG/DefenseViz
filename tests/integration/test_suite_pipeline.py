@@ -206,6 +206,10 @@ def test_native_blank_fqn_does_not_abort_publication(tmp_path):
                for row in info['detections'])
     assert info['accounting']['unaccounted_detections'] == 0
     assert (out / 'figures/publication.pdf').stat().st_size > 1000
+    previews = sorted((out / 'figures').glob('publication_page*.png'))
+    vectors = sorted((out / 'figures').glob('publication_page*.svg'))
+    assert previews and len(previews) == len(vectors)
+    assert all(path.read_bytes().startswith(b'\x89PNG\r\n\x1a\n') for path in previews)
 
 
 @pytest.mark.parametrize('reason', ['failure', 'source_changed'])
