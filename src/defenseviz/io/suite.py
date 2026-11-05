@@ -192,8 +192,16 @@ def _native_family_display(provider, family, native, evidence_kind):
             display, category = pago[family]
             rule = "defensefinder_exact_pago_family_display_v1"
             reference = DF_NAMED_TYPE_IV_SOURCE + "definitions/DefenseFinder/pAgo/" + family + ".xml"
+        if family == "Shedu" and ((fqn is None and parent in {None, "Shedu"}) or
+                                  lineage == ["defense-finder-models", "DefenseFinder", "Shedu", "Shedu"]):
+            if parent not in {None, "Shedu"}:
+                raise ValueError("DefenseFinder Shedu namespace contradicts native parent")
+            display, category, rule = "Shedu", "Nuclease", "defensefinder_exact_shedu_family_display_v1"
+            reference = DF_NAMED_TYPE_IV_SOURCE + "definitions/DefenseFinder/Shedu/Shedu.xml"
     elif provider == "PADLOC":
-        if re.fullmatch(r"cas_type_(?:(?:I|II|III|IV|V|VI)(?:-[A-Z][0-9]*)?|arrays|other)", family):
+        if family == "shedu" and _value(native.get("system")) in {None, "shedu"}:
+            display, category, rule = "Shedu", "Nuclease", "padloc_exact_shedu_family_display_v1"
+        elif re.fullmatch(r"cas_type_(?:(?:I|II|III|IV|V|VI)(?:-[A-Z][0-9]*)?|arrays|other)", family):
             display, category, rule = "CRISPR-Cas", "CRISPR-Cas", "padloc_cas_family_display_v1"
         elif re.fullmatch(r"cbass_(?:type_(?:I|II|III|IV|IIs)|other)", family):
             display, category, rule = "CBASS", "Abortive infection", "padloc_cbass_family_display_v1"

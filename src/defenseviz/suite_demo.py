@@ -111,5 +111,5 @@ def demo_suite(output_dir):
     if out.exists() or out.is_symlink():
         raise FileExistsError(f"Demo output already exists: {out}")
     inputs = write_suite_project(out / "inputs")
-    return run_suite(inputs.pop("root"), out / "results", **inputs,
+    return run_suite(inputs.pop("root"), out / "results", **inputs, evaluation="stored",
                      title="Synthetic defense annotation comparison", argv=["defenseviz", "demo", "--suite", "--out", str(out)])

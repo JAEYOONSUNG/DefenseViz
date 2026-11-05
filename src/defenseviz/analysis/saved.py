@@ -385,6 +385,11 @@ def analyze_saved(data):
         for rule in registry["component_rules"]:
             if r["caller"] != rule["provider"] or model not in rule["exact_models"]:
                 continue
+            # Some model names are reused across systems. A scoped rule needs
+            # the original producer family, never its normalized display label.
+            native_families = rule.get("exact_native_families")
+            if native_families is not None and r.get("native_family") not in native_families:
+                continue
             native_component[k][rule["component"]].add(rule["rule_id"])
             if rule.get("display_family"):
                 component_display[k] = (rule["display_family"], rule["display_category"])
@@ -400,6 +405,10 @@ def analyze_saved(data):
                         substrate=rule.get("substrate", "unresolved"),
                         primary_sources=rule["primary_sources"], motif_state="unassessed",
                         activity="unassessed", automatic=True)
+            if native_families is not None:
+                item.update(native_family=r["native_family"],
+                            functional_scope=rule.get("functional_scope"),
+                            model_sources=deepcopy(rule.get("model_sources", [])))
             automatic.append(item); evidence_by_gene[k].append(item)
             if assignment == "individual_nuclease_effector":
                 individual.add(k); role_assessed.add(k)
