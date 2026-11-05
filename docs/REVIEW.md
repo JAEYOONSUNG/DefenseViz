@@ -1,5 +1,22 @@
 # DefenseViz review
 
+## 2.2.0: review beyond the component catalogue
+
+Independent design and primary-source review separated detector quorum from a
+complete component set, intrinsic protein evidence from native-unit evidence,
+and review execution from scientific support. The implementation reviews unknown
+families and ungrouped predictions without adding unsupported functions.
+
+An actual Claude review exposed cross-unit core/role propagation, source-path
+binding, version-field conflation, family-only role claims, anti-defense scope
+and coverage consistency issues. These were corrected with independent
+counterexamples. A follow-up code review closed the high/medium findings; actual
+execution is documented in [release validation](VALIDATION.md).
+
+The remaining limits are explicit: registered component-set checks do not replay
+the native detector grammar, raw annotations do not establish catalytic activity,
+and new review proposals do not silently enter accepted figure counts.
+
 ## 2.1.4: atlas scope and heading correction
 
 The 2.1.3 numeric agreement checks did not catch two presentation regressions:

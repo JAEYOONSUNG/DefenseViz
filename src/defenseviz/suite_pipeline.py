@@ -50,6 +50,29 @@ def _table_rows(value, name):
     return value
 
 
+def _review_summary(review):
+    """Flat review index for spreadsheet inspection; detailed proof stays in JSON."""
+    genes = {(r["sample_id"], r["gene_id"]): r for r in review["gene_reviews"]}
+    rows = []
+    for unit in review["units"]:
+        members = [genes[tuple(k)] for k in unit["member_keys"]]
+        row = {"sample_id": unit["sample_id"], "provider": unit["provider"],
+               "native_families": "; ".join(unit["native_families"]),
+               "native_defense_scope": unit["defense_scope"],
+               "unit_kind": unit["unit_kind"], "coding_sequences": len(members),
+               "selected_coding_sequences": len(unit["selected_member_keys"]),
+               "accepted_effector_CDSs": sum(g["accepted_membership"]["effector"] for g in members),
+               "members_with_role_evidence": sum(g["axes"]["component_role"]["status"] == "supported" for g in members),
+               "members_with_nuclease_domain_evidence": sum(g["axes"]["nuclease_domain"]["status"] == "supported" for g in members),
+               "members_with_motif_site_evidence": sum(g["axes"]["motif_site"]["status"] == "supported" for g in members),
+               "review_execution": unit["review_execution"]["status"], "unit_id": unit["unit_id"]}
+        for name, axis in unit["axes"].items():
+            row[name + "_status"] = axis["status"]
+            row[name + "_reasons"] = "; ".join(axis["reason_codes"])
+        rows.append(row)
+    return rows
+
+
 def suite_warnings(data, result):
     """Expose import conflicts/coverage warnings as well as analysis warnings."""
     return list(dict.fromkeys([*data.get("warnings", []),
@@ -57,7 +80,8 @@ def suite_warnings(data, result):
                                *result.get("warnings", [])]))
 
 
-def prepare_suite(root, *, manifest=None, supplement=None, rm_evidence=None, rscript=None, strict_inputs=False):
+def prepare_suite(root, *, manifest=None, supplement=None, rm_evidence=None, rscript=None, strict_inputs=False,
+                  system_review_rules=None, system_review_evidence=None):
     from .io.suite import load_suite
     data = load_suite(Path(root), manifest=manifest, rscript=rscript, strict_inputs=strict_inputs)
     if rm_evidence is not None:
@@ -66,11 +90,18 @@ def prepare_suite(root, *, manifest=None, supplement=None, rm_evidence=None, rsc
     if supplement is not None:
         from .supplement import apply_supplement
         data = apply_supplement(data, supplement)
+    if supplement is not None or rm_evidence is not None:
+        from .io.suite import attach_system_review_annotations
+        data = attach_system_review_annotations(data, root, strict_inputs=strict_inputs)
+    if system_review_rules is not None or system_review_evidence is not None:
+        from .system_review_inputs import apply_system_review_inputs
+        data = apply_system_review_inputs(data, rules_path=system_review_rules, evidence_path=system_review_evidence)
     return data
 
 
 def run_suite(root, output_dir, *, manifest=None, supplement=None, rm_evidence=None, rscript=None,
-              strict_inputs=False, title="DefenseViz", layout=None, argv=None):
+              strict_inputs=False, title="DefenseViz", layout=None, argv=None,
+              system_review_rules=None, system_review_evidence=None):
     """Import native exports, aggregate saved evidence, publish a fresh directory."""
     from .analysis.saved import analyze_saved
     from .plot.publication import render_publication
@@ -85,7 +116,8 @@ def run_suite(root, output_dir, *, manifest=None, supplement=None, rm_evidence=N
         raise ValueError("Title must be nonempty text")
     software_before = software_state()
     data = prepare_suite(source_root, manifest=manifest, supplement=supplement, rm_evidence=rm_evidence,
-                         rscript=rscript, strict_inputs=strict_inputs)
+                         rscript=rscript, strict_inputs=strict_inputs,
+                         system_review_rules=system_review_rules, system_review_evidence=system_review_evidence)
     import_seconds = time.monotonic() - started
     layout_options = {}
     if layout is not None:
@@ -125,12 +157,28 @@ def run_suite(root, output_dir, *, manifest=None, supplement=None, rm_evidence=N
             raise ValueError("Analysis availability must be an object")
         write_json(stage / "native_bundle.json", native_export)
         write_json(stage / "analysis.json", analysis_export)
+        review = analysis_export["system_review"]
+        write_json(stage / "system_review.json", review)
         if "rm_evaluation" in native_export:
             write_json(stage / "rm_evaluation.json", native_export["rm_evaluation"])
         table_dir = stage / "tables"
         table_dir.mkdir()
         for name, headers in RESULT_TABLES.items():
             _write_table(table_dir / f"{name}.tsv", _table_rows(analysis_export[name], name), headers)
+        review_tables = {
+            "units": ("unit_id", "unit_kind", "sample_id"),
+            "gene_reviews": ("sample_id", "gene_id"),
+            "rule_evaluations": ("rule_id",),
+            "pending_queue": ("queue_id", "sample_id", "target_kind", "target", "axis", "queue_class"),
+            "detection_accounting": ("detection_id", "unit_id"),
+            "sample_coverage": ("sample_id",),
+            "quarantine": (),
+        }
+        for name, headers in review_tables.items():
+            _write_table(table_dir / f"system_review_{name}.tsv",
+                         _table_rows(review[name], "system_review." + name), headers)
+        _write_table(table_dir / "system_review_summary.tsv", _review_summary(review),
+                     ("sample_id", "provider", "native_families", "unit_kind", "coding_sequences"))
         if "context_assessments" in analysis_export:
             _write_table(table_dir / "context_assessments.tsv",
                          _table_rows(analysis_export["context_assessments"], "context_assessments"),
@@ -186,12 +234,15 @@ def run_suite(root, output_dir, *, manifest=None, supplement=None, rm_evidence=N
             "options": {"manifest": provenance_path(Path(manifest).resolve(), source_root) if manifest else None,
                         "supplement": provenance_path(Path(supplement).resolve(), source_root) if supplement else None,
                         "rm_evidence": provenance_path(Path(rm_evidence).resolve(), source_root) if rm_evidence else None,
+                        "system_review_rules": provenance_path(Path(system_review_rules).resolve(), source_root) if system_review_rules else None,
+                        "system_review_evidence": provenance_path(Path(system_review_evidence).resolve(), source_root) if system_review_evidence else None,
                         "rscript": rscript, "strict_inputs": strict_inputs, "title": title, "layout": layout_options},
             "conflicts": native_export.get("suite", {}).get("conflicts", []),
             "external_processes": _serializable(data.get("suite", {}).get("commands", [])),
             "command_path_scope": "Exact executed argv; machine-specific paths are retained for execution provenance.",
             "endpoint_definitions": result.get("endpoint_definitions", {}),
             "availability": result.get("availability", {}),
+            "system_review": {"accounting": review["accounting"], "provenance": review["provenance"]},
             "warnings": suite_warnings(data, result),
             "scientific_scope": "Saved annotation/evidence only. Missing is unassessed; neither activity nor independent performance is inferred.",
             "outputs": {p.relative_to(stage).as_posix(): digest(p) for p in sorted(stage.rglob("*")) if p.is_file()},

@@ -1,0 +1,2 @@
+# Preserve the bytes of source-hash-bound examples on every checkout platform.
+examples/** text=auto eol=lf

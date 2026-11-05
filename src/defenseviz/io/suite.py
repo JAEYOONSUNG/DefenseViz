@@ -325,7 +325,9 @@ class SuiteReader:
             digest, length = _protein(native["translation"], f"{sample}/{gene_id}")
             if "protein_sha256" in result and result["protein_sha256"] != digest:
                 raise ValueError(f"{sample}/{gene_id}: conflicting protein sequence")
-            result.update(protein_sha256=digest, sequence_sha256=digest, protein_length=length)
+            normalized = "".join(str(native["translation"]).split()).upper()
+            result.update(protein_sha256=digest, sequence_sha256=digest, protein_length=length,
+                          protein_md5=hashlib.md5(normalized.encode("ascii")).hexdigest())
         if ref:
             refs = result.setdefault("source_refs", [])
             if ref not in refs:
@@ -826,7 +828,28 @@ class SuiteReader:
         for call in self.data["calls"]:
             if call["sample_id"] == sample and call["caller"] == provider:
                 call["source_version"] = versions
-                call["model_version"] = versions.get("models_version") or versions.get("db_version")
+                native = call.get("native_fields", {})
+                for field in ("model_version", "database_version"):
+                    observations = {_value(r.get(field)) for r in call.get("native_observations", [native])
+                                    if _value(r.get(field)) is not None}
+                    if len(observations) > 1:
+                        raise ValueError(f"{sample}/{provider}: contradictory duplicate native {field}")
+                row_model = _value(native.get("model_version"))
+                row_database = _value(native.get("database_version"))
+                for observed, expected, field in ((row_model, versions.get("models_version"), "model_version"),
+                                                  (row_database, versions.get("db_version"), "database_version")):
+                    if observed is not None and expected is not None and str(observed) != str(expected):
+                        raise ValueError(f"{sample}/{provider}: native {field} conflicts with saved module metadata")
+                call["model_version"] = row_model or versions.get("models_version") or row_database or versions.get("db_version")
+                call["model_version_source"] = ("native_row.model_version" if row_model is not None else
+                    "saved_module_metadata.models_version" if versions.get("models_version") is not None else
+                    "native_row.database_version" if row_database is not None else
+                    "saved_module_metadata.db_version" if versions.get("db_version") is not None else "unavailable")
+                database = row_database or versions.get("db_version")
+                if database is not None:
+                    call["database_version"] = database
+                    call["database_version_source"] = ("native_row.database_version" if row_database is not None
+                                                       else "saved_module_metadata.db_version")
 
     def member(self, sample, gene):
         result = {"gene_id": gene}
@@ -1086,31 +1109,171 @@ class SuiteReader:
 
     def domains(self, directory, sample):
         self.eggnog(directory, sample)
-        candidates = {c["gene_id"] for c in self.data["calls"] if c["sample_id"] == sample and c["evidence_kind"] == "final_member"}
-        candidates.update(d["gene_id"] for d in self.data["saved_decisions"] if d["sample_id"] == sample)
-        for name, fields in (("interproscan_results.tsv", ("protein_id", "sequence_md5", "protein_length", "analysis", "signature_accession", "signature_description",
-            "start", "end", "score", "status", "date", "interpro_accession", "interpro_description", "go_annotations", "pathway_annotations")),
-            ("interproscan_results.tsv.sites", ("protein_id", "sequence_md5", "protein_length", "analysis", "signature_accession", "start", "end", "site_count", "residue", "site_start", "site_end", "site_description"))):
+        candidates = _system_review_gene_scope(self.data, sample)
+        found = False
+        for name in INTERPRO_FIELDS:
             choices = [directory / folder / name for folder in ("dnmb_module_interproscan", "dnmb_interproscan")]
             existing = [p for p in choices if p.is_file()]
             if len(existing) > 1:
                 raise ValueError(f"{directory}: ambiguous InterPro exports in two native layouts")
             if not existing:
                 continue
+            found = True
             path = existing[0]
             ref = self.source(path, sample, "interproscan", "domain_sites" if name.endswith("sites") else "domain_hits")
-            with path.open(encoding="utf-8", newline="") as stream:
-                for number, row in enumerate(csv.reader(stream, delimiter="\t"), 1):
-                    if not row or row[0].startswith("#"):
-                        continue
-                    if len(row) != len(fields):
-                        raise ValueError(f"{path}:{number}: unsupported InterPro column count {len(row)}")
-                    if row[0] not in candidates:
-                        continue
-                    self.raw["profiles"].append(dict(sample_id=sample, gene_id=row[0], namespace="InterProScan", source_ref={**ref, "row": number},
-                        native_fields=dict(zip(fields, row))))
+            _attach_interpro_file(self.raw, self.genes, sample, candidates, path, ref, strict=self.strict)
             self.pin(path)
-        self.raw["capabilities"].append(dict(sample_id=sample, raw_domain_scope="observed_native_members_and_DNMB_candidates"))
+        capability = dict(sample_id=sample,
+            raw_domain_scope="all_observed_calls_DNMB_candidates_and_explicit_context_members")
+        if not found:
+            capability["raw_interpro_status"] = "missing"
+        self.raw["capabilities"].append(capability)
+
+
+INTERPRO_FIELDS = {
+    "interproscan_results.tsv": ("protein_id", "sequence_md5", "protein_length", "analysis", "signature_accession", "signature_description",
+        "start", "end", "score", "status", "date", "interpro_accession", "interpro_description", "go_annotations", "pathway_annotations"),
+    "interproscan_results.tsv.sites": ("protein_id", "sequence_md5", "protein_length", "analysis", "signature_accession", "start", "end",
+        "site_count", "residue", "site_start", "site_end", "site_description"),
+}
+
+
+def _system_review_gene_scope(data, sample):
+    """Observed identities only; membership is not a functional assignment."""
+    result = {r["gene_id"] for table in ("calls", "saved_decisions", "annotations", "effector_evidence")
+              for r in data.get(table, []) if r.get("sample_id") == sample and r.get("gene_id")}
+    result.update(m["gene_id"] for g in data.get("groups", []) if g.get("sample_id") == sample
+                  for m in g.get("members", []) if m.get("gene_id"))
+    return result
+
+
+def _file_sha256(path):
+    h = hashlib.sha256()
+    with Path(path).open("rb") as stream:
+        for block in iter(lambda: stream.read(1024 * 1024), b""):
+            h.update(block)
+    return h.hexdigest()
+
+
+def _attach_interpro_file(raw, genes, sample, scope, path, ref, *, strict=False):
+    """Read a pinned observation source; quarantine contradictions without role inference."""
+    path = Path(path)
+    if _file_sha256(path) != ref.get("sha256"):
+        raise ValueError(f"{path}: InterPro source changed from its pinned hash")
+    fields = INTERPRO_FIELDS[path.name]
+    profiles, quarantine, conflicts = [], [], []
+    parsed = excluded = bound = sequence_unassessed = 0
+    scoped_genes = set()
+    with path.open(encoding="utf-8-sig", newline="") as stream:
+        for number, row in enumerate(csv.reader(stream, delimiter="\t"), 1):
+            if not row or row[0].startswith("#"):
+                continue
+            parsed += 1
+            rr = {**ref, "row": number}
+            if len(row) != len(fields):
+                raise ValueError(f"{path}:{number}: unsupported InterPro column count {len(row)}")
+            native = dict(zip(fields, row))
+            gene = genes.get((sample, row[0]))
+            reason = None
+            state = "unassessed"
+            if gene is None:
+                reason = "unbound_interpro_query"
+            else:
+                bound += 1
+                try:
+                    length = int(native["protein_length"])
+                    start, end = int(native["start"]), int(native["end"])
+                    valid = length > 0 and 1 <= start <= end <= length
+                    if path.name.endswith(".sites"):
+                        valid = valid and int(native["site_count"]) >= 0 and 1 <= int(native["site_start"]) <= int(native["site_end"]) <= length
+                    if not valid:
+                        reason = "invalid_interpro_coordinates"
+                except (ValueError, TypeError):
+                    reason = "invalid_interpro_coordinates"
+                reported_md5 = _value(native["sequence_md5"])
+                if reason is None and gene.get("protein_length") is not None and length != gene["protein_length"]:
+                    reason = "interpro_sequence_length_mismatch"
+                if reason is None and reported_md5 is not None:
+                    if not re.fullmatch(r"[0-9a-fA-F]{32}", str(reported_md5)):
+                        reason = "invalid_interpro_sequence_md5"
+                    elif gene.get("protein_md5"):
+                        if str(reported_md5).lower() != gene["protein_md5"]:
+                            reason = "interpro_sequence_md5_mismatch"
+                        else:
+                            state = "verified"
+            observation = dict(sample_id=sample, gene_id=row[0], namespace="InterProScan", source_ref=rr,
+                native_fields=native, evidence_type="site_annotation" if path.name.endswith(".sites") else "domain_hit")
+            if gene and gene.get("protein_sha256"):
+                observation["protein_sha256"] = gene["protein_sha256"]
+            if reason:
+                observation.update(module="interproscan", assessment_status="unassessed_quarantined",
+                                   sequence_binding="conflicting" if gene else "unbound", reason=reason)
+                quarantine.append(observation)
+                conflicts.append(dict(sample_id=sample, module="interproscan", code=reason, severity="warning",
+                    observed=dict(gene_id=row[0], sequence_md5=native["sequence_md5"], protein_length=native["protein_length"]),
+                    expected="exact current gene, sequence and valid protein coordinates",
+                    action="raw_observation_quarantined", source_ref=rr))
+            elif row[0] not in scope:
+                excluded += 1
+            else:
+                observation.update(sequence_binding=state,
+                    coordinate_binding="verified" if gene.get("protein_length") is not None else "reported_sequence_only",
+                    qualification="unassessed", activity="unassessed")
+                sequence_unassessed += state != "verified"
+                profiles.append(observation)
+                scoped_genes.add(row[0])
+    if _file_sha256(path) != ref["sha256"]:
+        raise ValueError(f"{path}: InterPro source changed while reading")
+    if strict and conflicts:
+        raise ValueError(f"{sample}/interproscan: {conflicts[0]['code']}; strict input consistency failed")
+    def same_source(r):
+        source = r.get("source_ref") or {}
+        return r.get("sample_id") == sample and source.get("sha256") == ref["sha256"] and source.get("path") == ref["path"]
+    for table, new in (("profiles", profiles), ("unmapped_records", quarantine), ("conflicts", conflicts)):
+        raw[table] = [r for r in raw.get(table, []) if not (same_source(r) and
+            (r.get("namespace") == "InterProScan" or r.get("module") == "interproscan"))] + new
+    capability = dict(sample_id=sample, source_ref=ref,
+        raw_interpro_scope="all_observed_calls_DNMB_candidates_and_explicit_context_members",
+        raw_interpro_status="partial" if quarantine or sequence_unassessed else "complete",
+        raw_interpro_parsed_rows=parsed, raw_interpro_bound_rows=bound,
+        raw_interpro_retained_rows=len(profiles), raw_interpro_retained_genes=len(scoped_genes),
+        raw_interpro_excluded_scope_rows=excluded, raw_interpro_excluded_reason="outside_declared_observed_identity_scope",
+        raw_interpro_quarantined_rows=len(quarantine), raw_interpro_sequence_unassessed_rows=sequence_unassessed)
+    assert parsed == len(profiles) + excluded + len(quarantine)
+    raw["capabilities"] = [c for c in raw.get("capabilities", []) if not ("raw_interpro_scope" in c and same_source(c))] + [capability]
+    warning_prefix = f"{sample}/interproscan [{ref['path']}]: "
+    raw["warnings"] = [w for w in raw.get("warnings", []) if not str(w).startswith(warning_prefix)]
+    if quarantine:
+        raw["warnings"].append(warning_prefix + f"{len(quarantine)} raw observations quarantined; exact binding or coordinates conflict")
+    for source in raw.get("sources", []):
+        if source.get("sample_id") == sample and source.get("path") == ref["path"] and source.get("sha256") == ref["sha256"]:
+            source.update(row_count=parsed, columns=list(fields), evidence_schema="InterProScan native TSV",
+                          retained_row_count=len(profiles), excluded_scope_row_count=excluded, quarantined_row_count=len(quarantine))
+
+
+def attach_system_review_annotations(data, root, *, strict_inputs=False):
+    """Expand pinned InterPro observations after supplements; mutate and return data.
+
+    Only already imported InterPro files are reopened. Current exact gene IDs,
+    source hashes and protein coordinates are checked; no role is inferred.
+    ``root`` resolves relative paths in serialized source inventories.
+    """
+    root = Path(root).expanduser().resolve()
+    raw = data.get("suite", {})
+    genes = {(g["sample_id"], g["gene_id"]): g for g in data.get("genes", [])}
+    samples = {s["sample_id"] for s in data.get("samples", [])}
+    for source in raw.get("sources", []):
+        if source.get("module") != "interproscan" or source.get("role") not in {"domain_hits", "domain_sites"}:
+            continue
+        sample = source["sample_id"]
+        if sample not in samples:
+            raise ValueError("InterPro source belongs to an unknown sample")
+        path = Path(source.get("resolved_path") or source["path"])
+        path = path if path.is_absolute() else root / path
+        ref = {k:source[k] for k in ("path", "sha256")}
+        _attach_interpro_file(raw, genes, sample, _system_review_gene_scope(data, sample), path, ref,
+                             strict=strict_inputs)
+    return data
 
 
 def load_suite(root, *, manifest=None, rscript=None, strict_inputs=False):
@@ -1194,6 +1357,7 @@ def load_suite(root, *, manifest=None, rscript=None, strict_inputs=False):
             digest = r.genes[(row["sample_id"], row["gene_id"])].get("protein_sha256")
             if digest:
                 row["protein_sha256"] = digest
+                row["protein_binding_origin"] = "importer_attached"
     for group in r.data["groups"]:
         for member in group["members"]:
             digest = r.genes[(group["sample_id"], member["gene_id"])].get("protein_sha256")
@@ -1203,4 +1367,18 @@ def load_suite(root, *, manifest=None, rscript=None, strict_inputs=False):
                   options=config.get("options", {}), evidence_extension=None)
     if not isinstance(r.data["options"], dict):
         raise ValueError("suite options must be an object")
+    if manifest:
+        declaration_ref = r.pin(manifest)
+        declarations = config["options"] if "options" in config else {}
+        global_scope = declarations.get("assessment_coverage", {})
+        sample_scopes = declarations.get("assessment_coverage_by_sample", {})
+        for sample in r.data["samples"]:
+            sid = sample["sample_id"]
+            for scope, axes, option_path in (("global", global_scope, "options.assessment_coverage"),
+                    ("sample", sample_scopes.get(sid, {}) if isinstance(sample_scopes, dict) else {},
+                     f"options.assessment_coverage_by_sample[{sid!r}]")):
+                if isinstance(axes, dict) and axes:
+                    r.data["source_metadata"].append(dict(sample_id=sid, provider="DNMB",
+                        source_kind="assessment_coverage_declaration", declaration_scope=scope,
+                        axes=dict(axes), option_path=option_path, source_ref=declaration_ref))
     return r.data

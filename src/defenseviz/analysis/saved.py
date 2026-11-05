@@ -723,30 +723,65 @@ def analyze_saved(data):
     for fid in families:
         category_pools[catalog_index[fid]["category"]] |= pools[fid]
     native_sources = [s for s in sources if "final_member" in source_kind[s] or any(r["caller"] == s and r["evidence_kind"] == "hmm_hit" for r in calls)]
-    inventory_state = _status(cov.get((sid, s), "missing") for sid in sample_ids for s in native_sources)
-    if not native_sources and retained | reviewed:
-        inventory_state = "partial"
-    role_global = "partial" if E or other_role else "unassessed"
-    motif_global = "partial" if site else "unassessed"
-    # An explicit assessment coverage declaration may establish exhaustiveness
-    # of supplied review, never a complete biological census.
+    # Inventory and functional coverage are scoped independently to each sample.
+    # An explicit declaration describes review extent, never biological absence.
+    axes = ("effector", "motif", "associated")
     assessment = options.get("assessment_coverage", {})
-    if not isinstance(assessment, dict):
-        raise ValueError("assessment_coverage must be an object")
-    for v in assessment.values():
-        if v not in {"complete", "partial", "unassessed"}:
-            raise ValueError("Invalid assessment coverage")
-    role_global = assessment.get("effector", role_global)
-    motif_global = assessment.get("motif", motif_global)
-    associated_state = assessment.get("associated", "partial" if A else "unassessed")
+    scoped_assessment = options.get("assessment_coverage_by_sample", {})
+    def validate_assessment(value, where):
+        if not isinstance(value, dict) or set(value) - set(axes):
+            raise ValueError(f"{where} must contain only effector, motif and associated")
+        if any(not isinstance(v, str) or v not in {"complete", "partial", "unassessed"} for v in value.values()):
+            raise ValueError(f"Invalid {where}")
+    validate_assessment(assessment, "assessment_coverage")
+    if not isinstance(scoped_assessment, dict) or set(scoped_assessment) - sample_set:
+        raise ValueError("assessment_coverage_by_sample contains unknown sample IDs or is not an object")
+    for sid, declaration in scoped_assessment.items():
+        validate_assessment(declaration, f"assessment_coverage_by_sample[{sid!r}]")
+    inventory_by_sample = {}
+    assessment_by_sample = {}
+    assessment_provenance = {}
+    for sid in sample_ids:
+        inventory_by_sample[sid] = _status(cov.get((sid, s), "missing") for s in native_sources)
+        if not native_sources and any(k[0] == sid for k in retained | reviewed):
+            inventory_by_sample[sid] = "partial"
+        default = {"effector": "partial" if any(k[0] == sid for k in E | other_role) else "unassessed",
+                   "motif": "partial" if any(k[0] == sid for k in site) else "unassessed",
+                   "associated": "partial" if any(k[0] == sid for k in A) else "unassessed"}
+        local = scoped_assessment.get(sid, {})
+        assessment_by_sample[sid] = {}
+        assessment_provenance[sid] = {}
+        for axis in sorted(axes):
+            if axis in local:
+                value, origin = local[axis], "sample_declaration"
+                option_path = f"options.assessment_coverage_by_sample[{sid!r}].{axis}"
+            elif axis in assessment:
+                value, origin = assessment[axis], "explicit_global_fallback"
+                option_path = f"options.assessment_coverage.{axis}"
+            else:
+                value, origin, option_path = default[axis], "local_observed_evidence_default", None
+            declarations = [m for m in tables["source_metadata"]
+                            if m.get("source_kind") == "assessment_coverage_declaration"
+                            and m.get("sample_id") == sid and m.get("declaration_scope") ==
+                            ("sample" if origin == "sample_declaration" else "global")
+                            and m.get("axes", {}).get(axis) == value] if option_path else []
+            assessment_by_sample[sid][axis] = value
+            assessment_provenance[sid][axis] = dict(origin=origin, option_path=option_path,
+                source_refs=[ref for m in declarations for ref in _refs(m, "assessment coverage provenance")])
+    inventory_state = _status(inventory_by_sample.values())
+    role_global = _status(v["effector"] for v in assessment_by_sample.values())
+    motif_global = _status(v["motif"] for v in assessment_by_sample.values())
+    associated_state = _status(v["associated"] for v in assessment_by_sample.values())
     def aggregate(st, sid_scope=None):
         ids = sid_scope if sid_scope is not None else sample_ids
         sc = {s:len(st & source_members[s]) for s in sources}
         ss = {s:_status(cov.get((sid,s), "missing") for sid in ids) for s in sources}
+        local_inventory = _status(inventory_by_sample[sid] for sid in ids)
+        metric_status = {axis:_status(assessment_by_sample[sid][axis] for sid in ids) for axis in axes}
         return dict(member_keys=_keys(st), N=len(st), G=len({k[0] for k in st}), genome_count=len({k[0] for k in st}),
             source_counts=sc, source_count_status=ss, associated_CDS=len(st&A), effector_CDS=len(st&E), motif_CDS=len(st&site),
             individual_effector_CDS=len(st&individual), complex_core_CDS=len(st&cores), ungrouped_effector_CDS=len(st&ungrouped),
-            counts_status=inventory_state, metric_status=dict(inventory=inventory_state, associated=associated_state, effector=role_global, motif=motif_global))
+            counts_status=local_inventory, metric_status=dict(inventory=local_inventory, **metric_status))
     family_rows = []; cells = []
     for fid in families:
         meta = catalog_index[fid]
@@ -1031,7 +1066,7 @@ def analyze_saved(data):
             complete_saved_contexts=sum(g["sample_id"] == sid and g.get("context_state") in CONTEXT_MET for g in context_assessments) if any(g["sample_id"] == sid and g.get("context_state") is not None for g in context_assessments) else None,
             complete_context_state="observed_saved_assessment" if any(g["sample_id"] == sid and g["membership_kind"] == "saved_context" and g.get("context_state") is not None for g in group_index.values()) else "unassessed",
             rm_scope_definitions={"rm_pool":"original R-M source/reference union plus explicitly typed current DNMB candidates; untyped and broader historical nominees stay in audit", "intersection":"legacy all-configured-source intersection, including reference providers; rm_intersection_CDS and rm_all_source_intersection_CDS are aliases, with status from source coverage only", "native_intersection":"native final R-M members across rm_native_intersection_sources, including selected general predictions projected into the observed R-M pool; reference and HMM-only channels excluded; status from native endpoint coverage only", "general_prediction_RM":"saved general predictions intersect original R-M candidate pool; not a native RM type call", "noncanonical":"current integrated union minus current R-M display-category pool; source counts intersect this same pool"}))
-    return dict(schema_version="saved-results-v1",samples=samples,sources=source_out,sample_summary=sample_summary,
+    result = dict(schema_version="saved-results-v1",samples=samples,sources=source_out,sample_summary=sample_summary,
         selected_policy=deepcopy(evaluation.get("policy")) if evaluation else None,
         source_sets=[dict(source_id=s,endpoint=source_out[i]["kind"],member_keys=_keys(source_members[s]),count=len(source_members[s]),coverage_status=source_out[i]["coverage_status"]) for i,s in enumerate(sources)],
         global_summary=global_summary,overlap_regions=overlap(),priority_overlap_regions=overlap(P),
@@ -1051,9 +1086,14 @@ def analyze_saved(data):
         warnings=warnings,availability=dict(coverage=[dict(sample_id=sid,caller=s,status=cov.get((sid,s),"missing")) for sid in sample_ids for s in sources],
             saved_decisions=saved_availability,saved_decisions_by_sample=saved_states,
             current_saved_decisions_by_sample=current_saved_states,
-            effector=role_global,motif=motif_global,associated=associated_state),
+            effector=role_global,motif=motif_global,associated=associated_state,
+            inventory_by_sample=inventory_by_sample, assessment_coverage_by_sample=assessment_by_sample,
+            assessment_coverage_provenance_by_sample=assessment_provenance),
         workflow_capabilities=deepcopy((d.get("suite") or {}).get("capabilities",{})),
         provenance=dict(operation="stored_evidence_evaluation_and_aggregation" if evaluation else "saved_result_import_and_aggregation",detector_runs=0,
             scoring_runs=evaluation.get("scoring_runs", 0),
             component_registry_version=registry["version"],component_registry_sha256=registry_sha,
             automatic_component_assignments=automatic,source_metadata=tables["source_metadata"],input_sha256=d.get("input_sha256",{})))
+    from .system_review import review_all_systems
+    result["system_review"] = review_all_systems(d, result, rules=d.get("system_review_rules"))
+    return result

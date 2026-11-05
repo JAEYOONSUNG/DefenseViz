@@ -1,5 +1,13 @@
 # Changelog
 
+## 2.2.0
+
+- Review every observed native system and ungrouped detection, including unknown families, with distinct evidence axes, reason codes and a review queue.
+- Add exact configurable review rules and source-verified domain/reference evidence; preserve accepted figure memberships while exposing new review proposals.
+- Scope functional assessment declarations and conservative defaults by sample, preventing unrelated samples from changing each other's count status.
+- Preserve InterPro evidence for all observed/reviewed identities with sequence checks, explicit exclusions and quarantine accounting.
+- Export review JSON/TSV and input/rule provenance alongside the existing publication figures.
+
 ## 2.1.4
 
 - Correct atlas uncertainty states: original-source intersections, observed R-M pools and current retained counts use their own evidence scopes. Historical unassessed nominees remain in the audit without marking unrelated current counts as partial.
