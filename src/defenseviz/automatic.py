@@ -109,6 +109,37 @@ def evaluation_identity(compiled):
     return digest,payload
 
 
+def refresh_decision_audit(data):
+    """Record every changed decision field, including unchanged-state reviews."""
+    meta=data['rm_evaluation']
+    prior={(r['sample_id'],r['gene_id']):r for r in meta['native_saved_decisions']}
+    records={(r['sample_id'],r['gene_id']):r for r in meta['records']}
+    transitions=[]
+    for row in sorted(data.get('saved_decisions',[]),key=lambda r:(r['sample_id'],r['gene_id'])):
+        key=(row['sample_id'],row['gene_id']);before=prior.get(key,{})
+        changes=[dict(field=name,before_present=name in before,after_present=name in row,
+                      before=deepcopy(before.get(name)),after=deepcopy(row.get(name)))
+                 for name in sorted(set(before)|set(row))
+                 if (name in before)!=(name in row) or before.get(name)!=row.get(name)]
+        if not changes:continue
+        record=records.get(key,{})
+        transitions.append(dict(sample_id=key[0],gene_id=key[1],previous_state=before.get('state'),
+            current_state=row['state'],origin=row.get('origin'),rule_id=record.get('reason'),
+            source_scope=deepcopy(record.get('source_scope',[])),
+            change='new_integrated_nominee' if key not in prior else 'evaluated_native_nominee',
+            state_changed=before.get('state')!=row['state'],field_changes=changes))
+    meta['decision_transitions']=transitions
+    meta['stored_vs_auto_summary']=dict(
+        changed_records=len(transitions),new_records=sum(t['change']=='new_integrated_nominee' for t in transitions),
+        state_changed_records=sum(t['state_changed'] for t in transitions),
+        field_only_changed_records=sum(not t['state_changed'] for t in transitions),
+        changed_field_counts={name:sum(any(c['field']==name for c in t['field_changes']) for t in transitions)
+                              for name in sorted({c['field'] for t in transitions for c in t['field_changes']})},
+        before_retention_coverage=deepcopy(meta.get('native_saved_retention_coverage',[])),
+        after_retention_coverage=deepcopy([c for c in data.get('coverage',[]) if c.get('endpoint') in {'saved_retention','saved_decisions'}]))
+    return data
+
+
 def apply_automatic_rm(data):
     """Evaluate every compiled candidate, retaining all native records for audit."""
     from .automatic_rm import compile_rm_evidence
@@ -157,6 +188,7 @@ def apply_automatic_rm(data):
              'role':e.get('role') if e.get('role') in RM_ROLES else None,
              'source_ref':refs[0],'source_refs':refs,'native_source_ref':(old or {}).get('source_ref'),
              'origin':'automatic_stored_evidence_evaluation','evaluation_id':evaluation_id,
+             'source_scope':deepcopy(rec.get('source_scope',[])),
              'policy_sha256':policy_sha,'decision_reason':reason,
              'score_total':bounds['score_total'] if bounds else None,
              'score_min':bounds['score_min'] if bounds else None,
@@ -195,15 +227,11 @@ def apply_automatic_rm(data):
             remaining_unassessed_gene_ids=sorted(r['gene_id'] for r in rows if r['state']=='unassessed'),
             scope='all exact-bound saved nominees and native R-M members; quarantined source rows remain separate'))
     result['saved_decisions']=list(decisions.values())
-    transitions=[dict(sample_id=k[0],gene_id=k[1],previous_state=prior.get(k,{}).get('state'),
-                      current_state=r['state'],origin=r.get('origin'),
-                      change='new_integrated_nominee' if k not in prior else 'evaluated_native_nominee')
-                 for k,r in sorted(decisions.items()) if k not in prior or r['state']!=prior[k]['state']]
-    result['rm_evaluation']=dict(schema_version=1,operation=('automatic_evaluation_of_stored_RM_evidence' if evaluations else 'automatic_features_with_saved_decision_replay'),
+    definite=sum(r['decision'] is not None and r['state']!='unassessed' for r in records)
+    result['rm_evaluation']=dict(schema_version=1,operation=('automatic_evaluation_of_stored_RM_evidence' if definite else 'automatic_policy_bounds_with_unresolved_decisions' if evaluations else 'automatic_features_with_saved_decision_replay'),
         decision_mode='evaluate_unassessed',records=records,candidate_scope=scopes,
-        decision_transitions=transitions,
         nomination_scope='DNMB-native candidates plus original tool R-M members for integrated review; not an independent fourth detector',
-        policy_evaluations=evaluations,scoring_runs=int(evaluations>0),detector_runs=0,
+        policy_evaluations=evaluations,policy_decisions=definite,scoring_runs=int(evaluations>0),detector_runs=0,
         preserved_decisions=sum(r.get('reason')=='preserved_existing_assessed_decision' for r in records),
         policy_scope='newly_evaluated_records_only; preserved decisions retain native policy provenance',
         structure_prediction_runs=0,thresholds_changed=False,selected_policy=parameters,
@@ -216,4 +244,4 @@ def apply_automatic_rm(data):
     result['rm_evaluation']['native_saved_retention_coverage']=[deepcopy(c) for c in result.get('coverage',[]) if c.get('endpoint') in {'saved_retention','saved_decisions'}]
     result['coverage']=[c for c in result.get('coverage',[]) if c.get('endpoint') not in {'saved_retention','saved_decisions'}]
     result['coverage'].extend(dict(sample_id=s['sample_id'],caller='DNMB',endpoint='saved_retention',status=s['coverage_status'],origin='automatic_stored_evidence_evaluation') for s in scopes)
-    return result
+    return refresh_decision_audit(result)

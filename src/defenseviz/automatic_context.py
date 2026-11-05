@@ -33,15 +33,6 @@ def _refs(row):
     return out
 
 
-def _merge_refs(rows):
-    out = []
-    for row in rows:
-        for ref in _refs(row):
-            if ref not in out:
-                out.append(ref)
-    return out
-
-
 def _bound(refs, hashes):
     return bool(refs) and all(isinstance(r.get("path"), str)
                               and isinstance(r.get("sha256"), str) and len(r["sha256"]) == 64
@@ -64,9 +55,9 @@ def _requirements(group, typ):
 def apply_current_context_review(data):
     """Return a copied bundle with source-bound current retained contexts.
 
-    Untouched large raw annotation tables are shared; groups, saved decisions,
+    Original annotation tables and saved decisions are shared unchanged; groups
     and evaluation provenance use copy-on-write. The input is never mutated.
-    Existing explicit context/orphan assessments are not overwritten.
+    Retention-set composition never establishes biological orphanhood.
     """
     out = dict(data)
     evaluation = data.get("rm_evaluation")
@@ -109,6 +100,8 @@ def apply_current_context_review(data):
             raise ValueError("Saved context source path has conflicting exact hash bindings")
         hashes[path] = digest
     if prior:
+        if prior.get("schema_version") != 2:
+            raise ValueError("Obsolete current-context review; rebuild from original saved inputs")
         if prior.get("input_signature") != signature:
             raise ValueError("Current-context review is stale after changed boundaries or decisions")
         return out
@@ -212,7 +205,17 @@ def apply_current_context_review(data):
             record["context_state"] = "unassessed"
             record["reason_codes"].append("competing_exact_saved_contexts")
 
-    new_groups, gene_contexts = [], defaultdict(list)
+    new_groups = []
+    for record in records:
+        # A below-cutoff R still exists in the genome. This field describes only
+        # the retained subset of the exact saved boundary, never orphanhood.
+        complete = (record["boundary_source_bound"] and record["dispositions_complete"]
+                    and record["roles_complete"]
+                    and "competing_exact_saved_contexts" not in record["reason_codes"])
+        record["retained_R_absent_in_saved_context"] = (
+            "R" not in record["retained_roles"] if complete and record["original_R_present"] else None)
+        record["retained_R_presence_rule"] = "retained_membership_only_of_exact_source_bound_saved_context"
+        record["orphan_inferred"] = False
     for record in records:
         if not record["boundary_source_bound"] or not record["retained_members"]:
             continue
@@ -221,38 +224,21 @@ def apply_current_context_review(data):
                        context_state=record["context_state"], members=deepcopy(record["retained_members"]),
                        source_refs=deepcopy(record["source_refs"]), origin="automatic_current_context_review",
                        original_group_ids=record["original_group_ids"],
-                       context_scope="current_retained_members_of_exact_saved_boundary", activity="unassessed")
+                       context_scope="current_retained_members_of_exact_saved_boundary", activity="unassessed",
+                       retained_R_absent_in_saved_context=record["retained_R_absent_in_saved_context"],
+                       retained_R_presence_rule=record["retained_R_presence_rule"])
         if record["required_roles"] is not None:
             derived["required_roles"] = record["required_roles"]
         new_groups.append(derived)
-        for member in record["retained_members"]:
-            gene_contexts[(record["sample_id"], member["gene_id"])].append(record)
-    new_decisions = []
-    for key, source in decisions.items():
-        decision = deepcopy(source)
-        contexts = gene_contexts.get(key, [])
-        states = {r["context_state"] for r in contexts}
-        if contexts and len(states) == 1 and "unassessed" not in states and "context_state" not in decision:
-            decision["context_state"] = next(iter(states))
-            decision["context_source_refs"] = _merge_refs(contexts)
-            decision["context_review_origin"] = "automatic_current_context"
-            # Scope orphanhood to a known original R-bearing context whose R
-            # was removed. No absent global partner or singleton is invented.
-            if "orphan" not in decision and _roles(decision.get("role")) & {"M", "S"}:
-                if all("R" in c["retained_roles"] for c in contexts):
-                    decision["orphan"] = False
-                    decision["orphan_scope"] = "within_exact_retained_saved_context"
-                elif all(c["original_R_present"] and "R" not in c["retained_roles"]
-                         and c["dispositions_complete"] and c["roles_complete"] for c in contexts):
-                    decision["orphan"] = True
-                    decision["orphan_scope"] = "within_exact_retained_saved_context_not_genome_wide_absence"
-        new_decisions.append(decision)
-    out["saved_decisions"] = new_decisions
+    # Current context belongs to the separate Review groups, not an in-place
+    # rewrite of native decisions. In particular, non-retention is not a
+    # source-bound absence/non-RM adjudication and cannot create an orphan flag.
     out["groups"] = [*data.get("groups", []), *new_groups]
     out["rm_evaluation"] = dict(evaluation, current_context_review=dict(
-        schema_version=1, operation="reassessment_of_exact_saved_boundaries_after_retention",
+        schema_version=2, operation="reassessment_of_exact_saved_boundaries_after_retention",
         input_signature=signature, records=records, reviewed_boundary_count=len(records),
         created_review_groups=len(new_groups), detector_runs=0, scoring_runs=0,
         new_boundaries_inferred=0, activity_inferred=False,
-        original_groups_preserved=True, policy_decisions_changed=False))
+        original_groups_preserved=True, saved_decisions_preserved=True,
+        decision_field_changes=[], orphan_inferred=False, policy_decisions_changed=False))
     return out

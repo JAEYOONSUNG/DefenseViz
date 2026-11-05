@@ -279,7 +279,10 @@ def _reference_fields(feature, gene, family, role, alignments):
     imported alignment rows preserve their own source and metadata receipts.
     """
     f = dict(feature)
-    subject = _value(f.get("hit_label", f.get("blast_match")))
+    raw_subject = _value(f.get("hit_label", f.get("blast_match")))
+    curated_subject = (_value(f.get("curated_blast_resolved_subject_id")) or
+                       _value(f.get("curated_blast_subject_id")))
+    subject = curated_subject or raw_subject
     if not subject or str(subject).startswith(("typeI_context:", "typeII_context:", "typeIII_context:", "typeIV_context:")):
         return f, []
     matches = [r for r in alignments
@@ -293,6 +296,10 @@ def _reference_fields(feature, gene, family, role, alignments):
     if len(matches) == 1:
         row = matches[0]
         n = row["native_fields"]
+        f["reference_search_scope_limited"] = row.get("operation") == "fresh_reference_alignment" and row.get("search_is_exhaustive") is not True
+        f["reference_measurement_diagnostic"] = {"subject_id": subject, "native_fields": dict(n),
+            "alignment_status": row.get("alignment_status"), "search_scope": row.get("search_scope", "saved_nominated_subjects"),
+            "search_is_exhaustive": row.get("search_is_exhaustive") is True, "source_refs": _refs([row])}
         if row.get("operation") == "fresh_reference_alignment":
             # A current alignment is a new observation. Never borrow an old
             # coverage, compatibility flag or precomputed quality from it.
@@ -300,7 +307,7 @@ def _reference_fields(feature, gene, family, role, alignments):
                 f.pop(field, None)
         # Scalar metadata is admissible only with a separate hashed receipt.
         metadata_refs = row.get("reference_metadata_source_refs", [])
-        mapping = {"identity": "blast_identity", "evalue": "blast_evalue", "qstart": "blast_qstart", "qend": "blast_qend", "sstart": "blast_sstart", "send": "blast_send", "length": "blast_length"}
+        mapping = {"identity": "blast_identity", "evalue": "blast_evalue", "qstart": "blast_qstart", "qend": "blast_qend", "sstart": "blast_sstart", "send": "blast_send", "length": "blast_length", "query_coverage": "blast_query_coverage", "reference_coverage": "blast_reference_coverage"}
         for a,b in mapping.items():
             if _value(n.get(a)) is not None:
                 f[b] = n[a]
@@ -313,9 +320,10 @@ def _reference_fields(feature, gene, family, role, alignments):
         if row.get("alignment_status") == "no_alignment" and row.get("command_exit_code") == 0:
             for field in ("blast_identity", "blast_evalue", "blast_length", "blast_qstart", "blast_qend", "blast_sstart", "blast_send", "blast_query_coverage", "blast_reference_coverage"):
                 f.pop(field, None)
-            f["factor_strong"] = False
-            f["factor_moderate"] = False
-            f["reference_alignment_absent"] = True
+            if not f["reference_search_scope_limited"]:
+                f["factor_strong"] = False
+                f["factor_moderate"] = False
+                f["reference_alignment_absent"] = True
     length = _num(f.get("blast_length"))
     qlen = _num(gene.get("protein_length"))
     rlen = _num(f.get("rebase_reference_aa_len", f.get("reference_aa_len")))
@@ -329,13 +337,24 @@ def _reference_fields(feature, gene, family, role, alignments):
     # reference metadata. A curated reference is usable only for this subject.
     rf, rr = _value(f.get("reference_family")), _value(f.get("reference_role"))
     fresh = len(matches) == 1 and matches[0].get("operation") == "fresh_reference_alignment"
-    if not fresh and _value(f.get("curated_blast_subject_id")) == subject:
+    measured_subject = subject if len(matches) == 1 else raw_subject
+    if not fresh and _value(f.get("curated_blast_subject_id")) == measured_subject:
         rf = rf if rf is not None else _value(f.get("curated_blast_family"))
         rr = rr if rr is not None else _value(f.get("curated_blast_role"))
     if _value(f.get("blast_family_compatible")) is None and rf in RM_TYPES and family in RM_TYPES:
         f["blast_family_compatible"] = rf == family
     if _value(f.get("blast_role_compatible")) is None and rr in ROLES and role in ROLES:
         f["blast_role_compatible"] = rr == role or role == "RM" and rr in {"R", "M"} or role in {"R", "M"} and rr == "RM"
+    if f.get("reference_search_scope_limited"):
+        values = [_num(f.get(k)) for k in ("blast_identity", "blast_query_coverage", "blast_reference_coverage", "blast_evalue")]
+        # A nominated-subject search can establish positive homology support.
+        # It cannot rule out a stronger compatible reference elsewhere.
+        positive = (all(v is not None for v in values) and values[0] >= .3 and values[1] >= .7
+                    and values[2] >= .7 and values[3] <= 1e-3 and _bool(f.get("blast_role_compatible")) is True
+                    and _bool(f.get("blast_family_compatible")) is not False)
+        if not positive:
+            for field in ("blast_identity", "blast_evalue", "blast_length", "blast_qstart", "blast_qend", "blast_sstart", "blast_send", "blast_query_coverage", "blast_reference_coverage", "blast_alignment_quality", "blast_role_compatible", "blast_family_compatible", "factor_strong", "factor_moderate"):
+                f.pop(field, None)
     return f, sources
 
 
@@ -409,12 +428,14 @@ def compile_rm_evidence(data: dict) -> dict:
             for name, value in row.get("native_fields", {}).items():
                 if MOTIF_ANNOTATION_COLUMNS.search(name) and _value(value) is not None:
                     motiftextvalues.append(str(value))
+                # Native profile_support reads every Signature-prefixed
+                # field, independently of the narrower curation selector.
+                if re.match(r"^Signature[ ._]", name) and _value(value) is not None:
+                    signaturevalues.append(str(value))
                 if ANNOTATION_COLUMNS.search(name) and _value(value) is not None:
                     textvalues.append(str(value))
                     if name == "product":
                         productvalues.append(str(value))
-                    if re.match(r"^Signature[ ._]", name):
-                        signaturevalues.append(str(value))
         text, product, signature = " | ".join(textvalues), " | ".join(productvalues), " | ".join(signaturevalues)
         motiftext = " | ".join(motiftextvalues)
         flags, pflags, sflags = _flags(text), _flags(product), _flags(signature)
@@ -504,6 +525,7 @@ def compile_rm_evidence(data: dict) -> dict:
         # Never infer subject length from the aligned segment. A successful hit
         # or high identity does not establish full reference coverage.
         quality = _value(feature.get("blast_alignment_quality"))
+        limited_reference_search = feature.get("reference_search_scope_limited") is True
         if feature.get("reference_alignment_absent") is True:
             set_axis("old_strong", False, _refs(rows) + reference_refs, "completed_exact_reference_alignment_no_hit")
             set_axis("old_moderate", False, _refs(rows) + reference_refs, "completed_exact_reference_alignment_no_hit")
@@ -515,15 +537,15 @@ def compile_rm_evidence(data: dict) -> dict:
             i, q, r, ev = (evidence[n] for n in ("identity", "query_coverage", "reference_coverage", "evalue"))
             strong = compatible and i >= .5 and q >= .8 and r >= .8 and ev <= 1e-5
             moderate = compatible and not strong and i >= .3 and q >= .7 and r >= .7 and ev <= 1e-3
-            set_axis("old_strong", strong, _refs(rows) + reference_refs, "frozen_native_reference_strong_thresholds")
-            set_axis("old_moderate", moderate, _refs(rows) + reference_refs, "frozen_native_reference_moderate_thresholds")
+            set_axis("old_strong", True if strong else None if limited_reference_search else False, _refs(rows) + reference_refs, "frozen_native_reference_strong_thresholds")
+            set_axis("old_moderate", True if moderate else None if limited_reference_search else False, _refs(rows) + reference_refs, "frozen_native_reference_moderate_thresholds")
         # A measured failing necessary threshold legitimately rules out the
         # corresponding present-evidence credit even if another axis is absent.
         for name, cuts in (("old_strong", (.5, .8, .8, 1e-5)), ("old_moderate", (.3, .7, .7, 1e-3))):
             values = [evidence[k] for k in ("identity", "query_coverage", "reference_coverage", "evalue")]
             fails = any(v is not None and (v > cutoff if i == 3 else v < cutoff) for i,(v,cutoff) in enumerate(zip(values,cuts)))
             fails = fails or evidence["role_compatible"] is False or evidence["family_compatible"] is False
-            if evidence[name] is None and fails:
+            if evidence[name] is None and fails and not limited_reference_search:
                 set_axis(name, False, _refs(rows) + reference_refs, "measured_reference_threshold_not_met")
         context_values, contextrefs = {}, []
         for ctxfamily, column in (("Type I", "typei_operon_supported"), ("Type II", "typeii_operon_supported"), ("Type III", "typeiii_operon_supported")):
@@ -563,6 +585,13 @@ def compile_rm_evidence(data: dict) -> dict:
             value = _bool(feature.get(column))
             if value is not None:
                 set_axis(name, value, _refs(rows) + reference_refs, "explicit_native_evidence_field:" + column)
+        if _bool(feature.get("factor_motif")) is None:
+            # Exported legacy motif flags supersede the rescan before the
+            # selected native score_motif_support predicate is evaluated.
+            mt, nuc, motor = (evidence[n] for n in ("legacy_mtase_motif", "legacy_nuclease", "legacy_motor"))
+            motif_score = (False if role == "S" else mt if role == "M" else
+                           _and(nuc, motor) if role == "R" else _and(mt, nuc) if role == "RM" else None)
+            set_axis("old_motif", motif_score, mrefs + _refs(rows), "selected_native_score_motif_support_after_exported_flags")
         if text:
             # The original rescue and conflict expressions are evaluated with
             # three-valued logic. Missing structure/homology cannot silently
@@ -610,6 +639,7 @@ def compile_rm_evidence(data: dict) -> dict:
                       assignment_status=status, assignment_support=[{"family": a, "role": b, "rule": c} for a,b,c in sorted(set(candidates))],
                       evidence=evidence, unknown_axes=sorted({k for k,v in evidence.items() if v is None} | {"profiles"} | ({"raw_nuclease_classes"} if valid is not True else set())),
                       axis_sources=axes, source_refs=src, reason_codes=reasons,
+                      reference_measurement_diagnostic=feature.get("reference_measurement_diagnostic"),
                       source_scope=[name for name, yes in (("saved_candidates", key in decisions or bool(rows)), ("original_tool_rm_members", any(r.get("rm_type") in RM_TYPES and r.get("evidence_kind") == "final_member" for r in calls[key]))) if yes],
                       motif_sequence_normalization={"rule": "native_strip_nonletters_then_uppercase", "input_protein_sha256": sha,
                           "normalized_sequence_sha256": hashlib.sha256(sequence.encode()).hexdigest() if sequence else None,

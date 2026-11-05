@@ -222,7 +222,8 @@ def test_completed_exact_fresh_reference_nohit_is_observation_not_activity():
                native_fields={"subject_id": "M.Example", "reference_length": 159, "reference_family": "Type II", "reference_role": "M"})
     data["suite"]["reference_alignments"] = [row]
     r = record(data)
-    assert r["evidence"]["old_strong"] is False and r["evidence"]["old_moderate"] is False
+    assert r["evidence"]["old_strong"] is None and r["evidence"]["old_moderate"] is None
+    assert r["reference_measurement_diagnostic"]["alignment_status"] == "no_alignment"
     assert r["evidence"]["identity"] is None
     assert r["biological_activity"] == "not_inferred"
     row["command_exit_code"] = 1
@@ -273,9 +274,10 @@ def test_fresh_measured_weak_reference_overrides_legacy_strong_factor():
         protein_sha256=data["genes"][0]["protein_sha256"], reference_sequence_sha256="b"*64,
         reference_metadata_source_refs=[{"path":"references.faa", "sha256":"c"*64}],
         native_fields={"subject_id":"M.Example", "identity":.2, "evalue":1e-4, "qstart":1,"qend":50,"sstart":1,"send":50,"reference_length":159,"reference_family":"Type II","reference_role":"M"})]
-    e = record(data)["evidence"]
-    assert e["identity"] == .2 and e["query_coverage"] == pytest.approx(50/159)
-    assert e["old_strong"] is False and e["old_moderate"] is False
+    r = record(data); e = r["evidence"]
+    assert e["identity"] is None and e["query_coverage"] is None
+    assert e["old_strong"] is None and e["old_moderate"] is None
+    assert r["reference_measurement_diagnostic"]["native_fields"]["identity"] == .2
     assert e["legacy_mtase_motif"] is True  # independent native axis preserved
 
 
@@ -394,3 +396,62 @@ def test_runtime_pattern_hashes_are_computed_and_pinned():
     assert RULE_PROVENANCE["installed_motif_patterns_sha256"] == _pattern_digest(MOTIF_PATTERNS)
     assert RULE_PROVENANCE["installed_annotation_patterns_sha256"] == _pattern_digest(ANNOTATION_PATTERNS)
     assert all(RULE_PROVENANCE[k] == v for k,v in _EXPECTED_PATTERN_HASHES.items())
+
+
+def test_exported_legacy_motif_flags_govern_score_after_rescan_override():
+    assert record(bundle(mtase_motif_verified=False))["evidence"]["old_motif"] is False
+    assert record(bundle(sequence="A"*159, mtase_motif_verified=True))["evidence"]["old_motif"] is True
+    for nuc,motor,expected in [(True,True,True),(False,True,False),(True,False,False)]:
+        r=record(bundle(role="R",rease_nuclease_verified=nuc,rease_motor_verified=motor))
+        assert r['evidence']['old_motif'] is expected
+    assert record(bundle(mtase_motif_verified=False,factor_motif=True))["evidence"]["old_motif"] is True
+
+
+def test_native_profile_factor_reads_all_signature_prefix_columns():
+    data=bundle()
+    data['suite']['annotations'][0]['native_fields']={
+        'translation':'FAGAGDPPY'+'A'*150,'product':'hypothetical protein',
+        'Signature alternative_label_NewLibrary':'DNA methyltransferase'}
+    r=record(data)
+    assert r['evidence']['old_profile'] is True
+    assert r['evidence']['annotation'] is False
+
+
+def test_curated_subject_precedes_raw_hit_current_alignment():
+    data=bundle(hit_label='M.Raw',curated_blast_resolved_subject_id='M.Curated')
+    def alignment(subject,identity):
+        return dict(sample_id='sample',gene_id='gene',source_ref=REF,operation='fresh_reference_alignment',command_exit_code=0,
+            protein_sha256=data['genes'][0]['protein_sha256'],reference_sequence_sha256='b'*64,
+            reference_metadata_source_refs=[{'path':'reference.faa','sha256':'c'*64}],
+            native_fields=dict(subject_id=subject,identity=identity,evalue=1e-40,query_coverage=.95,reference_coverage=.95,
+                               reference_family='Type II',reference_role='M',reference_length=159))
+    data['suite']['reference_alignments']=[alignment('M.Raw',.2),alignment('M.Curated',.9)]
+    r=record(data)
+    assert r['evidence']['old_strong'] is True
+    assert r['reference_measurement_diagnostic']['subject_id']=='M.Curated'
+    data['suite']['reference_alignments']=[alignment('M.Raw',.9)]
+    assert record(data)['evidence']['old_strong'] is None
+
+
+def test_moderate_nominated_subject_does_not_rule_out_global_strong_reference():
+    data=bundle(hit_label='M.Example')
+    data['suite']['reference_alignments']=[dict(sample_id='sample',gene_id='gene',source_ref=REF,
+        operation='fresh_reference_alignment',command_exit_code=0,protein_sha256=data['genes'][0]['protein_sha256'],
+        reference_sequence_sha256='b'*64,reference_metadata_source_refs=[{'path':'reference.faa','sha256':'c'*64}],
+        native_fields=dict(subject_id='M.Example',identity=.4,evalue=1e-40,query_coverage=.95,reference_coverage=.95,
+                           reference_family='Type II',reference_role='M',reference_length=159))]
+    r=record(data)
+    assert r['evidence']['old_moderate'] is True and r['evidence']['old_strong'] is None
+
+
+def test_merged_hsp_union_coverage_overrides_enclosing_coordinates():
+    data=bundle(hit_label='M.Example')
+    data['suite']['reference_alignments']=[dict(sample_id='sample',gene_id='gene',source_ref=REF,
+        operation='fresh_reference_alignment',command_exit_code=0,protein_sha256=data['genes'][0]['protein_sha256'],
+        reference_sequence_sha256='b'*64,reference_metadata_source_refs=[{'path':'reference.faa','sha256':'c'*64}],
+        native_fields=dict(subject_id='M.Example',identity=.9,evalue=1e-40,qstart=1,qend=159,sstart=1,send=159,
+            query_coverage=.75,reference_coverage=.75,dnmb_hsp_count=2,
+            reference_family='Type II',reference_role='M',reference_length=159))]
+    r=record(data)
+    assert r['evidence']['query_coverage']==.75 and r['evidence']['reference_coverage']==.75
+    assert r['evidence']['old_moderate'] is True and r['evidence']['old_strong'] is None

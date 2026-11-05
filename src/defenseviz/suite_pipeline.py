@@ -116,6 +116,8 @@ def prepare_suite(root, *, manifest=None, supplement=None, rm_evidence=None, rsc
         data = apply_automatic_rm(data)
         from .automatic_context import apply_current_context_review
         data = apply_current_context_review(data)
+        from .automatic import refresh_decision_audit
+        data = refresh_decision_audit(data)
         data["automatic_evaluation"] = True
     data["evaluation_execution"] = {
         "requested_mode": evaluation,
@@ -287,7 +289,12 @@ def run_suite(root, output_dir, *, manifest=None, supplement=None, rm_evidence=N
             _write_table(table_dir / f"imported_{name}.tsv", _table_rows(imported_export.get(name, []), name),
                          ("sample_id", "caller", "status") if name == "coverage" else ("sample_id", "gene_id"))
         for name in ("saved_decisions", "annotations", "effector_evidence", "groups", "complexes", "coverage"):
-            _write_table(table_dir / f"analysis_{name}.tsv", _table_rows(native_export.get(name, []), name),
+            export_rows = _table_rows(native_export.get(name, []), name)
+            if name == "saved_decisions" and native_export.get("automatic_evaluation"):
+                scopes = {(r["sample_id"],r["gene_id"]):r.get("source_scope",[])
+                          for r in native_export["rm_evaluation"]["records"]}
+                export_rows = [dict(r,source_scope=scopes.get((r["sample_id"],r["gene_id"]),[])) for r in export_rows]
+            _write_table(table_dir / f"analysis_{name}.tsv", export_rows,
                          ("sample_id", "gene_id"))
         tick = time.monotonic()
         figure_dir = stage / "figures"
@@ -319,13 +326,15 @@ def run_suite(root, output_dir, *, manifest=None, supplement=None, rm_evidence=N
         ref_meta = data.get("suite", {}).get("automatic_reference", {})
         rm_seconds = rm_meta.get("elapsed_seconds", 0)
         ref_seconds = ref_meta.get("elapsed_seconds", 0)
+        policy_decisions = rm_meta.get("policy_decisions",rm_meta.get("policy_evaluations",rm_meta.get("scoring_runs",0)))
         stages = [{"name": "native_import_and_context_preparation", "elapsed_seconds": max(0, import_seconds-rm_seconds-ref_seconds)}]
         if ref_meta:
             stages.append({"name": "fresh_reference_alignment", "elapsed_seconds": ref_seconds,
                            "homology_search_runs": ref_meta.get("homology_search_runs",0)})
         if rm_meta:
-            stages.append({"name": "stored_feature_collection_and_policy_evaluation" if rm_meta.get("policy_evaluations") else "stored_feature_collection_and_native_decision_replay",
+            stages.append({"name": "stored_feature_collection_and_policy_evaluation" if policy_decisions else "stored_feature_collection_and_unresolved_policy_bounds" if rm_meta.get("policy_evaluations") else "stored_feature_collection_and_native_decision_replay",
                            "elapsed_seconds": rm_seconds, "policy_evaluations": rm_meta.get("policy_evaluations",0),
+                           "policy_decisions": policy_decisions,
                            "preserved_decisions": rm_meta.get("preserved_decisions",0)})
         stages += [{"name": "system_review_and_aggregation", "elapsed_seconds": analysis_seconds},
                    {"name": "publication_render", "elapsed_seconds": render_seconds}]
@@ -333,7 +342,8 @@ def run_suite(root, output_dir, *, manifest=None, supplement=None, rm_evidence=N
             "schema_version": 1, "tool": "DefenseViz", "version": __version__,
             "created_at": datetime.now(timezone.utc).isoformat(),
             "operation": ("saved_suite_with_fresh_reference_evaluation_and_render" if data.get("suite", {}).get("automatic_reference", {}).get("homology_search_runs") else
-                          "saved_suite_evidence_reevaluation_aggregation_and_render" if data.get("rm_evaluation", {}).get("policy_evaluations", data.get("rm_evaluation", {}).get("scoring_runs",0))
+                          "saved_suite_evidence_reevaluation_aggregation_and_render" if policy_decisions
+                          else "saved_suite_unresolved_evidence_bounds_and_replay_render" if rm_meta.get("policy_evaluations")
                           else "saved_suite_result_import_aggregation_and_render"),
             "scoring_runs": data.get("rm_evaluation", {}).get("scoring_runs", 0),
             "detector_runs": 0, "structure_prediction_runs": 0, "threshold_fitting": False,
@@ -343,6 +353,9 @@ def run_suite(root, output_dir, *, manifest=None, supplement=None, rm_evidence=N
             "elapsed_seconds": time.monotonic() - started,
             "stages": stages,
             "evaluation_execution": data.get("evaluation_execution", {}),
+            "policy_evaluations": rm_meta.get("policy_evaluations",0),
+            "policy_decisions": policy_decisions,
+            "stored_vs_auto_summary": native_export.get("rm_evaluation",{}).get("stored_vs_auto_summary"),
             "preserved_native_decisions": rm_meta.get("preserved_decisions",0),
             "output_bundles": {"native_bundle.json":"original imported channels", "analysis_bundle.json":"current source-bound derived analysis input"},
             "input_path_base": "supplied suite root",

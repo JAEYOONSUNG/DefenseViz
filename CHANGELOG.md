@@ -7,6 +7,9 @@
 - Review all observed systems and calculate functional count coverage over each actual displayed CDS set.
 - Support explicit current-reference homology evaluation when legacy exports lack coverage; preserve original reference and detector memberships.
 - Keep stored-decision replay and the explicit reviewed-evidence path available.
+- Preserve incomplete and quarantined R-M scopes; never infer orphanhood from a retention cutoff.
+- Merge reference HSPs under native measurement rules and separate subject-specific negatives from missing global evidence.
+- Audit field-level assignment/coverage changes and distinguish attempted evaluations from resolved decisions.
 
 ## 2.3.1
 

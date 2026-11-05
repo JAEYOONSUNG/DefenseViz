@@ -125,11 +125,19 @@ def _inventory(data, sid):
 
 
 def _alignment(data, record, features, alignments, gene):
-    """One bound current alignment takes precedence over stored curated fields."""
+    """Measure the selected curated reference, never replace it with a raw hit."""
     sha = record.get("protein_sha256")
     if record.get("protein_binding_status") != "verified" or sha != gene.get("protein_sha256", gene.get("sequence_sha256")):
         return dict(status=None, subject=None, sources=[], reason="protein_binding_unassessed")
     real_features = [r for r in features if _refs([r])]
+    choices = []
+    for row in real_features:
+        n = row.get("native_fields", {})
+        subject = _value(n.get("curated_blast_resolved_subject_id", n.get("curated_blast_match")))
+        if isinstance(subject,str) and subject:
+            choices.append((row,n,subject))
+    if len(choices) > 1:
+        return dict(status=None, subject=None, sources=_refs(real_features), reason="ambiguous_curated_reference_selection")
     candidates = set()
     for row in real_features:
         f = row.get("native_fields", {})
@@ -137,6 +145,10 @@ def _alignment(data, record, features, alignments, gene):
             value = _value(f.get(name))
             if isinstance(value, str) and value and not value.startswith(("typeI_context:", "typeII_context:", "typeIII_context:", "typeIV_context:")):
                 candidates.add(value)
+    if choices:
+        # The frozen branch joins cognate names and measurements from this
+        # selected alignment. A fresh raw hit is a different hypothesis.
+        candidates = {choices[0][2]}
     current = [r for r in alignments if r.get("operation") in {"stored_exact_database_alignment", "fresh_reference_alignment"}
                and (r.get("operation") == "stored_exact_database_alignment" or r.get("command_exit_code") == 0)
                and r.get("protein_sha256") == sha
@@ -153,10 +165,21 @@ def _alignment(data, record, features, alignments, gene):
         if not isinstance(subject,str) or not _value(subject):
             return dict(status=None,subject=None,sources=refs,reason="reference_subject_identifier_invalid")
         if row.get("alignment_status") == "no_alignment":
-            return dict(status=False, subject=subject, sources=refs, reason="completed_reference_alignment_no_hit")
-        qlen, rlen = _number(gene.get("protein_length")), _number(n.get("reference_length"))
+            return dict(status=None, subject=None, measured_subject=subject, sources=refs,
+                        reason="subject_limited_reference_no_hit_not_global_absence")
+        qlen = _number(row.get("query_sequence_length", n.get("query_length", gene.get("protein_length"))))
+        rlen = _number(n.get("reference_length"))
         spans = []
-        for a,b,length in (("qstart", "qend", qlen), ("sstart", "send", rlen)):
+        for coverage,a,b,length in (("query_coverage", "qstart", "qend", qlen), ("reference_coverage", "sstart", "send", rlen)):
+            explicit = _number(n.get(coverage))
+            if explicit is not None:
+                spans.append(explicit)
+                continue
+            # Enclosing coordinates of multiple HSPs include unaligned gaps.
+            # Only a single-HSP receipt can use an interval as its coverage.
+            if _number(n.get("dnmb_hsp_count")) not in {None, 1}:
+                spans.append(None)
+                continue
             first, last = _number(n.get(a)), _number(n.get(b))
             span = abs(last-first)+1 if first is not None and last is not None else _number(n.get("length"))
             spans.append(min(1., span/length) if length and span is not None else None)
@@ -166,12 +189,6 @@ def _alignment(data, record, features, alignments, gene):
         family_match = None if reference_family is None else reference_family == "Type II"
         source_kind = row["operation"]
     else:
-        choices = []
-        for row in real_features:
-            n = row.get("native_fields", {})
-            subject = _value(n.get("curated_blast_resolved_subject_id", n.get("curated_blast_match")))
-            if isinstance(subject,str) and subject:
-                choices.append((row,n,subject))
         if len(choices) != 1:
             return dict(status=None, subject=None, sources=_refs(real_features), reason="coherent_curated_reference_unavailable")
         row,n,subject = choices[0]
@@ -186,7 +203,15 @@ def _alignment(data, record, features, alignments, gene):
     thresholds = [.5, .8, .8, 1e-5]
     measured = [None if v is None else (0 <= v <= limit if i==3 else limit <= v <= 1) for i,(v,limit) in enumerate(zip(nums,thresholds))]
     status = _and(role_match, family_match, *measured)
+    measured_subject = subject
+    if source_kind == "fresh_reference_alignment" and status is not True:
+        # An unsuccessful nominated-subject measurement does not reproduce
+        # the native best-reference search. It cannot exclude other homologs,
+        # or use an unselected name to exclude a potential cognate pair.
+        status, subject = None, None
     return dict(status=status, subject=subject, sources=refs, reason="exact_reference_alignment_predicate",
+                measured_subject=measured_subject,
+                reference_selection="frozen_curated" if choices else "nominated_subject",
                 source_kind=source_kind, reference_family=reference_family, reference_role=reference_role,
                 measurements=dict(zip(("identity","query_coverage","reference_coverage","evalue"), nums)))
 
@@ -361,6 +386,10 @@ def enrich_neighborhood_evidence(data: dict, compiled: dict) -> dict:
             rkey,mkey = (key,otherkey) if record["role"] == "R" else (otherkey,key)
             rs,ms = eligibility[rkey].get("subject"), eligibility[mkey].get("subject")
             if rs and ms and not cognate_subjects(rs,ms):
+                if any(eligibility[k].get("reference_selection") == "nominated_subject" for k in (rkey,mkey)):
+                    # A positive hit to one nominee is not proof that no
+                    # different reference could form a cognate pair.
+                    unknown_pair = True
                 continue
             if own["status"] is not True or mate["status"] is not True or not rs or not ms:
                 unknown_pair = True

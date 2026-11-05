@@ -52,13 +52,20 @@ defenseviz from-suite /path/to/results --reference-cache /path/to/rebase/cache -
 This optional step requires BLAST+ `blastp` on `PATH` and reads the reference
 FASTA plus metadata without changing them. The output records the current
 database hashes, exact protein pairs, alignment command and search count.
-Original REBASE overlap memberships remain unchanged. A current reference
-resource is never represented as the missing historical database.
+All HSP intervals for each nominated pair are merged using the native coverage
+and identity rules. A weak/no-hit result for one nominated subject cannot prove
+that all homology evidence is absent. Original REBASE overlap memberships remain
+unchanged. A current reference resource is never represented as the missing
+historical database.
 
 `--evaluation stored` disables automatic reevaluation for a saved-decision
 replay. `--rm-evidence evidence.json` retains the existing explicit complete
 measurement workflow. There is no need to construct that file for the automatic
 path. Neither mode treats an absent annotation as a biological negative.
+
+A below-cutoff R remains a gene in the genome: absence from the retained subset
+does not create an orphan M/S annotation. Current retained-context composition
+is stored separately from preserved native decisions.
 
 System review coverage is calculated per displayed CDS set. A missing motif for
 one family does not make an independently established effector in another family
@@ -262,6 +269,10 @@ members. The latter have their own `source_scope`; they are downstream integrati
 candidates, not a new independent detector. Existing assessed DNMB decisions are
 preserved with their original provenance. New policy decisions and replayed
 native decisions have separate counts and execution-stage labels in the receipt.
+`policy_evaluations` counts attempted bounds evaluations; `policy_decisions` counts
+newly resolved retention outcomes. The field-level `decision_transitions` and
+`stored_vs_auto_summary` also expose assignment, evidence and coverage changes
+when a record remains unassessed.
 When `--rm-evidence` supplies a complete reviewed evidence file, the automatic
 compiler/context/system stages are skipped explicitly to preserve that reviewed
 workflow; this is recorded under `evaluation_execution`.

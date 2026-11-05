@@ -23,6 +23,8 @@ ROLES = {"R", "M", "S", "RM"}
 TYPES = {"Type I", "Type II", "Type III", "Type IV"}
 BLAST_FIELDS = ("qseqid", "sseqid", "pident", "length", "mismatch", "gapopen", "qstart", "qend",
                 "sstart", "send", "evalue", "bitscore", "qlen", "slen")
+HSP_MERGE_SOURCE = "DNMB/R/rebasefinder_metadata.R:.dnmb_rebasefinder_collapse_blast_hsps"
+HSP_MERGE_SOURCE_SHA256 = "831de92dd3e2cff2f0a86c7caf88548622f8e565f3ad0ab31ada9a9aa442be93"
 
 
 def _sha(path):
@@ -53,6 +55,56 @@ def _reference_sequence(value):
 
 def _value(value):
     return None if value is None or str(value).strip() in MISSING else str(value).strip()
+
+
+def _interval_union(intervals):
+    intervals = sorted((min(a,b), max(a,b)) for a,b in intervals)
+    if not intervals:
+        return None
+    left,right=intervals[0]; total=0
+    for a,b in intervals[1:]:
+        if a<=right+1:
+            right=max(right,b)
+        else:
+            total+=right-left+1;left,right=a,b
+    return total+right-left+1
+
+
+def _collapse_hsps(hsps):
+    """Exact pinned native per-query/per-subject HSP summary.
+
+    Identity weights every HSP's alignment length, including overlaps; coverage
+    counts the interval union once. Missing intervals fall back to the highest
+    bitscore HSP exactly as the native rule does. Raw HSP rows stay in the TSV.
+    """
+    if not hsps:
+        return None
+    best=min(hsps,key=lambda h:(-h['bitscore'] if h.get('bitscore') is not None else math.inf,
+                               h['evalue'] if h.get('evalue') is not None else math.inf))
+    out=dict(best)
+    if len(hsps)==1:
+        out['dnmb_aligned_query_length']=(abs(out['qend']-out['qstart'])+1
+            if out.get('qstart') is not None and out.get('qend') is not None else out.get('length'))
+        out['dnmb_aligned_subject_length']=(abs(out['send']-out['sstart'])+1
+            if out.get('sstart') is not None and out.get('send') is not None else out.get('length'))
+        out['dnmb_hsp_count']=1
+        return out
+    if not all(h.get(k) is not None for h in hsps for k in ('qstart','qend','sstart','send')):
+        out.update(dnmb_aligned_query_length=out.get('length'),dnmb_aligned_subject_length=out.get('length'),dnmb_hsp_count=1)
+        return out
+    q_union=_interval_union([(h['qstart'],h['qend']) for h in hsps])
+    s_union=_interval_union([(h['sstart'],h['send']) for h in hsps])
+    weighted=[(h['pident'], h['length'] if h.get('length') is not None and h['length']>0 else 1)
+              for h in hsps if h.get('pident') is not None]
+    out['pident']=sum(v*w for v,w in weighted)/sum(w for _,w in weighted) if weighted else None
+    scores=[h['bitscore'] for h in hsps if h.get('bitscore') is not None]
+    evalues=[h['evalue'] for h in hsps if h.get('evalue') is not None]
+    out.update(bitscore=sum(scores) if scores else None,evalue=min(evalues) if evalues else None,
+        length=min(q_union,s_union),qstart=min(min(h['qstart'],h['qend']) for h in hsps),
+        qend=max(max(h['qstart'],h['qend']) for h in hsps),sstart=min(min(h['sstart'],h['send']) for h in hsps),
+        send=max(max(h['sstart'],h['send']) for h in hsps),dnmb_aligned_query_length=q_union,
+        dnmb_aligned_subject_length=s_union,dnmb_hsp_count=len(hsps))
+    return out
 
 
 def _family(value):
@@ -303,7 +355,7 @@ def enrich_reference_evidence(data, cache_path, work_dir, blastp="blastp", rscri
             executable = shutil.which(str(blastp)) or str(blastp)
             version = _run([executable,"-version"],commands)
             command = [executable,"-query",str(query_file),"-subject",str(subject_file),"-out",str(result_file),
-                "-outfmt","6 "+" ".join(BLAST_FIELDS),"-evalue","0.001","-max_hsps","1",
+                "-outfmt","6 "+" ".join(BLAST_FIELDS),"-evalue","0.001",
                 "-max_target_seqs",str(max(5,len(subject_ids))),"-dbsize",str(db_residues)]
             _run(command,commands,stdout_path=work/"blast.log")
             artifacts.append(work/"blast.log")
@@ -323,24 +375,30 @@ def enrich_reference_evidence(data, cache_path, work_dir, blastp="blastp", rscri
         for n in usable:
             ref=resolved[n["subject_id"]]; qid=query_ids[n["sample_id"],n["gene_id"]][0]; rid=subject_ids[n["subject_id"]][0]
             hits=aligned[qid,rid]
-            if len(hits)>1:
-                raise ValueError("BLAST returned multiple HSPs despite max_hsps=1")
             native=dict(subject_id=n["subject_id"],reference_length=ref["reference_length"],
                         reference_family=ref["reference_family"],reference_role=ref["reference_role"])
             source=dict(result_ref)
-            if hits:
-                line,h=hits[0]
+            measurements=[]
+            for line,h in hits:
                 nums={k:float(h[k]) for k in BLAST_FIELDS[2:]}
                 if not all(math.isfinite(x) and x>=0 for x in nums.values()) or not 0<=nums["pident"]<=100:
                     raise ValueError("BLAST returned invalid numeric values")
                 if nums["qlen"]!=len(n["sequence"]) or nums["slen"]!=ref["reference_length"]:
                     raise ValueError("BLAST query/reference length binding mismatch")
                 for a,b,length in (("qstart","qend",nums["qlen"]),("sstart","send",nums["slen"])):
-                    if not 1<=nums[a]<=nums[b]<=length:
+                    if not 1<=min(nums[a],nums[b])<=max(nums[a],nums[b])<=length:
                         raise ValueError("BLAST alignment coordinates outside bound protein")
+                measurements.append(nums)
+            if measurements:
+                nums=_collapse_hsps(measurements)
                 native.update({k:nums[k] for k in ("evalue","qstart","qend","sstart","send","length","bitscore")})
                 native["identity"]=nums["pident"]/100.
-                source["row"]=line
+                native.update({k:nums[k] for k in ("dnmb_aligned_query_length","dnmb_aligned_subject_length","dnmb_hsp_count")})
+                native.update(query_length=len(n["sequence"]),query_coverage=min(1.,nums['dnmb_aligned_query_length']/len(n["sequence"])),
+                              reference_coverage=min(1.,nums['dnmb_aligned_subject_length']/ref['reference_length']))
+                source["rows"]=[line for line,_ in hits]
+                if len(hits)==1:
+                    source["row"]=hits[0][0]
             records.append(dict(sample_id=n["sample_id"],gene_id=n["gene_id"],operation="fresh_reference_alignment",
                 protein_sha256=n["protein_sha256"],reference_sequence_sha256=ref["reference_sequence_sha256"],
                 query_source_sequence_sha256=n["query_source_sequence_sha256"],query_sequence_sha256=n["query_sequence_sha256"],
@@ -348,6 +406,8 @@ def enrich_reference_evidence(data, cache_path, work_dir, blastp="blastp", rscri
                 query_sequence_source_ref=dict(path=str(query_file),sha256=_sha(query_file)),
                 source_ref=source,reference_metadata_source_refs=metadata_refs,nomination_source_refs=n["source_refs"],
                 native_fields=native,alignment_status="aligned" if hits else "no_alignment",command_exit_code=0,
+                search_scope="saved_nominated_subjects",search_is_exhaustive=False,
+                hsp_merge_rule=HSP_MERGE_SOURCE,hsp_merge_source_sha256=HSP_MERGE_SOURCE_SHA256,
                 database_relation="configured_current_reference_not_assumed_historical",query_id=qid,reference_id=rid))
         if any(_sha(path)!=digest for path,digest in resource_hashes.items()):
             raise ValueError("Read-only reference asset changed during evaluation")
@@ -359,7 +419,9 @@ def enrich_reference_evidence(data, cache_path, work_dir, blastp="blastp", rscri
             reference_resolution_status="partial" if omitted else "complete",
             code_sha256={"automatic_reference.py":_sha(__file__),"reference_metadata.R":_sha(files("defenseviz").joinpath("data/reference_metadata.R"))},
             metadata_disagreements=[r for r in reference_audit if r.get("family_metadata_disagreement") or r.get("role_metadata_disagreement")],
-            methods=dict(search_evalue=.001,best_hsps_per_pair=1,search_database_length="full configured FASTA residues",
+            methods=dict(search_evalue=.001,hsps_per_pair="all_reported_significant_hsps",hsp_merge_rule=HSP_MERGE_SOURCE,
+                         hsp_merge_source_sha256=HSP_MERGE_SOURCE_SHA256,search_scope="saved_nominated_subjects",search_is_exhaustive=False,
+                         search_database_length="full configured FASTA residues",
                          native_calls_changed=False,metadata_type_parser="explicit_description_boundary_aware",
                          source="https://www.ncbi.nlm.nih.gov/books/NBK279684/"),
             elapsed_seconds=time.monotonic()-started,artifacts=[str(p) for p in artifacts]+[str(receipt_path)])

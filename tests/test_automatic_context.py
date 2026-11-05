@@ -43,13 +43,9 @@ def test_complete_current_type_i_is_composed_without_policy_or_native_changes(tm
     group = generated(out)[0]
     assert group["provider"] == "Review" and group["required_roles"] == ["M", "R", "S"]
     assert group["context_state"] == "met"
-    for old, new in zip(data["saved_decisions"], out["saved_decisions"]):
-        assert new["state"] == old["state"]
-        assert new["integrated_R_component_support"] == old["integrated_R_component_support"]
-        assert new["context_state"] == "met"
-        assert new["context_source_refs"]
-        assert "activity" not in new
-    assert out["saved_decisions"][1]["orphan"] is False
+    assert out["saved_decisions"] == before["saved_decisions"]
+    assert group["retained_R_absent_in_saved_context"] is False
+    assert all("orphan" not in d for d in out["saved_decisions"])
     assert out["rm_evaluation"]["current_context_review"]["activity_inferred"] is False
     result = analyze_saved(out)
     current = [r for r in result["context_assessments"] if r["provider"] == "Review"]
@@ -75,17 +71,40 @@ def test_unassessed_partner_prevents_negative_context_and_orphan(tmp_path):
     data["saved_decisions"][0]["state"] = "unassessed"
     out = apply_current_context_review(data)
     assert generated(out)[0]["context_state"] == "unassessed"
+    assert generated(out)[0]["retained_R_absent_in_saved_context"] is None
     assert all("orphan" not in d and "context_state" not in d for d in out["saved_decisions"])
 
 
-def test_filtering_known_original_R_marks_only_scoped_retained_orphan(tmp_path):
+def test_below_cutoff_R_does_not_make_retained_M_or_S_biological_orphans(tmp_path):
     data = fixture(tmp_path)
     data["saved_decisions"][0]["state"] = "not_retained"
+    before = deepcopy(data["saved_decisions"])
     out = apply_current_context_review(data)
-    for decision in out["saved_decisions"][1:]:
-        assert decision["orphan"] is True
-        assert decision["orphan_scope"] == "within_exact_retained_saved_context_not_genome_wide_absence"
-    assert "orphan" not in out["saved_decisions"][0]
+    assert out["saved_decisions"] == before
+    assert all("orphan" not in d for d in out["saved_decisions"])
+    group = generated(out)[0]
+    assert group["context_state"] == "missing_retained_partner_in_saved_context"
+    assert group["retained_R_absent_in_saved_context"] is True
+    assert "orphan" not in group
+    review = out["rm_evaluation"]["current_context_review"]
+    assert review["orphan_inferred"] is False and review["decision_field_changes"] == []
+    row = next(r for r in analyze_saved(out)["type_tables"] if r["rm_type"] == "Type I")
+    assert row["orphan_M"] is None and row["orphan_S"] is None
+    assert row["orphan_state"] == {"M": "unassessed", "S": "unassessed"}
+
+
+def test_preserved_native_decisions_are_never_rewritten_by_current_context(tmp_path):
+    data = fixture(tmp_path)
+    data["saved_decisions"][1].update(context_state="native_context", orphan=True,
+                                    context_source_refs=deepcopy(data["saved_decisions"][1]["source_refs"]),
+                                    origin="native_saved_export")
+    data["rm_evaluation"]["native_saved_decisions"] = deepcopy(data["saved_decisions"])
+    before = deepcopy(data["saved_decisions"])
+    out = apply_current_context_review(data)
+    assert out["saved_decisions"] == before
+    assert out["rm_evaluation"]["native_saved_decisions"] == before
+    assert generated(out)[0]["context_state"] == "met"
+    assert out["rm_evaluation"]["current_context_review"]["saved_decisions_preserved"] is True
 
 
 def test_missing_boundary_does_not_fabricate_singletons_or_orphans(tmp_path):
@@ -264,3 +283,10 @@ def test_suite_source_basename_cannot_replace_exact_resolved_binding(tmp_path):
             source["resolved_path"] = "/different-root/" + source["resolved_path"].split("/")[-1]
     out = apply_current_context_review(data)
     assert generated(out) == []
+
+
+def test_obsolete_orphan_inference_review_cannot_be_replayed(tmp_path):
+    out = apply_current_context_review(fixture(tmp_path))
+    out["rm_evaluation"]["current_context_review"]["schema_version"] = 1
+    with pytest.raises(ValueError, match="Obsolete current-context"):
+        apply_current_context_review(out)

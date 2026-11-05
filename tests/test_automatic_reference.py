@@ -51,6 +51,8 @@ def test_exact_proteins_current_metadata_single_alignment_and_no_native_mutation
     assert receipt['reference_residues']==len(SEQ)*3
     command=receipt['commands'][-1]['command']
     assert command[command.index('-dbsize')+1]==str(len(SEQ)*3)
+    assert '-max_hsps' not in command
+    assert row['search_scope']=='saved_nominated_subjects' and row['search_is_exhaustive'] is False
     assert set(result['inputs'])=={str(cache/'rebase_db.fasta'),str(cache/'reference_metadata.json')}
 
 
@@ -196,3 +198,46 @@ def test_generic_system_description_does_not_assign_a_restriction_component(text
 ])
 def test_explicit_component_descriptions_preserve_reference_role(text,expected):
     assert module._metadata_assignment(dict(enz_type=text))['reference_role']==expected
+
+
+def test_hsp_merge_uses_union_coverage_and_native_length_weighted_identity():
+    a=dict(pident=90.,length=30.,bitscore=100.,evalue=1e-20,qstart=1.,qend=30.,sstart=1.,send=30.)
+    b=dict(pident=50.,length=20.,bitscore=60.,evalue=1e-10,qstart=25.,qend=44.,sstart=41.,send=60.)
+    c=dict(pident=70.,length=5.,bitscore=10.,evalue=1e-3,qstart=60.,qend=64.,sstart=61.,send=65.)
+    merged=module._collapse_hsps([a,b,c])
+    assert merged['dnmb_aligned_query_length']==49  # overlap once; gap excluded
+    assert merged['dnmb_aligned_subject_length']==55
+    assert merged['length']==49 and merged['dnmb_hsp_count']==3
+    assert merged['pident']==pytest.approx((90*30+50*20+70*5)/55)
+    assert merged['bitscore']==170 and merged['evalue']==1e-20
+    assert (merged['qstart'],merged['qend'])==(1,64)
+
+
+def test_native_incomplete_hsp_intervals_fall_back_to_best_bitscore_hsp():
+    a=dict(pident=90.,length=30.,bitscore=100.,evalue=1e-20,qstart=1.,qend=30.,sstart=1.,send=30.)
+    b=dict(pident=50.,length=20.,bitscore=60.,evalue=1e-10,qstart=None,qend=None,sstart=41.,send=60.)
+    merged=module._collapse_hsps([a,b])
+    assert merged['pident']==90 and merged['length']==30
+    assert merged['dnmb_aligned_query_length']==30 and merged['dnmb_hsp_count']==1
+
+
+def test_all_pair_hsps_are_kept_and_aggregated_with_line_provenance(tmp_path,monkeypatch):
+    data,cache=fixture(tmp_path)
+    def run(command,commands,*,stdout_path=None):
+        commands.append(dict(command=command,exit_code=0,elapsed_seconds=0))
+        if '-version' in command:return 'synthetic BLAST 1'
+        outfile=Path(command[command.index('-out')+1])
+        out=[]
+        for start,end,pident,bits in [(1,30,90,100),(41,len(SEQ),80,80)]:
+            out.append('\t'.join(map(str,['q0','r0',pident,end-start+1,0,0,start,end,start,end,1e-30,bits,len(SEQ),len(SEQ)])))
+        outfile.write_text('\n'.join(out)+'\n')
+        if stdout_path is not None:Path(stdout_path).write_text('')
+        return ''
+    monkeypatch.setattr(module,'_run',run)
+    result=module.enrich_reference_evidence(data,cache,tmp_path/'work')
+    row=result['suite']['reference_alignments'][0]; n=row['native_fields']
+    assert n['dnmb_hsp_count']==2
+    assert n['query_coverage']==n['reference_coverage']==pytest.approx((len(SEQ)-10)/len(SEQ))
+    assert n['identity']==pytest.approx((90*30+80*(len(SEQ)-40))/(len(SEQ)-10)/100)
+    assert row['source_ref']['rows']==[1,2]
+    assert len((tmp_path/'work/reference_alignments.tsv').read_text().splitlines())==2

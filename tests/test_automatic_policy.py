@@ -112,6 +112,11 @@ def test_automatic_decisions_preserve_native_memberships_and_unknowns(monkeypatc
     assert {r['gene_id']:r['state'] for r in out['saved_decisions']}=={'kept':'retained','pending':'unassessed','excluded':'not_retained'}
     assert out['rm_evaluation']['candidate_scope'][0]['coverage_status']=='partial'
     assert out['rm_evaluation']['policy_evaluations']==3
+    assert out['rm_evaluation']['policy_decisions']==2
+    transition=next(t for t in out['rm_evaluation']['decision_transitions'] if t['gene_id']=='pending')
+    assert transition['state_changed'] is False
+    assert {'family','role','origin','score_min','score_max'} <= {c['field'] for c in transition['field_changes']}
+    assert out['rm_evaluation']['stored_vs_auto_summary']['field_only_changed_records']==1
     assert out['saved_decisions'][0]['score_total'] is None
 
 
@@ -120,7 +125,7 @@ def test_candidate_integrity_prevents_false_complete_scope(monkeypatch):
     from defenseviz.automatic import apply_automatic_rm
     ref={'path':'native.tsv','sha256':'a'*64}
     gene={'sample_id':'s','gene_id':'g','protein_sha256':'b'*64}
-    data={'samples':[{'sample_id':'s'}],'genes':[gene],'calls':[],
+    data={'samples':[{'sample_id':'s','label':'s'}],'genes':[gene],'calls':[],
           'saved_decisions':[{'sample_id':'s','gene_id':'g','state':'retained','source_ref':ref}],
           'coverage':[], 'suite':{'conflicts':[{'sample_id':'s','code':'unbound_native_candidate'}]}}
     rec={**gene,'assignment_status':'supported','evidence':facts(),'unknown_axes':[],'source_refs':[ref]}
@@ -130,6 +135,11 @@ def test_candidate_integrity_prevents_false_complete_scope(monkeypatch):
     scope=out['rm_evaluation']['candidate_scope'][0]
     assert scope['coverage_status']=='partial' and scope['source_integrity_issues']
     assert scope['reviewed_count']==1 and scope['evaluated_count']==0 and scope['assessed_count']==1
+    from defenseviz.analysis.saved import analyze_saved
+    result=analyze_saved(out)
+    assert result['availability']['current_saved_decisions_by_sample'][0]['status']=='partial'
+    for field in ('current_retained_counts_status','current_retained_RM_counts_status','current_retained_R_counts_status'):
+        assert result['sample_summary'][0][field]=='partial'
 
 
 def test_evaluation_identity_is_relocatable_and_order_stable():
@@ -162,3 +172,28 @@ def test_automatic_completed_zero_is_not_an_unrun_module(monkeypatch,status,expe
     result=analyze_saved(out)
     assert result['selected_policy'] is None
     assert result['availability']['saved_decisions']==('complete' if status=='complete' else 'unassessed')
+    expected_state='complete' if status=='complete' else 'unassessed'
+    assert result['availability']['current_saved_decisions_by_sample'][0]['status']==expected_state
+    for field in ('current_retained_counts_status','current_retained_RM_counts_status','current_retained_R_counts_status'):
+        assert result['sample_summary'][0][field]==expected_state
+
+
+def test_unresolved_policy_attempt_is_not_a_new_policy_decision(monkeypatch):
+    import defenseviz.automatic_rm as compiler
+    from defenseviz.automatic import apply_automatic_rm
+    from defenseviz.analysis.saved import analyze_saved
+    ref={'path':'native.tsv','sha256':'a'*64}
+    gene={'sample_id':'s','gene_id':'g','protein_sha256':'b'*64}
+    data={'samples':[{'sample_id':'s','label':'s'}],'genes':[gene],'calls':[],
+          'saved_decisions':[{**gene,'state':'unassessed','source_ref':ref}],'coverage':[],'suite':{}}
+    rec={**gene,'assignment_status':'supported','evidence':facts(old_profile=True,strict_structure=None),
+         'unknown_axes':['strict_structure'],'source_refs':[ref],'source_scope':['saved_candidates']}
+    monkeypatch.setattr(compiler,'compile_rm_evidence',lambda d:{'records':[rec],'candidate_scope':[{'sample_id':'s','status':'complete'}]})
+    out=apply_automatic_rm(data);meta=out['rm_evaluation'];result=analyze_saved(out)
+    assert meta['policy_evaluations']==1 and meta['policy_decisions']==0
+    assert meta['operation']=='automatic_policy_bounds_with_unresolved_decisions'
+    assert result['selected_policy'] is None
+    assert result['provenance']['operation']=='stored_evidence_bounds_and_saved_result_aggregation'
+    assert out['saved_decisions'][0]['source_scope']==['saved_candidates']
+    assert meta['decision_transitions'][0]['state_changed'] is False
+    assert meta['decision_transitions'][0]['source_scope']==['saved_candidates']

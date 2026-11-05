@@ -160,10 +160,98 @@ def test_fresh_alignment_does_not_borrow_old_curated_strength():
             native_fields=dict(subject_id=subject,identity=.9,evalue=1e-20,qstart=1,qend=300,sstart=1,send=300,reference_length=300,reference_family="Type II",reference_role=role)))
     assert values(enrich_neighborhood_evidence(data,compiled))=={"r":True,"m":True}
     data["suite"]["reference_alignments"][0]["native_fields"]["identity"]=.1
-    assert values(enrich_neighborhood_evidence(data,compiled))=={"r":False,"m":False}
+    assert values(enrich_neighborhood_evidence(data,compiled))=={"r":None,"m":None}
     data["suite"]["reference_alignments"][0]["native_fields"].pop("reference_role")
     data["suite"]["reference_alignments"][0]["native_fields"]["identity"]=.9
     assert values(enrich_neighborhood_evidence(data,compiled))=={"r":None,"m":None}
+
+
+def add_fresh_alignment(data,gid="r",subject="R.Example",**native):
+    gene=next(g for g in data["genes"] if g["gene_id"]==gid)
+    row=dict(sample_id="s",gene_id=gid,operation="fresh_reference_alignment",command_exit_code=0,
+        search_scope="saved_nominated_subjects",search_is_exhaustive=False,
+        protein_sha256=gene["protein_sha256"],reference_sequence_sha256="e"*64,
+        source_ref={"path":"fresh.tsv","sha256":"f"*64,"rows":[1,2]},
+        reference_metadata_source_refs=[{"path":"db.faa","sha256":"1"*64}],
+        native_fields=dict(subject_id=subject,identity=.9,evalue=1e-20,qstart=1,qend=300,
+            sstart=1,send=300,query_length=300,reference_length=300,query_coverage=1.,
+            reference_coverage=1.,dnmb_hsp_count=2,reference_family="Type II",reference_role="R",**native))
+    data["suite"]["reference_alignments"].append(row)
+    return row
+
+
+def test_frozen_curated_subject_is_not_replaced_by_different_raw_hit():
+    data,compiled=pair_data()
+    data["suite"]["features"][0]["native_fields"]["hit_label"]="R.Other"
+    add_fresh_alignment(data,subject="R.Other")
+    result=enrich_neighborhood_evidence(data,compiled)
+    assert values(result)=={"r":True,"m":True}
+    assert result["neighborhood_evaluation"]["pairs"][0]["r_subject"]=="R.Example"
+    own=result["neighborhood_evaluation"]["candidates"][0]["eligibility"]
+    assert own["source_kind"]=="stored_curated_alignment"
+
+
+def test_fresh_curated_subject_is_selected_instead_of_raw_subject_alignment():
+    data,compiled=pair_data()
+    data["suite"]["features"][0]["native_fields"]["hit_label"]="R.Other"
+    add_fresh_alignment(data,subject="R.Other")
+    add_fresh_alignment(data)
+    result=enrich_neighborhood_evidence(data,compiled)
+    assert values(result)=={"r":True,"m":True}
+    own=result["neighborhood_evaluation"]["candidates"][0]["eligibility"]
+    assert own["source_kind"]=="fresh_reference_alignment"
+    assert own["subject"]=="R.Example"
+
+
+@pytest.mark.parametrize("failure",["no_alignment","low_identity","wrong_role","wrong_family"])
+def test_subject_limited_failure_cannot_exclude_frozen_neighborhood(failure):
+    data,compiled=pair_data()
+    row=add_fresh_alignment(data)
+    if failure=="no_alignment":row["alignment_status"]="no_alignment"
+    elif failure=="low_identity":row["native_fields"]["identity"]=.2
+    elif failure=="wrong_role":row["native_fields"]["reference_role"]="M"
+    else:row["native_fields"]["reference_family"]="Type IV"
+    result=enrich_neighborhood_evidence(data,compiled)
+    assert values(result)=={"r":None,"m":None}
+    own=result["neighborhood_evaluation"]["candidates"][0]["eligibility"]
+    assert own["subject"] is None
+    assert own["measured_subject"]=="R.Example"
+
+
+def test_failed_raw_subject_cannot_use_noncognate_name_to_exclude_pair():
+    data,compiled=pair_data()
+    f=data["suite"]["features"][0]["native_fields"]
+    for name in list(f):
+        if name.startswith("curated_blast_"):f.pop(name)
+    f["hit_label"]="R.Other"
+    row=add_fresh_alignment(data,subject="R.Other")
+    row["native_fields"]["identity"]=.1
+    assert values(enrich_neighborhood_evidence(data,compiled))=={"r":None,"m":None}
+
+
+def test_positive_unselected_nominee_cannot_exclude_other_cognate_references():
+    data,compiled=pair_data()
+    f=data["suite"]["features"][0]["native_fields"]
+    for name in list(f):
+        if name.startswith("curated_blast_"):f.pop(name)
+    f["hit_label"]="R.Other"
+    add_fresh_alignment(data,subject="R.Other")
+    result=enrich_neighborhood_evidence(data,compiled)
+    assert values(result)=={"r":None,"m":None}
+    assert result["neighborhood_evaluation"]["candidates"][0]["eligibility"]["reference_selection"]=="nominated_subject"
+
+
+@pytest.mark.parametrize("coverage,expected",[(.8,True),(.79,None),(None,None)])
+def test_multiple_hsp_coverage_uses_interval_union_not_enclosing_span(coverage,expected):
+    data,compiled=pair_data()
+    row=add_fresh_alignment(data)
+    if coverage is None:
+        row["native_fields"].pop("query_coverage")
+        row["native_fields"].pop("reference_coverage")
+    else:
+        row["native_fields"].update(query_coverage=coverage,reference_coverage=coverage)
+    result=enrich_neighborhood_evidence(data,compiled)
+    assert values(result)=={"r":expected,"m":expected}
 
 
 def test_threshold_override_is_rejected():
