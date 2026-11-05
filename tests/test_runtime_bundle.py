@@ -73,6 +73,28 @@ def test_tree_export_rejects_directory_symlink_escape(tmp_path):
         module.copy_tree(source,tmp_path/'copy',{})
 
 
+def test_private_source_and_installed_examples_are_excluded(tmp_path,monkeypatch):
+    cfg,sources,original=fixture(tmp_path,monkeypatch)
+    for source in sources:
+        (source/'blast_results.txt').write_text('private prior result')
+        (source/'query_sequences.fasta').write_text('private prior sequence')
+        (source/'inst/extdata/examples').mkdir(parents=True)
+        (source/'inst/extdata/examples/annot.gbk').write_text('private genome')
+    for name in ('DNMB','DefenseViz'):
+        p=original/'installed'/name/'extdata';p.mkdir()
+        (p/'GCF_total.xlsx').write_text('private sample worksheet')
+        v=original/'installed'/name/'validation';v.mkdir();(v/'sample.tsv').write_text('private validation')
+    out=tmp_path/'clean';module.export_bundle(cfg,out,*sources)
+    assert not list((out/'sources').rglob('*.fasta'))
+    assert not list((out/'sources').rglob('*.gbk'))
+    assert not list((out/'sources').rglob('blast_results.txt'))
+    assert not list((out/'r-library').rglob('GCF_total.xlsx'))
+    assert not list((out/'r-library').rglob('sample.tsv'))
+    assert (out/'r-library/DNMB/R/package.rdb').read_bytes()==(original/'installed/DNMB/R/package.rdb').read_bytes()
+    omitted=json.loads((out/'provenance/omitted_nonruntime_package_assets.json').read_text())
+    assert len(omitted)==10 and all(row['sha256'] for row in omitted)
+
+
 @pytest.mark.parametrize('fault',['none','tampered','missing','untracked','old_library'])
 def test_relocated_bundle_verifies_identity_and_library_boundary(tmp_path,monkeypatch,fault):
     from defenseviz import native_pipeline

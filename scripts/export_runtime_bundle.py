@@ -38,13 +38,32 @@ def copy_file(source,target,bindings):
     bindings[str(source)]=before
 
 
-def copy_tree(source,target,bindings):
+def copy_tree(source,target,bindings,include=None,omitted=None):
     source=Path(source).resolve();target=Path(target);target.mkdir(parents=True,exist_ok=False)
     for item in sorted(source.rglob('*')):
         rel=item.relative_to(source)
         if any(p in {'.git','.DS_Store','__pycache__'} for p in rel.parts):continue
         if item.is_symlink() and item.is_dir():raise ValueError('Directory symlink needs explicit packaging: '+str(item))
-        if item.is_file():copy_file(item,target/rel,bindings)
+        if item.is_file():
+            if include is not None and not include(rel):
+                if omitted is not None:omitted.append(dict(source=str(item),relative=rel.as_posix(),sha256=sha(item),reason='outside runtime package source/assets allowlist'))
+                continue
+            copy_file(item,target/rel,bindings)
+
+
+def package_asset_allowed(relative,name,source=False):
+    """Keep installable code and audited references, never historical samples."""
+    parts=Path(relative).parts
+    if source:
+        if len(parts)==1:return parts[0] in {'DESCRIPTION','NAMESPACE','LICENSE','LICENSE.md','LICENSE.txt','NEWS','NEWS.md','configure','configure.win','cleanup','cleanup.win'}
+        if parts[0] in {'R','man','src'}:return True
+        if parts[0]!='inst':return False
+        parts=parts[1:]
+    if parts[0]=='validation':return False
+    if parts[0]=='scripts':return Path(parts[-1]).suffix in {'.R','.r','.py','.sh'}
+    if parts[0]=='extdata':
+        return name=='DNMB' and len(parts)>=2 and parts[1] in {'rebasefinder_structure_refs.tsv','rebasefinder_structure_templates'}
+    return not source
 
 
 def inventory(root):
@@ -136,10 +155,14 @@ def export_bundle(config,out,dnmb_source,legacy_source,evidence=()):
     probe=out/'provenance'/'original-runtime';probe.mkdir(parents=True)
     runtime,closure,runtime_hashes=dependency_closure(cfg,probe,_runtime_environment(cfg,out/'validation-cache'))
     write(out/'provenance'/'measured_runtime_assets.json',runtime_hashes)
+    omitted=[]
     for package in closure['packages']:
         if not package['system']:
-            copy_tree(package['path'],out/'r-library'/package['name'],bindings)
-    for name,path in sources.items():copy_tree(path,out/'sources'/name,bindings)
+            name=package['name'];allow=(lambda rel,n=name:package_asset_allowed(rel,n)) if name in sources else None
+            copy_tree(package['path'],out/'r-library'/name,bindings,allow,omitted)
+    for name,path in sources.items():
+        copy_tree(path,out/'sources'/name,bindings,lambda rel,n=name:package_asset_allowed(rel,n,source=True),omitted)
+    write(out/'provenance/omitted_nonruntime_package_assets.json',omitted)
     cache=Path(cfg['reference_cache'])
     required=[cache/'rebase_data.rds',cache/'rebase_db.fasta',*sorted(cache.glob('rebase_db.fasta.*'))]
     for p in required:copy_file(p,out/'databases/rebase'/p.name,bindings)

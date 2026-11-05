@@ -89,9 +89,9 @@ def main():
         assert workbook_path.is_file()
         workbook = load_workbook(workbook_path, read_only=True, data_only=False)
         assert 'Classified CDSs' in workbook.sheetnames and 'R-M retained' in workbook.sheetnames
-        assert workbook['Classified CDSs'].max_row - 1 == second['global_summary']['integrated_CDS']
-        assert workbook['R-M retained'].max_row - 1 == second['global_summary']['retained_CDS']
-        assert workbook['Priority CDSs'].max_row - 1 == second['global_summary']['priority_CDS']
+        assert sum(1 for _ in workbook['Classified CDSs'].iter_rows()) - 1 == second['global_summary']['integrated_CDS']
+        assert sum(1 for _ in workbook['R-M retained'].iter_rows()) - 1 == second['global_summary']['retained_CDS']
+        assert sum(1 for _ in workbook['Priority CDSs'].iter_rows()) - 1 == second['global_summary']['priority_CDS']
         workbook.close()
         for name in ('defense_annotations.xlsx', 'classified_CDSs.tsv', 'retained_RM_annotations.tsv', 'prioritized_annotations.tsv'):
             assert 'tables/' + name in native_receipt['outputs']
