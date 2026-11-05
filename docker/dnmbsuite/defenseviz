@@ -1,0 +1,14 @@
+#!/bin/sh
+# Scope bootstrap settings to DefenseViz; preserve the original suite tool paths.
+set -eu
+unset R_HOME
+: "${DEFENSEVIZ_ENGINE_CONFIG:=/opt/defenseviz/container/engine.json}"
+: "${MPLCONFIGDIR:=/tmp/defenseviz-matplotlib-$(id -u)}"
+: "${XDG_CACHE_HOME:=/tmp/defenseviz-cache-$(id -u)}"
+export DEFENSEVIZ_ENGINE_CONFIG MPLCONFIGDIR XDG_CACHE_HOME
+mkdir -p "$MPLCONFIGDIR" "$XDG_CACHE_HOME"
+# Fonts remain externally supplied, read-only mounts; caches are app-local.
+if [ -d /usr/local/share/fonts/defenseviz ]; then
+    fc-cache -f /usr/local/share/fonts/defenseviz >/dev/null
+fi
+exec /opt/defenseviz/venv/bin/defenseviz "$@"
