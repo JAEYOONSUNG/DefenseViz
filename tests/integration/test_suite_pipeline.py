@@ -145,6 +145,23 @@ def test_automatic_preparation_keeps_original_import_separate(tmp_path):
     assert prepared['_native_import_bundle'] == original
 
 
+def test_evaluation_timing_does_not_change_scientific_result(tmp_path, monkeypatch):
+    data, _, _ = binding_fixture(tmp_path)
+    outputs = []
+    for duration in (3.0, 7.0):
+        data['rm_evaluation'] = {'scoring_runs': 1, 'policy_evaluations': 1,
+                                 'elapsed_seconds': duration}
+        fake_stages(monkeypatch, data)
+        out = tmp_path / str(duration)
+        run_suite(tmp_path, out)
+        outputs.append(json.loads((out / 'analysis.json').read_text()))
+        assert json.loads((out / 'rm_evaluation.json').read_text())['elapsed_seconds'] == duration
+        receipt = json.loads((out / 'receipt.json').read_text())
+        stage = next(s for s in receipt['stages'] if s.get('policy_evaluations'))
+        assert stage['elapsed_seconds'] == duration
+    assert outputs[0] == outputs[1]
+
+
 def test_reference_information_is_exported_but_not_a_figure_input(tmp_path, monkeypatch):
     data, _, _ = binding_fixture(tmp_path)
     fake_stages(monkeypatch, data)

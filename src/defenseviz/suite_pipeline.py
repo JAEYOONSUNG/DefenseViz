@@ -182,7 +182,10 @@ def run_suite(root, output_dir, *, manifest=None, supplement=None, rm_evidence=N
         tick = time.monotonic()
         data, result = analyze_suite(data)
         if data.get("rm_evaluation"):
-            result.setdefault("provenance", {})["rm_evaluation"] = data["rm_evaluation"]
+            # Execution timings belong to the evaluation receipt, not the
+            # deterministic scientific model consumed by the renderer.
+            result.setdefault("provenance", {})["rm_evaluation"] = {
+                k: v for k, v in data["rm_evaluation"].items() if k != "elapsed_seconds"}
             result["provenance"]["scoring_runs"] = data["rm_evaluation"]["scoring_runs"]
         from .plot.publication.manuscript_model import enrich_manuscript_model
         result = enrich_manuscript_model(data, result)
