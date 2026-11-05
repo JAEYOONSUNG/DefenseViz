@@ -1,5 +1,27 @@
 # Release validation
 
+## 2.3.1 external saved-export compatibility
+
+Five external assemblies from one family exercise older saved DNMB outputs.
+This is import, aggregation and visualization, with no detector reruns.
+Original sources remain unchanged; hashes, version metadata and per-record
+transformations are retained. No manuscript reviews are transferred to them.
+
+- Constant HTTP(S) hyperlink labels in legacy gene worksheets are imported
+  without evaluating formulas. Other formulas and formula headers are rejected.
+- Missing DefenseFinder type columns use explicit native model hierarchy only;
+  native fields and all final memberships remain available for audit.
+- Composite context/BLAST records use a coherent structured supplemental
+  subject/identity pair, never a synthetic context label as the reference name.
+  Context roles and types are not transferred to that reference match.
+- Incomplete assessments label the selected overlap as observed priorities.
+  Source coverage and exact membership counts remain distinct from completeness.
+- Long type-case labels and adjacent numeric-column headers retain clear gaps.
+
+Legacy output without saved R-M decisions remains unassessed. This validation
+checks import fidelity and display behavior, not biological accuracy or a
+complete inventory of functional effectors.
+
 ## 2.3.0 official reference catalogue
 
 - Regression suite: 1,047 tests passed on the frozen implementation.

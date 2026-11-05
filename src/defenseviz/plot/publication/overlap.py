@@ -71,12 +71,18 @@ def venn_fits(overlaps, fonts, width=87., height=37., pt=7.5):
     return True
 
 
+def _priority_heading(overlap, complete_label="Prioritized CDSs"):
+    assessment=overlap.get("selection_assessment")
+    return "Observed priorities" if assessment is not None and not assessment.get("complete",False) else complete_label
+
+
 def draw_venn(canvas, overlap, x, y, config, *, heading):
     width,height=87.,37.;sx=width/(BOUNDS[1]-BOUNDS[0]);sy=height/(BOUNDS[3]-BOUNDS[2])
     ox=x-BOUNDS[0]*sx;oy=y+BOUNDS[3]*sy
     order=overlap["source_order"];counts=totals(overlap)
     union=sum(regions(overlap).values())
-    canvas.text(x+width/2,y-8,heading+f"  {union:,}",8.6,bold=True,ha="center")
+    display_heading=_priority_heading(overlap,heading) if heading=="Prioritized CDSs" else heading
+    canvas.text(x+width/2,y-8,display_heading+f"  {union:,}",8.6,bold=True,ha="center")
     for i,(name,n) in enumerate(zip(order,counts)):
         canvas.text(x+(i+.5)*width/4,y-3,alias(name,config)+f" {n:,}",7.5,bold=True,
                     ha="center",color=source_color(name,config),role="source_label")
@@ -97,6 +103,7 @@ def draw_venn(canvas, overlap, x, y, config, *, heading):
     canvas.ledger.setdefault("overlaps",[]).append({"mode":"venn4","source_order":order,
         "regions":records,"set_sizes":dict(zip(order,counts)),"union_count":union,
         "bounds_mm":[x,y,width,height],"same_geometry":True,"areas_schematic":True,"endpoint":heading,
+        "display_heading":display_heading,"selection_assessment":overlap.get("selection_assessment"),
         "normalized_ellipses":ELLIPSES,"transform":{"sx":sx,"sy":sy,"ox":ox,"oy":oy}})
     outside=vals.get("0000",0)
     if outside:
@@ -105,6 +112,7 @@ def draw_venn(canvas, overlap, x, y, config, *, heading):
 
 def draw_flow(canvas, before, after, config):
     """Return false if an exact intersection-table page is needed."""
+    canvas.ledger["selection_assessment"]=after.get("selection_assessment")
     if before.get("coverage_status")=="unassessed" or after.get("coverage_status")=="unassessed":
         canvas.rect(11,28,194,43,"#F7FAF9","#C8D3D2",.4)
         canvas.text(108,39,"Source overlap: NA",10,bold=True,ha="center",role="missing_overlap")
@@ -126,7 +134,7 @@ def draw_flow(canvas, before, after, config):
             # Exact compact matrix keeps a small source set on the same comparison page.
             canvas.text(11,27,"Membership",8,bold=True)
             canvas.text(171,27,"Original",7.8,ha="right",bold=True)
-            canvas.text(204,27,"Prioritized",7.8,ha="right",bold=True)
+            canvas.text(204,27,_priority_heading(after,"Prioritized"),7.8,ha="right",bold=True)
             xs=[62+j*16 for j in range(len(order))]
             if xs and xs[-1]>142:xs=[42+j*16 for j in range(len(order))]
             for name,x in zip(order,xs):canvas.text(x,27,canvas.fonts.wrap(alias(name,config),14,7.5,True),7.5,bold=True,ha="center",color=source_color(name,config))
@@ -171,7 +179,8 @@ def intersection_pages(before, after, fonts, config, page_factory):
             c.text(23+j*16,29,label,7.5,ha="center",bold=True,color=source_color(name,config))
         xcount=width-39
         c.text(xcount,29,"Original",7.5,ha="right",bold=True)
-        c.text(width-9,29,"Prioritized",7.5,ha="right",bold=True)
+        c.text(width-9,29,_priority_heading(after,"Prioritized"),7.5,ha="right",bold=True)
+        c.ledger["selection_assessment"]=after.get("selection_assessment")
         page_masks=masks[start:start+45]
         for i,m in enumerate(page_masks):
             yy=38+i*4.8

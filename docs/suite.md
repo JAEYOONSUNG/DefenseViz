@@ -47,6 +47,14 @@ primary/external scope without adding automatic cohort labels to the figure.
 The values `external` and `external_validation` select the external type-case
 header color. Include a short scope label in `label` when readers need that role
 explicitly stated; color alone does not explain the sampling design.
+Legacy DefenseFinder gene exports without a `type` column can use their exact
+`model_fqn` hierarchy for display taxonomy. Native fields remain unchanged and
+the projection is recorded. This adds no retention or functional evidence.
+
+Gene worksheets may contain constant HTTP(S) `HYPERLINK` labels; the importer
+records each literal-label extraction with its cell and source hash. No formula
+is evaluated. All other formulas remain unsupported.
+
 IDs are opaque: the importer does not parse accessions, guess species, or merge
 different loci because their proteins have the same sequence.
 
@@ -106,7 +114,9 @@ precedence over built-in display aliases.
 The importer supports version-dependent augmented REBASE tables and legacy
 workbooks. Explicit saved `curation_keep` and final role/type fields are preserved
 when available. Older exports without those fields remain unassessed; their
-historical BLAST filter is not substituted for modern DNMB retention. Raw features,
+historical BLAST filter is not substituted for modern DNMB retention. Synthetic context labels never serve as REBASE reference identifiers. A
+structured supplemental subject/identity pair can supply the reference match,
+while its context role and type remain separate. Raw features,
 motif observations, structures and annotation transfers are not interchangeable.
 
 Automatic effector annotations use a versioned catalog of exact component models;

@@ -11,6 +11,7 @@ import io
 import json
 import math
 import os
+import re
 from importlib.resources import files
 from pathlib import Path
 from typing import Any
@@ -90,6 +91,7 @@ class Reader:
         self.base = config.parent
         self.inputs: list[Path] = []
         self.hashes: dict[str, str] = {}
+        self.table_transforms: list[dict] = []
 
     def path(self, value: Any) -> Path:
         raw = _string(value, "file path")
@@ -124,7 +126,7 @@ class Reader:
         except (UnicodeError, ValueError) as exc:
             raise _error(str(p), f"invalid JSON: {exc}") from exc
 
-    def table(self, p: Path, *, sheet: str | None = None):
+    def table(self, p: Path, *, sheet: str | None = None, literal_hyperlinks: bool = False):
         raw = self.read(p)
         if p.suffix.lower() == ".json":
             values = self.json(p)
@@ -149,9 +151,30 @@ class Reader:
                 ws.reset_dimensions()
                 data = []
                 for row in ws.iter_rows():
-                    if any(c.data_type == "f" for c in row):
-                        raise _error(str(p), "formulas are not imported; export literal values first")
-                    data.append([c.value for c in row])
+                    values = []
+                    for c in row:
+                        value = c.value
+                        if c.data_type == "f":
+                            # Legacy openxlsx gene sheets contain presentation-only
+                            # links. Parse two literal strings; never evaluate a formula,
+                            # follow a URL, or trust a cached formula result.
+                            match = (re.fullmatch(
+                                r'={1,2}HYPERLINK\(\s*"((?:[^"]|"")*)"\s*,\s*"((?:[^"]|"")*)"\s*\)',
+                                value, re.IGNORECASE) if literal_hyperlinks and data else None)
+                            if match is None:
+                                raise _error(str(p), "formulas are not imported; export literal values first")
+                            url, label = (v.replace('""', '"') for v in match.groups())
+                            if not url.lower().startswith(("http://", "https://")):
+                                raise _error(str(p), "formulas are not imported; hyperlink URL must be literal HTTP(S)")
+                            record = dict(path=self.label(p), sha256=self.hashes[str(p)],
+                                          sheet=ws.title, cell=c.coordinate, formula=value,
+                                          url=url, label=label, operation="literal_hyperlink_label",
+                                          formula_evaluated=False)
+                            if record not in self.table_transforms:
+                                self.table_transforms.append(record)
+                            value = label
+                        values.append(value)
+                    data.append(values)
             finally:
                 workbook.close()
             if not data:
