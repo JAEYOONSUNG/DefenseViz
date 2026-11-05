@@ -2,7 +2,7 @@
 
 **Turn saved DNMBsuite results into traceable defense inventories and editable publication figures.**
 
-DefenseViz separates original tool output, saved DNMB decisions, component evidence and visualization. Version 2.2.0 adds a source-traceable review for every observed system, including unfamiliar families, while retaining the manuscript's five-card workflow (a), detailed defense landscape (b), R-M type tables, original/prioritized overlaps and category/family comparisons. Samples, counts and evidence come from the supplied results; the layout has no built-in cohort or target-strain/transformability legends. Optional sample annotations need explicit labels. The earlier normalized-project evaluation workflow remains available.
+DefenseViz separates original tool output, saved DNMB decisions, component evidence and visualization. Version 2.3.0 adds an offline catalogue of official DefenseFinder system information and source model definitions, linked to every saved observation without changing its scientific assessment. The source-traceable system review retains the manuscript's five-card workflow (a), detailed defense landscape (b), R-M type tables, original/prioritized overlaps and category/family comparisons. Samples, counts and evidence come from the supplied results; the layout has no built-in cohort or target-strain/transformability legends. Optional sample annotations need explicit labels. The earlier normalized-project evaluation workflow remains available.
 
 ![Synthetic saved-output comparison](docs/assets/suite-comparison.svg)
 
@@ -46,6 +46,18 @@ ungrouped predictions, component/domain/site evidence, and an actionable queue
 for unresolved interpretations. Extend exact review rules with
 `--system-review-rules`; add verified domain/reference evidence with
 `--system-review-evidence`. See [system review](docs/SYSTEM_REVIEW.md).
+
+Each analysis also exports `system_information.json` and per-system reference
+tables. Browse all bundled official system information offline:
+
+```sh
+defenseviz catalog --out system-reference
+defenseviz catalog Wadjet
+```
+
+See [system reference information](docs/KNOWLEDGE.md) for source scope,
+component metadata, exact identity and model-version semantics, and
+[reference-source attribution](THIRD_PARTY_NOTICES.md) for upstream notices.
 
 For an existing **normalized project**:
 

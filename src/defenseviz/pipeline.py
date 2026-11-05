@@ -114,6 +114,8 @@ def evaluate_project(data):
     result = integrate(data['samples'], data['calls'], records, coverage=data.get('coverage'), genes=data.get('genes'), policy=options.get('policy'))
     if audit is not None:
         result['reference_anchor_admission'] = audit
+    from .knowledge import describe_systems
+    result['system_information'] = describe_systems(data, result)
     return result
 
 
@@ -149,6 +151,8 @@ def run(config_path: str | Path, output_dir: str | Path, *, argv: list[str] | No
         result = portable_provenance(result, config.parent)
         write_json(stage / 'analysis.json', result)
         tables = stage / 'tables'; tables.mkdir()
+        from .knowledge_output import write_system_information
+        write_system_information(stage, result['system_information'])
         for field in ('sample_summary', 'cells', 'decisions', 'overlap', 'rm_components', 'native_system_counts', 'coverage', 'evidence_calls'):
             _write_table(tables / f'{field}.tsv', result.get(field, []), ('sample_id',))
         _write_table(tables / 'normalized_calls.tsv', data['calls'], ('sample_id', 'gene_id', 'caller', 'family'))
@@ -168,6 +172,8 @@ def run(config_path: str | Path, output_dir: str | Path, *, argv: list[str] | No
                    'input_path_base': 'directory containing supplied config', 'config_name': config.name,
                    'inputs': [{'path': provenance_path(p, config.parent), 'sha256': source_hashes[str(p)]} for p in source_paths],
                    'software': software_state(), 'policy_sha256': hashlib.sha256(json.dumps(policy, sort_keys=True, allow_nan=False).encode()).hexdigest(),
+                   'system_information': {'accounting': result['system_information']['accounting'],
+                                          'provenance': result['system_information']['provenance']},
                    'outputs': {str(p.relative_to(stage)): digest(p) for p in sorted(stage.rglob('*')) if p.is_file()},
                    'scientific_scope': 'Annotation evidence only. Missing/unreviewed is unassessed. No biological activity or broad classifier-performance inference.',
                    'warnings': result.get('warnings', [])}

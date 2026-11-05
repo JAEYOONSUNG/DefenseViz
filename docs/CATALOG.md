@@ -1,5 +1,9 @@
 # Declarative family display catalog
 
+For comprehensive official system information and source model definitions, see
+[System reference information](KNOWLEDGE.md). That separate catalogue provides
+descriptive context without changing the display mappings documented here.
+
 The bundled exact-name catalog provides category labels and reviewed display aliases. It does not infer a nuclease role, catalytic support, system completeness or activity. Unknown names remain Unresolved. Explicit user family maps override these defaults. Native subtype labels remain distinct unless an exact documented alias groups them. Counts are never read from the catalog.
 
 Imported only family/type/category mapping fields from historical display tables, with all cohort identifiers and counts removed. Source SHA-256:
