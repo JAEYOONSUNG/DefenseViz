@@ -25,6 +25,9 @@ def parser():
     k = sub.add_parser('catalog', help='Browse or export bundled official defense-system reference information')
     k.add_argument('query', nargs='?', help='Optional text search for browsing; not a detection identity rule')
     k.add_argument('--out', type=Path, help='Export all matching reference records as JSON and TSV to a fresh directory')
+    resources = sub.add_parser('check-resources', help='Verify DNMB databases and runtime before a full analysis')
+    resources.add_argument('--engine-config', type=Path, required=True)
+    resources.add_argument('--out', type=Path, help='Save the resource verification report in a new directory')
     for name, help_text in [('from-suite', 'Import DNMBsuite result folders and export publication figures'),
                             ('inspect-suite', 'Validate and summarize saved DNMBsuite outputs without writing results')]:
         s = sub.add_parser(name, help=help_text)
@@ -53,6 +56,10 @@ def main(argv=None):
     try:
         if args.command == 'version':
             print(f'DefenseViz {__version__}'); return 0
+        if args.command == 'check-resources':
+            from .resources import verify_resources
+            print(json.dumps(verify_resources(args.engine_config, args.out), ensure_ascii=True, allow_nan=False))
+            return 0
         if args.command == 'catalog':
             if args.out is not None:
                 from .knowledge_output import export_catalog

@@ -1,6 +1,6 @@
 # DefenseViz
 
-**Turn saved DNMBsuite results into traceable defense inventories and editable publication figures.**
+**Analyze DNMBsuite results and export a classified Excel workbook, filtered annotations and editable publication figures.**
 
 DefenseViz separates original tool output, saved DNMB decisions, component evidence and visualization. Version 2.5.0 can run the full DNMB R-M evidence pipeline and generate the complete figure set in one invocation. Configure the installed DNMB runtime and local references once; all-protein HMM search, nominated-gene BLAST, context/motif review and fixed-policy retention then run automatically. Without an engine configuration, automatic mode evaluates stored evidence and records its limits. The offline catalogue of official DefenseFinder system information and source model definitions is linked to every saved observation without changing its scientific assessment. The source-traceable system review retains the manuscript's five-card workflow (a), detailed defense landscape (b), R-M type tables, original/prioritized overlaps and category/family comparisons. Samples, counts and evidence come from the supplied results; the layout has no built-in cohort or target-strain/transformability legends. Optional sample annotations need explicit labels. The earlier normalized-project evaluation workflow remains available.
 
@@ -32,12 +32,15 @@ normalized-project example.
 
 ## Use your results
 
-For **DNMBsuite result directories**:
+For **DNMBsuite result directories**, configure the DNMB databases and runtime once using the [resource guide](docs/runtime-bundle.md), then run:
 
 ```sh
-defenseviz inspect-suite /path/to/DNMBsuite_outputs
-defenseviz from-suite /path/to/DNMBsuite_outputs --out results
+defenseviz check-resources --engine-config engine.json --out resource-check
+defenseviz from-suite /path/to/DNMBsuite_outputs \
+  --engine-config engine.json --evaluation full --out results
 ```
+
+The result contains `tables/defense_annotations.xlsx`, classified CDSs, separate retained R-M and prioritized annotation TSVs, and `figures/publication.pdf` with editable SVG pages. The workbook includes summaries, CDS classifications, retained R-M annotations, priority CDSs, candidate evaluations, systems, families, categories and R-M type counts. Original annotation records and decisions remain in the audit tables. No spreadsheet assembly or separate plotting script is needed.
 
 Use a single genome output folder or a parent containing per-genome folders. Optional manifests choose samples, labels and pink highlights. Saved RDS evidence is read with Rscript. To execute the full R-M engine, use `--evaluation full --engine-config engine.json`; see the [runtime setup](docs/suite.md#full-dnmb-r-m-execution). Native and later reviewed evidence remain distinct. Older exports without saved curation fields are evaluated automatically from exact proteins, native annotations and stored context. Missing measurements produce conservative score bounds; unresolved decisions stay visible. `--reference-cache /path/to/current/DNMB/REBASE/cache` can perform fresh, source-pinned homology evaluation when old exports lack reference coverage. `--evaluation stored` replays saved decisions; `--rm-evidence evidence.json` remains available for explicit complete evidence. See [the DNMBsuite guide](docs/suite.md) and [saved-result contract](docs/SUITE_CONTRACT.md).
 

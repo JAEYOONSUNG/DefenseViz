@@ -269,7 +269,10 @@ assigning individual catalytic activity to each member.
 
 ## Output and interpretation
 
-The output includes an editable publication PDF, SVG pages, layout measurements,
+The Excel workbook is generated automatically by `from-suite`. Classified CDSs are the observed integrated defense union. Retained R-M annotations are the exact current retained subset; priority CDSs follow the exported annotation-based selection routes. These are separate sheets and TSVs because retention and prioritization are different sets. Numbers remain numeric Excel cells, filters and frozen headers are provided, and annotation text is stored literally rather than interpreted as formulas.
+
+
+The output includes `tables/defense_annotations.xlsx`, `tables/classified_CDSs.tsv`, `tables/retained_RM_annotations.tsv`, `tables/prioritized_annotations.tsv`, an editable publication PDF, SVG pages, layout measurements,
 `analysis.json`, original `native_bundle.json`, derived `analysis_bundle.json`,
 tabular gene/priority/family/category results and `receipt.json`. The receipt pins inputs, implementation files,
 available tool/database metadata, command, elapsed times and output hashes.

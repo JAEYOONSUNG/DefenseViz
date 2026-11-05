@@ -46,8 +46,13 @@ The export contains:
 - One configured R-M HMM database and its exact profile-role mapping.
 - The measured R namespaces and their recursive `Depends`, `Imports` and
   `LinkingTo` dependencies, excluding base/recommended packages supplied by R.
-- Exact DNMB and legacy R DefenseViz source trees and an executable rebuild
-  script. Installed local packages are retained as a fallback.
+- Exact installable DNMB and legacy R DefenseViz source files and an executable
+  rebuild script. Installed local package code is retained as a fallback.
+  Historical sample workbooks, FASTA/GenBank examples, validation outputs and
+  root run artifacts are excluded from both source and fallback packages; their
+  omission hashes are recorded. Audited DNMB structure references/templates
+  remain package assets. Other third-party package resources retain their
+  original package content and license.
 - A relative CATH wrapper, its configured binary and runtime libraries. Shared
   library alias filenames are preserved.
 - A relative-resource `engine.json`, exact file hashes, original source bindings,
@@ -129,3 +134,23 @@ The bundle manifest proves preserved content identity, not biological activity,
 independent accuracy or permission to redistribute third-party data. Historical
 manual reviews, immutable evaluation evidence and final publication outputs
 also require their own preservation. This exporter deletes nothing.
+
+## Check resources through the installed CLI
+
+Once `engine.json` points to the prepared resources, the installed package can
+check them without a source checkout:
+
+```sh
+defenseviz check-resources --engine-config /project/runtime/engine/engine.json \
+  --out /project/results/resource-check
+```
+
+This checks reference metadata and every indexed protein, the HMM gathering
+thresholds and exact profile-role mapping, frozen evaluation modules, executable
+versions and loaded R packages. It writes `resource_check.json` and resource
+hashes; failure is explicit. It does not download data or perform an analysis.
+
+Run `from-suite --evaluation full` after the check. The pipeline writes the
+classified Excel workbook, retained R-M and prioritized annotation lists, and
+publication PDF/SVG pages in that single invocation. R-M retention and broader
+annotation-based prioritization remain separate output sheets.

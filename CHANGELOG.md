@@ -66,3 +66,9 @@
 - Synthetic examples, adversarial tests and clean-install validation.
 
 This is a new interface, not a drop-in replacement for DefenseViz 1.x R functions. Native detector and recognition-specificity execution is not included.
+
+### 2.5.0 deliverables and resource readiness
+
+- `from-suite` now always exports a classified annotation workbook and separate retained R-M and prioritized annotation TSVs alongside PDF/SVG figures.
+- `check-resources` verifies configured reference indexes, HMM/profile-role bindings, native modules, tools and loaded R packages before analysis.
+- Local runtime export preserves exact resources and rebuild sources separately from sample inputs and results.

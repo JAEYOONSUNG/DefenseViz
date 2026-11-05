@@ -323,6 +323,8 @@ def run_suite(root, output_dir, *, manifest=None, supplement=None, rm_evidence=N
                 export_rows = [dict(r,source_scope=scopes.get((r["sample_id"],r["gene_id"]),[])) for r in export_rows]
             _write_table(table_dir / f"analysis_{name}.tsv", export_rows,
                          ("sample_id", "gene_id"))
+        from .suite_exports import export_suite_workbook
+        annotation_exports = export_suite_workbook(native_export, analysis_export, stage)
         tick = time.monotonic()
         figure_dir = stage / "figures"
         figure_dir.mkdir()
@@ -421,6 +423,8 @@ def run_suite(root, output_dir, *, manifest=None, supplement=None, rm_evidence=N
             raise FileExistsError(f"Output appeared during execution: {out}")
         relative_figures = [p.relative_to(stage.resolve()) for p in resolved_figures]
         response = _serializable({"output": str(out), "samples": len(data["samples"]),
+                                  "annotation_exports": {name: str(out / Path(path).relative_to(stage))
+                                                         for name, path in annotation_exports.items()},
                                   "figures": [str(out / p) for p in relative_figures],
                                   "summary": result["global_summary"], "warnings": receipt["warnings"]})
         json.dumps(response, allow_nan=False)
