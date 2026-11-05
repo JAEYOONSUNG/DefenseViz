@@ -1,0 +1,31 @@
+{
+  "schema_version": 1,
+  "registry_id": "synthetic-future-defense-demonstration",
+  "version": "1",
+  "rules": [
+    {
+      "rule_id": "synthetic.future-effector.v1",
+      "version": "1",
+      "route": "native_component",
+      "endpoint": "component_role",
+      "defense_scope": "host_defense",
+      "primary_sources": ["synthetic:invented-demonstration-only-not-biological-evidence"],
+      "match": {
+        "provider": "DefenseFinder",
+        "exact_native_models": ["SyntheticFutureDefense__Effector"],
+        "evidence_kinds": ["final_member"],
+        "selected": true,
+        "model_versions": ["synthetic-models-1"]
+      },
+      "requires": {
+        "protein_binding": true,
+        "source_binding": true
+      },
+      "conclusion": {
+        "component": "SyntheticFutureEffector",
+        "role": "nuclease",
+        "substrate": "DNA"
+      }
+    }
+  ]
+}

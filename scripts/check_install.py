@@ -31,7 +31,7 @@ def main():
         bindir = work/'venv'/('Scripts' if os.name=='nt' else 'bin')
         python = bindir/('python.exe' if os.name=='nt' else 'python')
         run([python, '-m', 'pip', 'install', '--disable-pip-version-check', str(wheel) + '[suite]'], work)
-        assert 'DefenseViz 2.1.4' in run([python, '-m', 'defenseviz', 'version'], work)
+        assert 'DefenseViz 2.2.0' in run([python, '-m', 'defenseviz', 'version'], work)
         run([python, '-m', 'defenseviz', 'demo', '--out', work/'demo'], work)
         run([python, '-m', 'defenseviz', 'validate', work/'demo/inputs/project.json'], work)
         run([python, '-m', 'defenseviz', 'run', work/'demo/inputs/project.json', '--out', work/'rerun'], work)
@@ -68,6 +68,17 @@ def main():
         eval_receipt = json.loads((work/'reevaluated/receipt.json').read_text(encoding='utf-8'))
         assert eval_receipt['detector_runs'] == 0 and eval_receipt['scoring_runs'] == 1
         assert eval_receipt['software']['git']['status'] == 'not_a_source_checkout'
+        novel = work/'novel-system-inputs'
+        run([python, ROOT/'examples/system_review/make_example.py', novel, '--verify'], work)
+        run([python, '-m', 'defenseviz', 'from-suite', novel/'runs', '--manifest', novel/'cohort.json',
+             '--system-review-rules', novel/'review-rules.json', '--out', work/'novel-reviewed'], work)
+        review = json.loads((work/'novel-reviewed/system_review.json').read_text(encoding='utf-8'))
+        assert review['accounting']['canonical_detection_count'] == 3
+        assert review['accounting']['unaccounted_detection_count'] == 0
+        states = {r['sample_id']: r['axes']['component_role']['status'] for r in review['gene_reviews']}
+        assert states == {'example-supported': 'supported', 'example-unknown': 'unassessed',
+                          'example-unversioned': 'unassessed'}
+        assert (work/'novel-reviewed/tables/system_review_summary.tsv').is_file()
         print('CLEAN_INSTALL_OK')
 
 if __name__=='__main__':main()
