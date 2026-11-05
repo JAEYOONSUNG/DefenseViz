@@ -2,7 +2,7 @@
 
 **Turn saved DNMBsuite results into traceable defense inventories and editable publication figures.**
 
-DefenseViz separates original tool output, saved DNMB decisions, component evidence and visualization. Version 2.1.4 retains the manuscript's five-card workflow (a) and detailed defense landscape (b) as the default DNMBsuite view, alongside R-M type tables, original/prioritized overlaps and category/family comparisons. Samples, counts and evidence come from the supplied results; the layout has no built-in cohort or target-strain/transformability legends. Optional sample annotations need explicit labels. The earlier normalized-project evaluation workflow remains available.
+DefenseViz separates original tool output, saved DNMB decisions, component evidence and visualization. Version 2.2.0 adds a source-traceable review for every observed system, including unfamiliar families, while retaining the manuscript's five-card workflow (a), detailed defense landscape (b), R-M type tables, original/prioritized overlaps and category/family comparisons. Samples, counts and evidence come from the supplied results; the layout has no built-in cohort or target-strain/transformability legends. Optional sample annotations need explicit labels. The earlier normalized-project evaluation workflow remains available.
 
 ![Synthetic saved-output comparison](docs/assets/suite-comparison.svg)
 
@@ -40,6 +40,12 @@ defenseviz from-suite /path/to/DNMBsuite_outputs --out results
 ```
 
 Use a single genome output folder or a parent containing per-genome folders. Optional manifests choose samples, labels and pink highlights. Saved RDS completion metadata can be read with Rscript; it never runs the analysis engine. Native and later reviewed evidence remain distinct. For older exports without saved curation fields, use `--rm-evidence evidence.json` to evaluate complete, source-bound evidence with the DNMB policy. Missing evidence stays unassessed. See [the DNMBsuite guide](docs/suite.md) and [saved-result contract](docs/SUITE_CONTRACT.md).
+
+Every run also exports `system_review.json` and review tables: observed systems,
+ungrouped predictions, component/domain/site evidence, and an actionable queue
+for unresolved interpretations. Extend exact review rules with
+`--system-review-rules`; add verified domain/reference evidence with
+`--system-review-evidence`. See [system review](docs/SYSTEM_REVIEW.md).
 
 For an existing **normalized project**:
 

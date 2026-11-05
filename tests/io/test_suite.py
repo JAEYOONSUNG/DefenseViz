@@ -243,7 +243,7 @@ def test_native_domain_and_motif_rows_preserved_without_rescore(tmp_path):
     root = native(tmp_path)
     path = root / "dnmb_module_interproscan/interproscan_results.tsv"
     path.parent.mkdir()
-    path.write_text("g:a\tmd5\t4\tPfam\tPFexample\tNuclease\t1\t4\t1e-5\tT\tdate\t-\t-\t-\t-\n")
+    path.write_text(f"g:a\t{hashlib.md5(b'MAAA').hexdigest()}\t4\tPfam\tPFexample\tNuclease\t1\t4\t1e-5\tT\tdate\t-\t-\t-\t-\n")
     write_table(root / "dnmb_module_rebasefinder/DNMB_REBASEfinder_motif_hits_raw.tsv", ["locus_tag", "motif", "start_aa", "end_aa"], [["g:a", "pattern", 1, 3]])
     data = load_suite(root)
     assert any(p["namespace"] == "InterProScan" and p["native_fields"]["signature_accession"] == "PFexample" for p in data["suite"]["profiles"])

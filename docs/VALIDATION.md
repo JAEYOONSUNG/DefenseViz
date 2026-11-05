@@ -1,5 +1,31 @@
 # Release validation
 
+## 2.2.0 system review
+
+- Repository regression suite: 940 tests passed on the final implementation.
+- A clean wheel installation exercised native import, publication, stored R-M
+  reevaluation and the new `from-suite --system-review-rules` CLI outside the
+  source checkout. Three invented samples distinguish exact support,
+  an unregistered model and a missing model version; all calls are accounted for
+  and accepted effector/associated/priority/motif counts remain unchanged.
+- Independent review controls cover exact source/protein/version binding,
+  cross-system evidence leakage, component multiplicity, anti-defense scope,
+  conflicting roles, qualified domain/site narrowing and sample coverage.
+- Private 3-, 51- and 52-sample stored-output evaluations preserved original
+  detections, accepted CDS memberships and all scientific numeric endpoints.
+  The 51/52-sample figures were pixel-identical to the accepted baseline. In the
+  three-sample figure, only justified primary-sample partial-count markers
+  changed after restoring their source-bound assessment scope; external-sample
+  uncertainty remained. These inputs are not redistributed.
+- An actual Claude code review identified issues that were corrected and
+  covered by counterexamples. Its follow-up found no unresolved high- or
+  medium-severity blockers within the documented saved-evidence review scope.
+  Claude did not execute tests; the checks above were executed separately.
+
+These are software and evidence-contract checks, not experimental validation or
+an accuracy estimate for every known or future defense family. See
+[system review semantics](SYSTEM_REVIEW.md).
+
 ## 2.1.4 correction checks
 
 The regression suite distinguishes current scoped decisions from historical

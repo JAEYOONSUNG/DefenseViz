@@ -88,6 +88,10 @@ def fake_stages(monkeypatch, data, *, fail=False, mutate=False):
     analysis.analyze_saved = lambda d: {'samples': d['samples'], 'global_summary': {'integrated_CDS': 1},
                                        'inventory_rows': {'categories': [], 'families': []},
                                        'warnings': [], 'availability': {'effector': 'unassessed'},
+                                       'system_review': {'units': [], 'gene_reviews': [], 'rule_evaluations': [],
+                                                         'pending_queue': [], 'detection_accounting': [],
+                                                         'sample_coverage': [], 'quarantine': [],
+                                                         'accounting': {}, 'provenance': {}},
                                        'gene_ledger': [], 'priority_ledger': [], 'cells': [],
                                        'rm_components': [], 'type_tables': [], 'groups_selected': []}
     plot = ModuleType('defenseviz.plot.publication')
