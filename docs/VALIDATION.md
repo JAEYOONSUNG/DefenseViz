@@ -10,6 +10,8 @@ The four-page output passed an independent visual/data audit, including Arial, s
 
 An actual Claude Opus 5.5 review was invoked with maximum effort on a preceding source snapshot. Its five P1 and three P2 findings were reproduced and corrected with regression controls; three unresolved questions received separate source/actual-run audits. The final implementation was independently tested, not subsequently approved by Claude. Controls cover comparator-only nomination, terminal stop normalization, exact supplemental reference metadata, candidate-search closure, untranslated groups, required schemas and complete database/runtime/source binding.
 
+A fresh installation directly from GitHub also completed the five-sample full run using relocated input/database/runtime resources. All 412 candidate evidence/decision records, integrated memberships and scientific summaries matched the validated run; 25 TSVs and all four PNG pages were byte-identical. Machine-specific provenance changed as expected. The generated Excel workbook contained 319 classified, 17 retained and 31 priority CDSs, matching its companion filtered TSVs.
+
 Database and runtime resources remain external. Their exact local versions and hashes must be preserved to reproduce a result. The synthetic clean-install test checks the installed native helpers and frozen source inventory; it does not imply that licensed databases are included in the wheel. See the [runtime preservation guide](runtime-bundle.md).
 
 ## 2.3.1 external saved-export compatibility

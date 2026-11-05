@@ -32,7 +32,7 @@ normalized-project example.
 
 ## Use your results
 
-For **DNMBsuite result directories**, configure the DNMB databases and runtime once using the [resource guide](docs/runtime-bundle.md), then run:
+For **DNMBsuite result directories**, configure the DNMB databases and runtime once using the [runtime and resource setup](docs/runtime-install.md), then run:
 
 ```sh
 defenseviz check-resources --engine-config engine.json --out resource-check
