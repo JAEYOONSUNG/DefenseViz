@@ -131,10 +131,10 @@ def test_fraction_numerator_and_denominator_use_their_own_declared_status():
     ts=page.ledger["texts"]
     def labels(endpoint,part):
         return [t["text"] for t in ts if t["source_ref"]=={"endpoint":endpoint,"part":part}]
-    assert labels("retained","numerator")==["2","2+","2"]
-    assert labels("retained","denominator")==["6","6","6+"]
+    assert labels("retained","numerator")==["2","2","2"]
+    assert labels("retained","denominator")==["6","6","6"]
     assert labels("intersection","numerator")==["2"]*3
-    assert labels("intersection","denominator")==["12","12","12+"]
+    assert labels("intersection","denominator")==["12","12","12"]
     bars=[b for b in page.ledger["bars"] if b["source_ref"]=={"endpoint":"retained"}]
     assert [(b["status"],b["denominator_status"]) for b in bars]==[("complete","complete"),("partial","complete"),("complete","partial")]
     cells=[x for x in page.ledger["cells"] if x.get("field")=="rm_intersection_CDS"]
@@ -151,7 +151,7 @@ def test_unknown_fraction_numerator_preserves_known_denominator_without_zero_fil
     for i,(n,d,state,ds) in enumerate(records):
         _fraction(page,8,5+i*5,layout["width_mm"],n,d,state,"retained",11,ds,layout)
     page.validate()
-    assert [t["text"] for t in page.ledger["texts"]]==["NA","/","11","4","/","NA","NA","/","11+","NA"]
+    assert [t["text"] for t in page.ledger["texts"]]==["—","/","11","4","/","—","—","/","11","—"]
     bars=page.ledger["bars"]
     assert len(bars)==3
     assert bars[0]["value"] is None and bars[0]["status"]=="unassessed"
@@ -162,7 +162,7 @@ def test_unknown_fraction_numerator_preserves_known_denominator_without_zero_fil
 
 
 @pytest.mark.parametrize("current_gap",[False,True])
-def test_analysis_to_actual_atlas_preserves_current_scope_and_real_partial_marks(current_gap):
+def test_analysis_to_actual_atlas_preserves_current_scope_and_observed_counts(current_gap):
     from tests.test_atlas_rm_scope import bundle, project
     data=bundle()
     if current_gap:
@@ -172,12 +172,12 @@ def test_analysis_to_actual_atlas_preserves_current_scope_and_real_partial_marks
     page=render_pages(result,aliases={"NativeA":"A","NativeB":"B","NativeC":"C","Reference":"REF"})[0];page.validate()
     ts=page.ledger["texts"]
     labels=[t["text"] for t in ts if (t.get("source_ref") or {}).get("endpoint")=="retained"]
-    assert labels==(["1+","/","2+"] if current_gap else ["1","/","3"])
+    assert labels==(["1","/","2"] if current_gap else ["1","/","3"])
     intersections=[t["text"] for t in ts if (t.get("source_ref") or {}).get("endpoint")=="intersection"]
     assert intersections==["3","/","3"]
 
 
-def test_result_only_fallback_does_not_suppress_genuine_partial_retention():
+def test_result_only_fallback_preserves_partial_retention_in_audit():
     from tests.test_atlas_rm_scope import bundle
     from defenseviz.analysis.saved import analyze_saved
     data=bundle();del data["rm_evaluation"]
@@ -185,4 +185,4 @@ def test_result_only_fallback_does_not_suppress_genuine_partial_retention():
     assert "manuscript_atlas" not in result
     page=render_pages(result,aliases={"NativeA":"A","NativeB":"B","NativeC":"C","Reference":"REF"})[0];page.validate()
     labels=[t["text"] for t in page.ledger["texts"] if (t.get("source_ref") or {}).get("endpoint")=="retained"]
-    assert labels==["1+","/","3+"]
+    assert labels==["1","/","3"]

@@ -83,24 +83,50 @@ def suite_warnings(data, result):
 
 def prepare_suite(root, *, manifest=None, supplement=None, rm_evidence=None, rscript=None, strict_inputs=False,
                   system_review_rules=None, system_review_evidence=None, evaluation="auto",
-                  reference_cache=None, evidence_workspace=None):
+                  reference_cache=None, evidence_workspace=None, engine_config=None):
     from .io.suite import load_suite
-    if evaluation not in {"auto", "stored"}:
-        raise ValueError("evaluation must be auto or stored")
+    if evaluation not in {"auto", "stored", "full"}:
+        raise ValueError("evaluation must be auto, stored or full")
+    from .native_pipeline import engine_config_path, read_engine_config
+    configured = engine_config_path(engine_config) if evaluation != "stored" else None
+    full_run = evaluation == "full" or (evaluation == "auto" and configured is not None and rm_evidence is None)
+    if full_run:
+        if configured is None:
+            raise ValueError("Full evaluation requires --engine-config or DEFENSEVIZ_ENGINE_CONFIG with the DNMB runtime and reference/HMM resources")
+        if rm_evidence is not None or reference_cache is not None:
+            raise ValueError("Full execution uses its configured references; do not combine with rm_evidence or reference_cache")
+        if evidence_workspace is None: raise ValueError("Full evaluation requires a private evidence workspace")
+        resolved_engine = read_engine_config(configured)
+        if rscript is None: rscript = resolved_engine["rscript"]
     data = load_suite(Path(root), manifest=manifest, rscript=rscript, strict_inputs=strict_inputs)
     original_import = deepcopy(data)
+    if evaluation != "stored" and rm_evidence is None:
+        from .io.suite_cache import attach_cached_evidence
+        data = attach_cached_evidence(data, root, rscript=rscript)
     if rm_evidence is not None:
         from .rm_evaluation import apply_rm_evidence
         data = apply_rm_evidence(data, rm_evidence)
     if supplement is not None:
         from .supplement import apply_supplement
         data = apply_supplement(data, supplement)
-    if supplement is not None or rm_evidence is not None or evaluation == "auto":
+    if supplement is not None or rm_evidence is not None or evaluation in {"auto", "full"}:
         from .io.suite import attach_system_review_annotations
         data = attach_system_review_annotations(data, root, strict_inputs=strict_inputs)
     if system_review_rules is not None or system_review_evidence is not None:
         from .system_review_inputs import apply_system_review_inputs
         data = apply_system_review_inputs(data, rules_path=system_review_rules, evidence_path=system_review_evidence)
+    if full_run:
+        from .native_pipeline import execute_full_pipeline
+        from .full_evaluation import apply_full_evaluation
+        engine_started = time.monotonic()
+        full_stages = execute_full_pipeline(data, root, configured, Path(evidence_workspace) / "full_pipeline")
+        full_execution = json.loads((Path(evidence_workspace) / "full_pipeline" / "execution.json").read_text())
+        full_execution["elapsed_seconds"] = time.monotonic() - engine_started
+        policy_started = time.monotonic()
+        data = apply_full_evaluation(data, full_stages)
+        data["rm_evaluation"]["elapsed_seconds"] = time.monotonic() - policy_started
+        data["suite"]["full_execution"] = full_execution
+        data["automatic_evaluation"] = True
     if reference_cache is not None:
         if evaluation != "auto" or rm_evidence is not None:
             raise ValueError("reference_cache requires automatic evaluation without explicit rm_evidence")
@@ -111,7 +137,7 @@ def prepare_suite(root, *, manifest=None, supplement=None, rm_evidence=None, rsc
         data["derived_artifact_sha256"] = {
             str(Path(p).resolve()): digest(Path(p))
             for p in data.get("suite", {}).get("automatic_reference", {}).get("artifacts", [])}
-    if evaluation == "auto" and rm_evidence is None:
+    if evaluation == "auto" and rm_evidence is None and not full_run:
         from .automatic import apply_automatic_rm
         data = apply_automatic_rm(data)
         from .automatic_context import apply_current_context_review
@@ -121,9 +147,10 @@ def prepare_suite(root, *, manifest=None, supplement=None, rm_evidence=None, rsc
         data["automatic_evaluation"] = True
     data["evaluation_execution"] = {
         "requested_mode": evaluation,
-        "rm_mode": "explicit_complete_evidence" if rm_evidence is not None else "automatic" if evaluation == "auto" else "stored_replay",
+        "rm_mode": "full_native_execution" if full_run else "explicit_complete_evidence" if rm_evidence is not None else "automatic" if evaluation == "auto" else "stored_replay",
         "automatic_system_review": "enabled" if data.get("automatic_evaluation") else "skipped_explicit_review_path" if rm_evidence is not None else "skipped_stored_replay",
         "explicit_reviewed_outputs_preserved": rm_evidence is not None,
+        "fresh_full_execution": full_run,
     }
     data["_native_import_bundle"] = original_import
     return data
@@ -141,7 +168,7 @@ def analyze_suite(data):
 
 def run_suite(root, output_dir, *, manifest=None, supplement=None, rm_evidence=None, rscript=None,
               strict_inputs=False, title="DefenseViz", layout=None, argv=None,
-              system_review_rules=None, system_review_evidence=None, evaluation="auto", reference_cache=None):
+              system_review_rules=None, system_review_evidence=None, evaluation="auto", reference_cache=None, engine_config=None):
     """Import native exports, aggregate saved evidence, publish a fresh directory."""
     from .analysis.saved import analyze_saved
     from .plot.publication import render_publication
@@ -161,7 +188,7 @@ def run_suite(root, output_dir, *, manifest=None, supplement=None, rm_evidence=N
         data = prepare_suite(source_root, manifest=manifest, supplement=supplement, rm_evidence=rm_evidence,
                              rscript=rscript, strict_inputs=strict_inputs,
                              system_review_rules=system_review_rules, system_review_evidence=system_review_evidence,
-                             evaluation=evaluation, reference_cache=reference_cache,
+                             evaluation=evaluation, reference_cache=reference_cache, engine_config=engine_config,
                              evidence_workspace=stage / "evidence" / "reference")
         original_import = data.pop("_native_import_bundle", None) or dict(data)
         import_seconds = time.monotonic() - started
@@ -324,15 +351,20 @@ def run_suite(root, output_dir, *, manifest=None, supplement=None, rm_evidence=N
             raise ValueError("DefenseViz implementation changed during execution; run again from a stable checkout")
         rm_meta = data.get("rm_evaluation", {})
         ref_meta = data.get("suite", {}).get("automatic_reference", {})
+        full_meta = data.get("suite", {}).get("full_execution", {})
         rm_seconds = rm_meta.get("elapsed_seconds", 0)
         ref_seconds = ref_meta.get("elapsed_seconds", 0)
+        full_seconds = full_meta.get("elapsed_seconds", 0)
         policy_decisions = rm_meta.get("policy_decisions",rm_meta.get("policy_evaluations",rm_meta.get("scoring_runs",0)))
-        stages = [{"name": "native_import_and_context_preparation", "elapsed_seconds": max(0, import_seconds-rm_seconds-ref_seconds)}]
+        stages = [{"name": "native_import_and_context_preparation", "elapsed_seconds": max(0, import_seconds-rm_seconds-ref_seconds-full_seconds)}]
+        if full_meta:
+            stages.append({"name": "fresh_DNMB_HMM_BLAST_context_and_feature_execution", "elapsed_seconds": full_seconds,
+                           "hmm_search_runs": full_meta["hmm_search_runs"], "homology_search_runs": full_meta["homology_search_runs"]})
         if ref_meta:
             stages.append({"name": "fresh_reference_alignment", "elapsed_seconds": ref_seconds,
                            "homology_search_runs": ref_meta.get("homology_search_runs",0)})
         if rm_meta:
-            stages.append({"name": "stored_feature_collection_and_policy_evaluation" if policy_decisions else "stored_feature_collection_and_unresolved_policy_bounds" if rm_meta.get("policy_evaluations") else "stored_feature_collection_and_native_decision_replay",
+            stages.append({"name": "current_native_evidence_policy_evaluation" if full_meta else "stored_feature_collection_and_policy_evaluation" if policy_decisions else "stored_feature_collection_and_unresolved_policy_bounds" if rm_meta.get("policy_evaluations") else "stored_feature_collection_and_native_decision_replay",
                            "elapsed_seconds": rm_seconds, "policy_evaluations": rm_meta.get("policy_evaluations",0),
                            "policy_decisions": policy_decisions,
                            "preserved_decisions": rm_meta.get("preserved_decisions",0)})
@@ -341,13 +373,17 @@ def run_suite(root, output_dir, *, manifest=None, supplement=None, rm_evidence=N
         receipt = {
             "schema_version": 1, "tool": "DefenseViz", "version": __version__,
             "created_at": datetime.now(timezone.utc).isoformat(),
-            "operation": ("saved_suite_with_fresh_reference_evaluation_and_render" if data.get("suite", {}).get("automatic_reference", {}).get("homology_search_runs") else
+            "operation": ("full_DNMB_RM_execution_and_publication" if data.get("evaluation_execution",{}).get("fresh_full_execution") else
+                          "saved_suite_with_fresh_reference_evaluation_and_render" if data.get("suite", {}).get("automatic_reference", {}).get("homology_search_runs") else
                           "saved_suite_evidence_reevaluation_aggregation_and_render" if policy_decisions
                           else "saved_suite_unresolved_evidence_bounds_and_replay_render" if rm_meta.get("policy_evaluations")
                           else "saved_suite_result_import_aggregation_and_render"),
             "scoring_runs": data.get("rm_evaluation", {}).get("scoring_runs", 0),
-            "detector_runs": 0, "structure_prediction_runs": 0, "threshold_fitting": False,
-            "homology_search_runs": data.get("suite", {}).get("automatic_reference", {}).get("homology_search_runs", 0),
+            "detector_runs": sum(full_meta.get("detector_runs",{}).values()), "structure_prediction_runs": 0, "threshold_fitting": False,
+            "original_defense_tool_runs": 0,
+            "hmm_search_runs": full_meta.get("hmm_search_runs",0),
+            "homology_search_runs": full_meta.get("homology_search_runs",0) + ref_meta.get("homology_search_runs",0),
+            "full_execution": _portable(_serializable(full_meta),path_map),
             "sequence_feature_evaluations": data.get("rm_evaluation", {}).get("compiler", {}).get("motif_scans", 0),
             "argv": argv if argv is not None else sys.argv, "exit_code": 0,
             "elapsed_seconds": time.monotonic() - started,
@@ -362,7 +398,7 @@ def run_suite(root, output_dir, *, manifest=None, supplement=None, rm_evidence=N
             "inputs": [{"path": provenance_path(p, source_root), "sha256": pinned[str(p)]} for p in paths],
             "software": software_before, "software_after": software_after,
             "source_metadata": native_export.get("source_metadata", []),
-            "options": {"evaluation": evaluation, "reference_cache": str(Path(reference_cache).resolve()) if reference_cache else None, "manifest": provenance_path(Path(manifest).resolve(), source_root) if manifest else None,
+            "options": {"evaluation": evaluation, "engine_config": str(engine_config) if engine_config else None, "reference_cache": str(Path(reference_cache).resolve()) if reference_cache else None, "manifest": provenance_path(Path(manifest).resolve(), source_root) if manifest else None,
                         "supplement": provenance_path(Path(supplement).resolve(), source_root) if supplement else None,
                         "rm_evidence": provenance_path(Path(rm_evidence).resolve(), source_root) if rm_evidence else None,
                         "system_review_rules": provenance_path(Path(system_review_rules).resolve(), source_root) if system_review_rules else None,
@@ -377,7 +413,7 @@ def run_suite(root, output_dir, *, manifest=None, supplement=None, rm_evidence=N
             "system_information": {"accounting": analysis_export['system_information']['accounting'],
                                    "provenance": analysis_export['system_information']['provenance']},
             "warnings": suite_warnings(data, result),
-            "scientific_scope": "Saved calls plus automatic stored/sequence evidence evaluation; optional explicitly configured fresh homology search. Missing is unassessed; neither activity nor independent performance is inferred.",
+            "scientific_scope": ("Fresh DNMB R-M HMM search of all translated CDSs, full configured reference search of native annotation/HMM nominees, context and fixed-policy evaluation. Original DF/PAD/DP calls preserved; biological activity and independent performance are not inferred." if full_meta else "Saved calls plus automatic stored/sequence evidence evaluation; optional explicitly configured fresh homology search. Missing measurements remain explicit; neither activity nor independent performance is inferred."),
             "outputs": {p.relative_to(stage).as_posix(): digest(p) for p in sorted(stage.rglob("*")) if p.is_file()},
         }
         write_json(stage / "receipt.json", receipt)
@@ -390,6 +426,15 @@ def run_suite(root, output_dir, *, manifest=None, supplement=None, rm_evidence=N
         json.dumps(response, allow_nan=False)
         stage.rename(out)
         return response
-    except BaseException:
-        shutil.rmtree(stage, ignore_errors=True)
+    except BaseException as exc:
+        full_work = stage / "evidence" / "reference" / "full_pipeline"
+        if full_work.exists():
+            write_json(stage / "failure.json", {"error": str(exc), "published": False,
+                       "reason": "Full execution logs preserved; no successful publication claimed"})
+            failed = stage.with_name(stage.name.replace(".staging-", ".failed-", 1))
+            stage.rename(failed)
+            if isinstance(exc, Exception):
+                raise RuntimeError(str(exc) + "; full execution evidence preserved at " + str(failed)) from exc
+        else:
+            shutil.rmtree(stage, ignore_errors=True)
         raise

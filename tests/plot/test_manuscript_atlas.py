@@ -389,7 +389,7 @@ def _texts_in_cell(page, bounds):
 
 
 @pytest.mark.parametrize("count",[0,2])
-def test_partial_family_role_context_and_exclusive_cells_remain_visibly_distinct(count):
+def test_observed_family_role_context_and_exclusive_counts_keep_missing_distinct(count):
     result=synthetic_result(samples=3,categories=[("Nuclease",1)])
     model=result["manuscript_atlas"];family=model["families"][0];fid=family["id"]
     family.update(N=count*3,counts_status="partial",metric_status={"inventory":"partial"})
@@ -414,12 +414,11 @@ def test_partial_family_role_context_and_exclusive_cells_remain_visibly_distinct
                 "family":family_cells[sid],"exclusive":mask_cells[sid]}
         for kind,box in bounds.items():
             labels=_texts_in_cell(page,box)
-            if state=="unassessed":assert "NA" in labels,(kind,labels)
-            elif state=="partial":
-                assert ("0+" in labels if count==0 else any("+" in v for v in labels)),(kind,labels)
+            if state=="unassessed":assert "—" in labels,(kind,labels)
             else:
-                assert not any("+" in v or v=="NA" for v in labels),(kind,labels)
-                if count==0:assert not labels,(kind,labels)
+                assert not any("+" in v or v in {"NA","—","?"} for v in labels),(kind,labels)
+                if kind=="context":assert labels==[str(count)],(kind,labels)
+                elif count==0:assert not labels,(kind,labels)
             if count==0:
                 x,yy,w,h=box
                 assert not any(isinstance(p,Circle) and math.isclose(p.center[0],x+w/2,abs_tol=1e-7)
@@ -429,10 +428,10 @@ def test_partial_family_role_context_and_exclusive_cells_remain_visibly_distinct
 
 @pytest.mark.parametrize("states,expected",[
     (("complete","complete"),"PAD only (5 CDSs)"),
-    (("complete","partial"),"PAD only (5+ CDSs)"),
-    (("partial","partial"),"PAD only (5+ CDSs)"),
-    (("complete","unassessed"),"PAD only (NA CDSs)"),
-    (("unassessed","unassessed"),"PAD only (NA CDSs)"),
+    (("complete","partial"),"PAD only (5 CDSs)"),
+    (("partial","partial"),"PAD only (5 CDSs)"),
+    (("complete","unassessed"),"PAD only (— CDSs)"),
+    (("unassessed","unassessed"),"PAD only (— CDSs)"),
 ])
 def test_rotated_exclusive_total_labels_respect_all_sample_coverage(states,expected):
     result=synthetic_result(samples=2,categories=[("Nuclease",1)])
@@ -447,10 +446,10 @@ def test_rotated_exclusive_total_labels_respect_all_sample_coverage(states,expec
 
 @pytest.mark.parametrize("states,expected_value",[
     (("complete","complete"),"5"),
-    (("complete","partial"),"5+"),
-    (("partial","partial"),"5+"),
-    (("complete","unassessed"),"NA"),
-    (("unassessed","unassessed"),"NA"),
+    (("complete","partial"),"5"),
+    (("partial","partial"),"5"),
+    (("complete","unassessed"),"—"),
+    (("unassessed","unassessed"),"—"),
 ])
 def test_members_outside_shown_sources_are_disclosed_beneath_the_mask_key(states,expected_value):
     result=synthetic_result(samples=2,categories=[("Nuclease",1)])

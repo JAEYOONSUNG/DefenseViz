@@ -1,0 +1,21 @@
+{
+  "source": "DNMB frozen annotation/context modules and native R-M collector",
+  "source_snapshot": "dnmb_dsm1_policy_completion_20261101/policy/source",
+  "source_files_sha256": {
+    "DefenseViz/01_data_loading.R": "44734d618001aa560e2cd0304a1e81d8d12892cf9ea215e2754dc2e99496f2ed",
+    "DefenseViz/01_hmm_nomination.R": "933ae09ea3469b8e1e8f68e789420732cccb1dcf642050dfa9af5ca3708449e9",
+    "DefenseViz/02_mtase_detection.R": "81e61f5c5bdb3f90826366dbcc2cef6b4147c6144b82e0d0618d948c18f0f431",
+    "DefenseViz/03_rease_detection.R": "2f4c82296be7589625d52ad81be00e574c1616dfd203511565a2723e01e47ccf",
+    "DefenseViz/04_operon_analysis.R": "04f03b7a8a509fda1e0f6b768319832ab17440155fbc90261862348c675261e0",
+    "DefenseViz/06_rebase_comparison.R": "64b65c00025f6e0823cbe19893354ca5ecce1e6225f44640aa9909d558c26e57",
+    "DefenseViz/07_scoring.R": "8f79ae31cff506a361de0f9e8fb224451b82306ae2ad419ad79afe5d57ae1437",
+    "DefenseViz/08_pipeline.R": "9680b368e57572c549174da0e0bf5344f68579d599b3e5caba168013485c3999",
+    "DNMB/db_module_rebasefinder.R": "b054397e6951d05c9f1fb38a2c4630538fc481ba19edce62de6839fe54355997",
+    "DNMB/rebasefinder_motifs.R": "595a77a42b9c818d3ad855c54d79acc04f353d7872ec4b06354a62562bf183c4",
+    "DNMB/rebasefinder_metadata.R": "831de92dd3e2cff2f0a86c7caf88548622f8e565f3ad0ab31ada9a9aa442be93",
+    "DNMB/rebasefinder_hmm_nomination.R": "b696d010c8c72609126320b91a344dc86132ff37c12541b6088e1d3a37d9efd0",
+    "rebasefinder_multifactor_score.R": "55debbae245d21ac82fd57800d26dd9d128d5a72541017c20dc4ce8acfbcae6a",
+    "rebasefinder_curation.R": "47c058f75373f5b0d0a504db55de6fc1dc32bfd0a577f2a675c4bd909bbc28c0"
+  },
+  "changes": "Runner captures exact score inputs and corrects reference metadata representation from explicit enzyme descriptions; source numerical policy unchanged; no recognition-specificity execution"
+}

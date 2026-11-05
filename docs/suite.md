@@ -22,9 +22,28 @@ reports available endpoints without generating figures.
 
 R reads saved RDS completion/version metadata and, when requested, current
 reference metadata through fixed packaged helpers. Set `--rscript /path/to/Rscript` when it is not on `PATH`.
-No original DNMB R code is sourced. Missing completion evidence must remain
+Full mode sources the packaged fixed native core against your configured DNMB R installation. Stored evaluation uses fixed import helpers. Missing completion evidence must remain
 explicit; a directory without results is not a successful zero-hit run.
 
+
+## Full DNMB R-M execution
+
+Configure local resources using [engine.example.json](engine.example.json). Paths may be absolute or relative to the configuration file. The R libraries must contain compatible DNMB and legacy DefenseViz runtime dependencies. The reference cache must contain `rebase_data.rds`, `rebase_db.fasta` and its BLAST indexes; profile metadata must describe the configured HMM library. Databases and installed runtime packages are read-only and are not distributed by this repository. BLAST+ must provide both `blastp` and `blastdbcmd` (the latter is found beside `blastp`, on PATH, or through an explicit configuration field). The index is checked against every FASTA entry before analysis.
+
+```sh
+defenseviz from-suite /path/to/DNMBsuite_outputs \
+  --engine-config engine.json --evaluation full --out defenseviz-results
+```
+
+For subsequent runs, set `DEFENSEVIZ_ENGINE_CONFIG` or place the configuration at `~/.config/defenseviz/engine.json`. Default `auto` mode then selects full execution. Explicit `full` mode fails if resources are missing; it never silently falls back to stored evidence. `--rm-evidence` and `--reference-cache` belong to the separate stored-evidence path and cannot be combined with full mode.
+
+Full mode searches all translated CDSs with the configured native R-M HMM library. It combines these nominations with native annotation nominees and qualifying saved DF/PAD profiles and exact source-bound previous R-M candidates, searches the complete configured REBASE database for nominated genes, evaluates motifs and Type I–IV context, and applies the unchanged selected policy. Saved comparator profiles nominate candidates; they do not substitute for native DNMB profile scoring. DF/PAD/DP outputs are preserved. This is a fresh R-M execution, not a rerun of those three tools or new structure prediction.
+
+Reference type and component metadata are projected from explicit descriptions and numbered component prefixes. Repairs, search commands, exit codes, proteins, databases and outputs are hash-bound in the output evidence directory. Actual loaded R packages/DLLs and the frozen native source modules are verified. Previous candidate identities retain no inherited role, type or score credit. The original cache remains unchanged. Missing optional structure earns no support points; this is not a claim of biological inactivity. Retained annotations and component support are computational assessments.
+
+Completed context inventories yield numeric MS/RMS/MR counts, including zero. An unavailable measurement is shown with an em dash. Qualified retained R component evidence is also propagated to putative effector counts and current-context support markers. Completed reviews report observed qualified annotation counts separately from unresolved biological functions; an observed zero does not establish biological absence. Included orphans retain the compact `(n)` notation. Detailed coverage and source records remain in the tables and JSON; repeated uncertainty suffixes are not printed on the figure.
+
+A failed full run preserves its logs in a separate `.failed-…` directory and produces no successful publication receipt. Each successful invocation requires a new output directory.
 
 ## Automatic evaluation
 
@@ -209,7 +228,7 @@ and per-CDS decisions are exported in `rm_evaluation.json`. This is fresh
 evaluation of stored evidence, with zero detector runs. Original DF/PAD/DP and
 REBASE memberships are preserved. Unassessed legacy candidates outside the
 evaluated scope remain visible in the exported assessment coverage; partial
-counts display `+` instead of pretending to be complete.
+coverage remains in the audit; unavailable measurements use an em dash in figures.
 
 Use the versioned evidence contract in [SUITE_CONTRACT.md](SUITE_CONTRACT.md).
 It does not infer function from a raw homology match or synthesize missing
@@ -290,7 +309,7 @@ orders native columns **PAD, DF, DP**; REB stays a separate reference channel.
 Rings on R-M groups describe supplied support, independently of effector glyphs.
 The separate reference column counts original reference hits, including untyped
 subjects; it does not assign them an R-M type. The intersection excludes the
-reference channel and never gains later DNMB-only additions. Unavailable original-context evidence remains NA.
+reference channel and never gains later DNMB-only additions. Unavailable original-context evidence uses an em dash.
 
 Category colors, purple evidence glyphs and optional pink sample highlights match
 the manuscript grammar. Comparative tables separate putative nuclease-associated
@@ -360,7 +379,7 @@ render_publication(enriched, output_dir, sections=["atlas"])
 ```
 
 Rendering an older result without that projection remains supported, but channels
-that require the original bundle stay NA. See [display evidence](SUITE_CONTRACT.md#manuscript-display-projection)
+that require the original bundle remain unavailable. See [display evidence](SUITE_CONTRACT.md#manuscript-display-projection)
 for separately bound R-M support badges and cosmetic metadata.
 
 These are saved annotation/evidence summaries. They do not establish biological

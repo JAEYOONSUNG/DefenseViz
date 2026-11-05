@@ -204,23 +204,23 @@ def render_publication(result:dict, output_dir:Path, *, title="DefenseViz", **la
     for endpoint in ("overlap_regions","priority_overlap_regions"):
         item=result.get(endpoint,{})
         unassessed=item.get('coverage_status')=='unassessed'
-        union_label='NA' if unassessed else f"{item.get('union_count',0):,}"
-        outside_label='NA' if unassessed else str(item.get('outside_source_memberships',0))
+        union_label='unavailable' if unassessed else f"{item.get('union_count',0):,}"
+        outside_label='unavailable' if unassessed else str(item.get('outside_source_memberships',0))
         coverage.append(f"{endpoint}: observed union {union_label}; "
-            f"coverage {item.get('coverage_status','unassessed')}; "
+            f"coverage {item.get('coverage_status','unavailable').replace('unassessed','unavailable')}; "
             f"{len(item.get('sample_ids',[]))} included and {len(item.get('excluded_sample_ids',[]))} excluded samples. "
             f"Scope: {item.get('scope','not supplied')}. "
             f"Outside original source memberships: {outside_label}. "
-            f"Priority CDSs outside the shared sample scope: {item.get('excluded_selected_count','unassessed')}.")
-    caption.write_text("# DefenseViz publication figures\n\nSaved annotations and source-bound evidence are summarized without a new detector run. "
-        "Source agreement and reference homology are not biological validation. Missing outputs remain unassessed; '+' marks partial assessment. Counts in incomplete exclusive-source patterns may change in either direction as coverage improves.\n\n"
-        "Atlas: category-colored disks encode binned CDS membership. A purple outline marks putative nuclease-associated membership; inner purple area is the effector/total fraction within that disk. 'NA' marks unassessed counts and '?' marks unassessed association or effector evidence. Pink rows are explicitly selected sample highlights, not an inferred phenotype. "
+            f"Priority CDSs outside the shared sample scope: {item.get('excluded_selected_count','unavailable')}.")
+    caption.write_text("# DefenseViz publication figures\n\nDNMB annotations and source-bound evidence are summarized. "
+        "Counts describe recorded annotations and support within the declared input scope, not exhaustive biological totals. Missing measurements use an em dash; pipeline coverage and unresolved candidates remain in the audit tables. Source agreement and reference homology do not establish biological activity.\n\n"
+        "Atlas: category-colored disks encode binned CDS membership. A purple outline marks recorded putative nuclease-associated support; inner purple area is the supported effector/total fraction. An absent support mark does not establish absence of function. Pink rows are explicitly selected sample highlights. "
         "Effector CDSs include individually supported annotations and required cores of complete reviewed complexes; individual catalysis is not assigned to every core.\n\n"
-        "R-M role rings mark support for at least one CDS; context rings mean every displayed group has supplied R support. A reference dot is separately curated context evidence, not a raw homology match. Each count uses its own observed or explicitly assessed scope; historical unassessed candidates remain in the audit. Intersection and retained fractions assess numerator and denominator separately.\n\n"
-        "Type benchmarks: unique CDS inventories and component roles are distinct. Counts and their assessment states are conditional on each observed assigned-type pool; unassessed candidates outside that pool remain in the audit. The atlas R-M input pool is broader: original R-M source/reference memberships plus typed current DNMB candidates. Untyped no-hit nominees remain evaluated/audited without entering the observed denominator; unclassified current candidates that could join it keep its assessment partial ('+'). A '+' on composition counts reflects incomplete supplied context assessment. Parentheses identify included incomplete retained R contexts or orphan M/S subsets; these are not activity calls.\n\n"
+        "R-M role rings mark support for at least one CDS; context rings mean every displayed group has supplied R support. A reference dot is separately curated context evidence. M(S)-only composition does not establish orphanhood. Intersection and retained fractions retain separate numerator and denominator provenance.\n\n"
+        "Type benchmarks count unique CDSs within each observed assigned-type pool. The atlas input pool includes original R-M source/reference memberships and typed current DNMB candidates. Parentheses identify documented incomplete retained R contexts or orphan M/S subsets already included in the CDS count. Gray cells are structurally inapplicable.\n\n"
         "Comparison: original source memberships are restricted to the declared priority set. Venn areas are schematic; intersection tables preserve exact memberships when Venn labels cannot fit. "
         "Category/family rows overlap. Equal bar tracks use each row union; associated totals and effector counts are separate columns.\n\n"
-        +"Priority definition: "+str(result.get("endpoint_definitions",{}).get("priority","declared analysis priority set; activity unassessed"))+".\n\n"
+        +"Priority definition: "+str(result.get("endpoint_definitions",{}).get("priority","declared analysis priority set; activity untested")).replace("unassessed","not evaluated")+".\n\n"
         +"\n\n".join(coverage)+"\n\n"
         +"Source labels: "+"; ".join(alias(s["id"],config)+": "+s.get("label",s["id"]) for s in result.get("sources",[]))+".\n",encoding="utf-8")
     outputs.append(caption)

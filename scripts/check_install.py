@@ -48,6 +48,14 @@ def main():
              "assert all(p.joinpath(n).is_file() for n in "
              "('REFERENCE_CATALOGUE.txt','defensefinder-wiki-LICENSE.txt',"
              "'defense-finder-models-LICENSE.txt','CasFinder-LICENSE.txt'))"], work)
+        run([python, '-c',
+             "from importlib.resources import files; "
+             "from defenseviz.native_pipeline import _verify_bundled_sources; "
+             "native=files('defenseviz').joinpath('data','native'); "
+             "assert native.joinpath('native_metadata.R').is_file(); "
+             "assert native.joinpath('full_rm.R').is_file(); "
+             "assert _verify_bundled_sources(native); "
+             "assert files('defenseviz').joinpath('data','notices','DNMB_native_core.txt').is_file()"], work)
         run([python, '-m', 'defenseviz', 'demo', '--out', work/'demo'], work)
         run([python, '-m', 'defenseviz', 'validate', work/'demo/inputs/project.json'], work)
         run([python, '-m', 'defenseviz', 'run', work/'demo/inputs/project.json', '--out', work/'rerun'], work)

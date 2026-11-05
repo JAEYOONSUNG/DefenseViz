@@ -1,4 +1,4 @@
-"""Physical fraction slots reserve complete labels, including partial markers."""
+"""Physical fraction slots reserve complete labels, with independently audited coverage."""
 from copy import deepcopy
 
 import pytest
@@ -22,17 +22,17 @@ def fraction_canvas(records, kind="retained"):
     return canvas,layout
 
 
-def test_partial_markers_expand_labels_without_sacrificing_original_retained_track():
+def test_observed_counts_preserve_original_retained_track():
     records=[(4,11,"partial","partial"),(3,9,"partial","partial"),(2,8,"complete","complete")]
     canvas,layout=fraction_canvas(records)
-    assert layout["width_mm"] > 11.76
+    assert layout["width_mm"] == pytest.approx(11.76)
     assert layout["track_width_mm"] == pytest.approx(3.25)
     bars=canvas.ledger["bars"]
     assert len({b["track_width_mm"] for b in bars}) == 1
     assert [b["bounds_mm"][2]/b["denominator"] for b in bars] == pytest.approx([layout["track_width_mm"]/11]*3)
     assert [b["filled_width_mm"]/b["value"] for b in bars] == pytest.approx([layout["track_width_mm"]/11]*3)
     texts=canvas.ledger["texts"]
-    assert [t["text"] for t in texts] == ["4+","/","11+","3+","/","9+","2","/","8"]
+    assert [t["text"] for t in texts] == ["4","/","11","3","/","9","2","/","8"]
     for part in ("numerator","denominator"):
         slots=[t for t in texts if t["source_ref"]["part"]==part]
         assert all(t["alignment"] == "right" for t in slots)
@@ -83,7 +83,7 @@ def test_four_digit_partial_counts_expand_column_without_hiding_bar():
 
 def test_missing_endpoint_and_zero_counts_remain_explicit():
     c,layout=fraction_canvas([(None,None,"unassessed",None),(0,0,"complete","complete"),(0,20,"partial","unassessed")])
-    assert [t["text"] for t in c.ledger["texts"]]==["NA","0","/","0","0+","/","NA"]
+    assert [t["text"] for t in c.ledger["texts"]]==["—","0","/","0","0","/","—"]
     assert c.ledger["bars"][0]["bounds_mm"][2]==0
 
 

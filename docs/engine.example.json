@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "rscript": "Rscript",
+  "r_libraries": ["/path/to/DNMB/R/library"],
+  "reference_cache": "/path/to/DNMB/cache/db_modules/rebasefinder/cache",
+  "hmm_database": "/path/to/RM_HMMs.hmm",
+  "profile_metadata": "/path/to/profile_roles.tsv",
+  "hmmsearch": "hmmsearch",
+  "cath_resolve_hits": "/path/to/cath-resolve-hits",
+  "blastp": "blastp",
+  "blastdbcmd": "blastdbcmd",
+  "cpu": 4
+}

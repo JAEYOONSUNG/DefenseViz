@@ -36,7 +36,7 @@ def rendered(data,path,**config):
     return result
 
 
-def test_fifty_seven_rows_fit_letter_at_unchanged_font_with_descenders_and_partial_commas(tmp_path):
+def test_fifty_seven_rows_fit_letter_at_unchanged_font_with_descenders_and_observed_commas(tmp_path):
     data=dataset();data['inventory_rows']['families'][3]['category']='Unresolved'
     result=rendered(data,tmp_path)
     assert result['page_count']==1
@@ -48,7 +48,7 @@ def test_fifty_seven_rows_fit_letter_at_unchanged_font_with_descenders_and_parti
     assert all(2.6<r['bounds_mm'][3]<2.75 for r in rows)
     numbers=[t for t in page['texts'] if t['role']=='numeric']
     assert all(t['font_pt']==7.8 and t['alignment']=='right' and t['bounds_kind']=='glyph_ink' for t in numbers)
-    assert any(t['text']=='1,192+' for t in numbers)
+    assert any(t['text']=='1,192' for t in numbers)
     assert all(b['bounds_mm'][2:]==[12.,1.4] for b in page['bars'])
     for r in rows:
         matching=[t for t in page['texts'] if (t.get('source_ref') or {}).get('row_id')==r['row_id']]
@@ -112,7 +112,7 @@ def test_unassessed_rows_and_explicit_larger_fonts_are_not_compressed_to_fit(tmp
     assert len({(r['table'],r['row_id']) for r in rows})==57
     numbers=[t for p in result['pages'] for t in p['texts'] if t['role']=='numeric']
     assert all(t['font_pt']==9 for t in numbers)
-    assert any(t['text']=='NA' for t in numbers)
+    assert any(t['text']=='—' for t in numbers)
 
 
 def test_single_unrenderable_label_errors_instead_of_clipping_or_omission(tmp_path):
