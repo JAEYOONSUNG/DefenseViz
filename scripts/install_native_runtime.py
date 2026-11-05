@@ -6,7 +6,7 @@ import datetime as dt
 import hashlib
 import json
 import os
-from pathlib import Path
+from pathlib import Path, PureWindowsPath
 import shutil
 import subprocess
 import time
@@ -84,12 +84,23 @@ jsonlite::write_json(list(helpers=rows,packages=packages),a[3],auto_unbox=TRUE,p
 if(!all(vapply(rows,function(r)r$source_body_matches,logical(1))))stop("Installed helper bodies differ from pinned source")
 '''
 
+def _explicit_executable_path(value):
+    return (Path(value).expanduser().is_absolute() or '/' in value or '\\' in value
+            or bool(PureWindowsPath(value).drive))
+
+def resolve_r_executables(rscript):
+    """Use explicit paths as given; resolve only bare command names on PATH."""
+    value=os.fspath(rscript)
+    executable=Path(value).expanduser() if _explicit_executable_path(value) else shutil.which(value)
+    if not executable or not Path(executable).is_file():raise FileNotFoundError('Rscript not found: '+value)
+    executable=Path(executable).resolve()
+    R=executable.with_name('R.exe' if os.name=='nt' or executable.suffix.lower()=='.exe' else 'R')
+    if not R.is_file():raise FileNotFoundError('R executable must be beside Rscript: '+str(R))
+    return executable,R
+
 def install_runtime(out,rscript,dependency_libraries):
     out=Path(out).expanduser().resolve()
-    executable=shutil.which(rscript) if '/' not in rscript else rscript
-    if not executable or not Path(executable).is_file():raise FileNotFoundError('Rscript not found: '+rscript)
-    executable=Path(executable).resolve();R=executable.with_name('R')
-    if not R.is_file():raise FileNotFoundError('R executable must be beside Rscript: '+str(R))
+    executable,R=resolve_r_executables(rscript)
     libraries=[Path(p).expanduser().resolve() for p in dependency_libraries]
     if not libraries:raise ValueError('Provide at least one existing --dependency-library from a compatible DNMBsuite R environment')
     for p in libraries:

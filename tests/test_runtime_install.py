@@ -1,5 +1,6 @@
 import importlib.util
 import json
+import os
 from pathlib import Path
 import pytest
 
@@ -39,7 +40,8 @@ def test_source_fetch_uses_sparse_checkout_and_verifies_actual_commit(tmp_path,m
 
 
 def fixture(tmp_path,monkeypatch,leak=False):
-    binary=tmp_path/'bin';binary.mkdir();rscript=binary/'Rscript';rscript.write_text('Rscript');(binary/'R').write_text('R')
+    suffix='.exe' if os.name=='nt' else ''
+    binary=tmp_path/'bin';binary.mkdir();rscript=binary/('Rscript'+suffix);rscript.write_text('Rscript');(binary/('R'+suffix)).write_text('R')
     deps=tmp_path/'dependencies';deps.mkdir();calls=[]
     def fetch(name,spec,dest,records,receipt):
         dest.mkdir(parents=True);f=dest/'DESCRIPTION';f.write_text('Package: '+name)
@@ -81,3 +83,44 @@ def test_installer_cannot_write_under_dependency_library(tmp_path,monkeypatch):
     with pytest.raises(ValueError,match='outside dependency'):
         module.install_runtime(deps/'new',str(rscript),[str(deps)])
     assert not (deps/'new').exists()
+
+
+@pytest.mark.parametrize('value',[
+    r'C:\Program Files\R\R-4.6.1\bin\Rscript.exe',
+    r'\\server\R installation\bin\Rscript.exe',
+    r'.\bin\Rscript.exe',
+    r'C:Rscript.exe',
+    '/opt/R/bin/Rscript',
+    './bin/Rscript',
+])
+def test_native_and_windows_path_forms_are_not_PATH_names(value):
+    assert module._explicit_executable_path(value)
+
+
+def test_explicit_Rscript_exe_with_spaces_bypasses_PATH_and_uses_sibling_R_exe(tmp_path,monkeypatch):
+    folder=tmp_path/'Program Files'/'R installation'/'bin';folder.mkdir(parents=True)
+    rscript=folder/'Rscript.exe';rscript.write_text('explicit executable')
+    R=folder/'R.exe';R.write_text('same installation')
+    monkeypatch.setattr(module.shutil,'which',lambda value:pytest.fail('Explicit path must not be searched on PATH'))
+    assert module.resolve_r_executables(str(rscript))==(rscript.resolve(),R.resolve())
+
+
+def test_bare_name_uses_PATH_but_never_a_different_R_installation(tmp_path,monkeypatch):
+    folder=tmp_path/'selected';folder.mkdir()
+    suffix='.exe' if os.name=='nt' else ''
+    rscript=folder/('Rscript'+suffix);rscript.write_text('selected Rscript')
+    R=folder/('R'+suffix);R.write_text('selected R')
+    seen=[]
+    def locate(value):seen.append(value);return str(rscript)
+    monkeypatch.setattr(module.shutil,'which',locate)
+    assert module.resolve_r_executables('Rscript')==(rscript.resolve(),R.resolve())
+    assert seen==['Rscript']
+    R.unlink()
+    with pytest.raises(FileNotFoundError,match='must be beside Rscript'):
+        module.resolve_r_executables('Rscript')
+
+
+def test_missing_explicit_executable_does_not_fall_back_to_PATH(tmp_path,monkeypatch):
+    monkeypatch.setattr(module.shutil,'which',lambda value:pytest.fail('Missing explicit path must not fall back'))
+    with pytest.raises(FileNotFoundError,match='Rscript not found'):
+        module.resolve_r_executables(str(tmp_path/'missing'/'Rscript.exe'))

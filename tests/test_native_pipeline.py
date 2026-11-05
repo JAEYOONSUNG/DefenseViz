@@ -170,7 +170,8 @@ def test_runtime_bootstraps_configured_tools_and_R_libraries(tmp_path,monkeypatc
     binary=tmp_path/'tool dir'/('blastp.exe' if os.name=='nt' else 'blastp');binary.parent.mkdir();binary.write_text('executable');binary.chmod(0o755)
     monkeypatch.setenv('PATH','/usr/bin');monkeypatch.setenv('R_LIBS','/existing/R')
     env=_runtime_environment({'blastp':str(binary),'r_libraries':['/private/R']},tmp_path/'cache')
-    assert shutil.which('blastp',path=env['PATH'])==str(binary)
+    resolved_binary=shutil.which('blastp',path=env['PATH'])
+    assert resolved_binary is not None and Path(resolved_binary).samefile(binary)
     assert env['R_LIBS'].split(os.pathsep)==['/private/R','/existing/R']
     assert env['DNMB_BLASTP']==str(binary)
 
