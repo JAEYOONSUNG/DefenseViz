@@ -192,15 +192,16 @@ def run_suite(root, output_dir, *, manifest=None, supplement=None, rm_evidence=N
                              evidence_workspace=stage / "evidence" / "reference")
         original_import = data.pop("_native_import_bundle", None) or dict(data)
         import_seconds = time.monotonic() - started
-        layout_options = {}
+        layout_options = {"preview_png": True}
         if layout is not None:
             layout_path = Path(layout).resolve()
             reader = Reader(layout_path)
-            layout_options = reader.json(layout_path)
-            if not isinstance(layout_options, dict):
+            supplied_layout = reader.json(layout_path)
+            if not isinstance(supplied_layout, dict):
                 raise ValueError("Layout configuration must be an object")
-            if "title" in layout_options:
+            if "title" in supplied_layout:
                 raise ValueError("Set the figure title with --title, not the layout file")
+            layout_options.update(supplied_layout)
             data.setdefault("inputs", []).extend(reader.inputs)
             data.setdefault("input_sha256", {}).update(reader.hashes)
         paths = sorted({Path(p).resolve() for p in data.get("inputs", [])})

@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.5.1
+
+- Discover nested DNMBsuite result folders from one parent directory, stopping at each native sample root to avoid nested-module duplication.
+- Read automatic assembly identities and strain labels from source-bound GenBank metadata while preserving explicit manifests.
+- Produce publication PNG previews alongside PDF/SVG by default in `from-suite`, with the same classified workbook and filtered annotation exports.
+
 ## 2.5.0
 
 - Add one-command full DNMB R-M execution: all-protein HMM search, complete-reference BLAST for native nominees, context/motif review, fixed-policy retention and publication.

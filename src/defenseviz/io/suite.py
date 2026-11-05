@@ -18,6 +18,7 @@ from importlib.resources import files
 from pathlib import Path
 
 from .project import Reader, _canonical, _family_maps, _string
+from .suite_discovery import discover_suite
 
 MODULES = {"defensefinder": "DefenseFinder", "padloc": "PADLOC",
            "defensepredictor": "DefensePredictor", "rebasefinder": "REBASE"}
@@ -1321,13 +1322,14 @@ def attach_system_review_annotations(data, root, *, strict_inputs=False):
 
 
 def load_suite(root, *, manifest=None, rscript=None, strict_inputs=False):
-    """Load one native folder or an immediate-child cohort without preprocessing."""
+    """Load one native folder or recursively discover a cohort without preprocessing."""
     root = Path(root).expanduser().resolve()
     if not root.is_dir():
         raise ValueError(f"{root}: suite root must be an existing directory")
     manifest = Path(manifest).expanduser().resolve() if manifest is not None else None
     r = SuiteReader(root, manifest, rscript, strict_inputs)
     config = r.reader.json(manifest) if manifest else {}
+    discovered = {}
     if manifest:
         if not isinstance(config, dict) or type(config.get("schema_version")) is not int or config["schema_version"] != 1:
             raise ValueError("suite manifest schema_version must be integer 1")
@@ -1338,13 +1340,10 @@ def load_suite(root, *, manifest=None, rscript=None, strict_inputs=False):
         if not isinstance(specs, list) or not specs:
             raise ValueError("suite manifest samples must be a nonempty list")
     else:
-        def native(p):
-            return any(x.is_dir() and x.name.startswith("dnmb_module_") for x in p.iterdir())
-        excluded = {"staging", "receipts", "output", "outputs", "reviews", "artifacts"}
-        dirs = [root] if native(root) else sorted(p for p in root.iterdir() if p.is_dir() and not p.name.startswith(".") and p.name.lower() not in excluded and native(p))
-        if not dirs:
-            raise ValueError(f"{root}: no native suite folders discovered")
-        specs = [{"sample_id": p.name, "path": str(p), "label": p.name} for p in dirs]
+        inventory = discover_suite(root)
+        specs = [item["spec"] for item in inventory["samples"]]
+        discovered = {item["spec"]["sample_id"]: item for item in inventory["samples"]}
+        r.raw["discovery"] = inventory
     families = _family_maps(r.reader, config)
     catalog_path = Path(str(files("defenseviz").joinpath("data/families.json"))).resolve()
     if str(catalog_path) in r.reader.hashes:
@@ -1365,6 +1364,18 @@ def load_suite(root, *, manifest=None, rscript=None, strict_inputs=False):
         if directory in directories:
             raise ValueError(f"{directory}: sample directory bound more than once")
         directories.add(directory)
+        r.raw.setdefault("samples", []).append(dict(sample_id=sample, directory=str(directory)))
+        if sample in discovered:
+            item = discovered[sample]
+            refs = []
+            for source in item["metadata_sources"]:
+                ref = r.source(Path(source["path"]), sample, "genbank", "sample_metadata")
+                if ref["sha256"] != source["sha256"]:
+                    raise ValueError(f"{source['path']}: GenBank metadata changed since discovery")
+                refs.append(ref)
+            r.data["source_metadata"].append(dict(sample_id=sample, provider="DNMB",
+                source_kind="automatic_sample_metadata", identity_origin=item["identity_origin"],
+                source_refs=refs, selected_fields={k: spec[k] for k in ("sample_id", "label", "genus", "species", "display") if k in spec}))
         metadata_sample = {k: spec[k] for k in ("genus", "species", "cohort", "display") if k in spec}
         if "display" in spec and not isinstance(spec["display"],dict):
             raise ValueError("sample display must be a metadata object")
