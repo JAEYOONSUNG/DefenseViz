@@ -57,6 +57,9 @@ REFERENCE_PAIRS = (
     ("legacy_blast", "blast_match", "blast_identity", ("family_id", "rm_type", "final_family")),
     ("native_blast", "hit_label", "blast_identity", ("family_id", "rm_type", "final_family")),
     ("curated_blast", "curated_blast_match", "curated_blast_identity", ("curated_blast_family", "family_id", "rm_type", "final_family")),
+    # Supplemental matches may disagree with the context candidate's family.
+    # Only a subject-specific exported family can classify this observation.
+    ("supplemental_blast", "supplemental_blast_match", "supplemental_blast_identity", ("supplemental_blast_family",)),
 )
 
 
@@ -99,7 +102,7 @@ def _native_context_label(row, label):
     """Recognize DNMB's reserved non-BLAST candidate labels, not free text."""
     if row.get("source") != "rebasefinder" or not isinstance(label, str):
         return False
-    if row.get("evidence_mode") == "operon_context":
+    if row.get("evidence_mode") in {"operon_context", "operon_context_rebase_blast"}:
         parts = label.split(":", 2)
         return (len(parts) == 3 and parts[0] in {"typeI_context", "typeII_context", "typeIII_context"}
                 and parts[1] in {"R", "M", "S"} and bool(parts[2]))
@@ -120,8 +123,8 @@ def _reference_observation_state(row, pair):
     """Missing BLAST measurements are unresolved observations, not no-hit rows."""
     if pair is not None:
         return "coherent"
-    explicit_subjects = ("raw_hit_label", "blast_match", "curated_blast_match")
-    explicit_identities = ("raw_blast_identity", "blast_identity", "curated_blast_identity")
+    explicit_subjects = tuple(subject for _, subject, _, _ in REFERENCE_PAIRS if subject != "hit_label")
+    explicit_identities = tuple(identity for _, _, identity, _ in REFERENCE_PAIRS)
     if (any(_value(row.get(k)) is not None and not _native_context_label(row, row[k]) for k in explicit_subjects)
             or any(_value(row.get(k)) is not None for k in explicit_identities)):
         return "incomplete"
@@ -131,6 +134,29 @@ def _reference_observation_state(row, pair):
     if _value(row.get("hit_label")) is not None and not hmm_only and not _native_context_label(row, row["hit_label"]):
         return "incomplete"
     return "absent"
+
+
+def _legacy_df_taxonomy(row, where):
+    """Recover missing export columns from the exact native model hierarchy.
+
+    This only projects taxonomy already present in a recognized FQN namespace.
+    It supplies neither a protein role nor a producer/model version.
+    """
+    fqn = _value(row.get("model_fqn"))
+    parts = fqn.split("/") if isinstance(fqn, str) else []
+    if (len(parts) == 4 and parts[0] == "defense-finder-models"
+            and parts[1] in {"DefenseFinder", "RM", "AntiDefenseFinder"}
+            and all(part and part.strip() == part for part in parts)):
+        parent = "RM" if parts[1] == "RM" else parts[2]
+    elif len(parts) == 2 and parts[0] == "CasFinder" and parts[1] and parts[1].strip() == parts[1]:
+        parent = "CAS"
+    else:
+        raise ValueError(f"{where}: missing DefenseFinder type requires an exact recognized model_fqn hierarchy")
+    subtype = _value(row.get("subtype"))
+    if subtype is not None and subtype != parts[-1]:
+        raise ValueError(f"{where}: DefenseFinder subtype conflicts with exact model_fqn leaf")
+    return dict(rule="native_model_fqn_taxonomy_projection_v1", source_field="model_fqn",
+                model_fqn=fqn, type=parent, subtype=parts[-1])
 
 
 def _native_family_display(provider, family, native, evidence_kind):
@@ -203,7 +229,7 @@ class SuiteReader:
                                      "effector_evidence", "groups", "complexes", "source_metadata", "evidence_records")}
         self.raw = {k: [] for k in ("sources", "identity_maps", "coverage", "features", "contexts", "motifs",
                                     "structures", "profiles", "scores", "annotations", "reference_matches", "conflicts",
-                                    "capabilities", "warnings", "commands", "unmapped_records", "unresolved_contexts", "software_resources")}
+                                    "capabilities", "warnings", "commands", "unmapped_records", "unresolved_contexts", "software_resources", "table_transforms")}
         self.raw.update(schema_version=1, source_mode="saved_native_import")
         self.data["suite"] = self.raw
         self.genes = {}
@@ -272,7 +298,11 @@ class SuiteReader:
                         raise ValueError(f"{path}: row/header column count differs")
                 self.pin(path)
             else:
-                rows, headers = self.reader.table(Path(path), sheet=sheet)
+                options = {"literal_hyperlinks": True} if Path(path).suffix.lower() == ".xlsx" and role == "gene_annotations" else {}
+                rows, headers = self.reader.table(Path(path), sheet=sheet, **options)
+                for transform in getattr(self.reader, "table_transforms", []):
+                    if transform not in self.raw["table_transforms"]:
+                        self.raw["table_transforms"].append(dict(transform))
         finally:
             csv.field_size_limit(previous_limit)
         for row in rows:
@@ -527,9 +557,10 @@ class SuiteReader:
         self.raw["coverage"].append(detailed)
         return detailed
 
-    def call(self, sample, gene, provider, family, system, ref, *, native=None, evidence_kind="final_member", model=None, mapping=None):
+    def call(self, sample, gene, provider, family, system, ref, *, native=None, evidence_kind="final_member", model=None, mapping=None,
+             reference_family=None):
         native = native or {}
-        typ = native.get("type", family)
+        typ = reference_family if reference_family is not None else native.get("type", family)
         rm_type = RM.get(typ) or RM.get(family)
         category = "R-M" if rm_type else None
         mapping_rule = "native_exact_rm_type_v1" if rm_type else None
@@ -692,8 +723,10 @@ class SuiteReader:
         group_family = {}
         group_refs = defaultdict(list)
         for path, rows, headers, ref in artifacts:
-            required = {"defensefinder": {"sys_id", "type"}, "padloc": {"system.number", "seqid", "system", "target.name"},
+            required = {"defensefinder": {"sys_id"}, "padloc": {"system.number", "seqid", "system", "target.name"},
                         "defensepredictor": {"locus_tag", "mean_log_odds"}}[module]
+            if module == "defensefinder" and not ({"type", "model_fqn"} & headers):
+                raise ValueError(f"{path}: DF requires type or model_fqn")
             if module == "defensefinder" and not ({"hit_id", "protein_in_syst"} & headers):
                 raise ValueError(f"{path}: DF requires hit_id or protein_in_syst")
             if not required <= headers:
@@ -707,6 +740,7 @@ class SuiteReader:
                    for number, row in enumerate(rows, 2))
         for path, headers, ref, number, row in entries:
             rr = {**ref, "row": number}
+            taxonomy_projection = None
             if module == "defensefinder":
                 if "protein_in_syst" in headers:
                     ids = [x.strip() for x in row["protein_in_syst"].split(",")]
@@ -718,7 +752,11 @@ class SuiteReader:
                     ids = [row["hit_id"]]
                 else:
                     raise ValueError(f"{path}: DF requires hit_id or protein_in_syst")
-                family = _value(row.get("subtype")) or row["type"]
+                if "type" not in headers or (_value(row.get("type")) is None and _value(row.get("subtype")) is None):
+                    taxonomy_projection = _legacy_df_taxonomy(row, f"{path}:{number}")
+                    family = taxonomy_projection["subtype"]
+                else:
+                    family = _value(row.get("subtype")) or row["type"]
                 system = _string(row["sys_id"], str(path))
                 model = _value(row.get("gene_name"))
             elif module == "padloc":
@@ -781,6 +819,9 @@ class SuiteReader:
                             raise ValueError(f"{path}:{number}: PADLOC replicon contradicts the exact gene/contig map")
                         binding = "verified"
                 call = self.call(sample, gene, provider, family, system, rr, native=row, model=model, mapping=families)
+                if taxonomy_projection is not None:
+                    call["native_taxonomy_projection"] = taxonomy_projection
+                    call["native_type"] = row.get("type")
                 call["replicon_binding"] = binding
                 if replicon is not None:
                     call["replicon_id"] = replicon
@@ -976,9 +1017,12 @@ class SuiteReader:
                 self.raw["reference_matches"].append(dict(sample_id=sample, gene_id=gene, reference_namespace="REBASE",
                     reference_id=subject, identity=identity, match_origin=origin, scope="exported_reference_observations",
                     source_ref=rr, native_fields=row))
-                reference_call = self.call(sample, gene, "REBASE", native_family, None, rr, native=row, evidence_kind="reference_hit", model=subject)
+                reference_call = self.call(sample, gene, "REBASE", native_family, None, rr, native=row, evidence_kind="reference_hit", model=subject,
+                                           reference_family=native_family if origin == "supplemental_blast" else None)
                 reference_call.update(reference_id=subject, match_identity=identity, match_origin=origin,
                                       reference_scope="exported_reference_observations")
+                if origin == "supplemental_blast":
+                    reference_call["reference_family_source"] = "supplemental_blast_family" if _value(row.get("supplemental_blast_family")) is not None else "unassessed"
             for prefix, typ in (("typei", "Type I"), ("typeii", "Type II"), ("typeiii", "Type III")):
                 context = {k[len(prefix)+1:]: v for k, v in row.items() if k.startswith(prefix + "_")}
                 if not context or all(_value(v) is None for v in context.values()):

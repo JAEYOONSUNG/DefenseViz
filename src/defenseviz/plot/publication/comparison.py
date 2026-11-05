@@ -108,7 +108,11 @@ def layout(width, fonts, rows, sources, config):
         for source in sources:
             number_width=max(number_width,fonts.width(number(r.get("source_counts",{}).get(source),r.get("source_count_status",{}).get(source)),body)+1.2)
     source_width=12+1.2+number_width+8.8
-    label_width=32.;genome_width=15.;dnmb_width=max(12.,number_width+3.)
+    label_width=32.;genome_width=15.
+    # The two independently centered headers need their own visible gap;
+    # short numeric banks must not pull "genomes" against "DNMB".
+    dnmb_width=max(12.,number_width+3.,
+                   (fonts.width("Number of",7.5,True)+fonts.width("DNMB",8,True))/2+2.5)
     nuc_width=max(45.,12+1.2+number_width+5.+number_width+4.2,
                   18.9+number_width+fonts.width("Effector CDSs",7.5)+3.,
                   fonts.width("Putative nuclease-associated CDSs",7.8,True)+.8)
@@ -212,8 +216,31 @@ def _row_height(rows, geom, fonts, config):
     return max((_row_metrics(r,geom,fonts,config)["height"] for r in rows),default=0.)
 
 
+def _priority_assessment(result, overlap):
+    """Describe supplied selection evidence, separately from source coverage."""
+    availability=result.get("availability",{})
+    effector=result.get("global_summary",{}).get("metric_status",{}).get(
+        "effector",availability.get("effector"))
+    ids=overlap.get("sample_ids",[s["sample_id"] for s in result.get("samples",[])])
+    current=availability.get("current_saved_decisions_by_sample")
+    if current is not None:
+        current={r["sample_id"]:r.get("status") for r in current}
+        rm={sid:current.get(sid) for sid in ids}
+        origin="availability.current_saved_decisions_by_sample"
+    else:
+        rm={sid:availability.get("saved_decisions") for sid in ids}
+        origin="availability.saved_decisions"
+    complete=status_kind(effector)=="complete" and bool(ids) and all(
+        status_kind(state)=="complete" for state in rm.values())
+    return {"complete":complete,"effector_state":effector,
+            "effector_origin":"global_summary.metric_status.effector" if "effector" in result.get("global_summary",{}).get("metric_status",{}) else "availability.effector",
+            "rm_states_by_sample":rm,"rm_origin":origin,
+            "count_scope":"Exact memberships in the supplied observed priority set; source coverage does not establish assessment completeness."}
+
+
 def comparison_pages(result, fonts, config, page_factory):
     before=result.get("overlap_regions",{});after=result.get("priority_overlap_regions",{})
+    after=dict(after,selection_assessment=_priority_assessment(result,after))
     categories=ordered_families(visible_rows(result.get("inventory_rows",{}).get("categories",[])),config)
     families=ordered_families(visible_rows(result.get("inventory_rows",{}).get("families",[])),config)
     sources=source_order(result,config)
