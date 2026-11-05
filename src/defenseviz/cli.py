@@ -25,6 +25,9 @@ def parser():
     k = sub.add_parser('catalog', help='Browse or export bundled official defense-system reference information')
     k.add_argument('query', nargs='?', help='Optional text search for browsing; not a detection identity rule')
     k.add_argument('--out', type=Path, help='Export all matching reference records as JSON and TSV to a fresh directory')
+    resources = sub.add_parser('check-resources', help='Verify DNMB databases and runtime before a full analysis')
+    resources.add_argument('--engine-config', type=Path, required=True)
+    resources.add_argument('--out', type=Path, help='Save the resource verification report in a new directory')
     for name, help_text in [('from-suite', 'Import DNMBsuite result folders and export publication figures'),
                             ('inspect-suite', 'Validate and summarize saved DNMBsuite outputs without writing results')]:
         s = sub.add_parser(name, help=help_text)
@@ -32,8 +35,9 @@ def parser():
         s.add_argument('--manifest', type=Path, help='Explicit sample paths, identities and display metadata')
         s.add_argument('--supplement', type=Path, help='Optional source-bound saved reviews')
         s.add_argument('--reference-cache', type=Path, help='Optional current DNMB REBASE cache for fresh, source-pinned homology evaluation of saved candidates')
-        s.add_argument('--evaluation', choices=['auto', 'stored'], default='auto',
-                       help='Automatically evaluate stored evidence (default), or replay saved decisions only')
+        s.add_argument('--evaluation', choices=['auto', 'stored', 'full'], default='auto',
+                       help='Use configured complete DNMB execution or saved-evidence evaluation (auto); require the complete engine (full); replay only (stored)')
+        s.add_argument('--engine-config', type=Path, help='DNMB runtime, full reference and native R-M HMM resource configuration')
         s.add_argument('--rm-evidence', type=Path, help='Source-bound complete R-M evidence for fresh DNMB policy evaluation')
         s.add_argument('--system-review-rules', type=Path, help='Optional exact, versioned rules for reviewing newly observed systems')
         s.add_argument('--system-review-evidence', type=Path, help='Registry and candidate paths for source-bound domain/site review')
@@ -52,6 +56,10 @@ def main(argv=None):
     try:
         if args.command == 'version':
             print(f'DefenseViz {__version__}'); return 0
+        if args.command == 'check-resources':
+            from .resources import verify_resources
+            print(json.dumps(verify_resources(args.engine_config, args.out), ensure_ascii=True, allow_nan=False))
+            return 0
         if args.command == 'catalog':
             if args.out is not None:
                 from .knowledge_output import export_catalog
@@ -65,7 +73,7 @@ def main(argv=None):
         if args.command in {'from-suite', 'inspect-suite'}:
             from .suite_pipeline import prepare_suite, run_suite, suite_warnings
             kwargs = dict(manifest=args.manifest, supplement=args.supplement,
-                          rm_evidence=args.rm_evidence, evaluation=args.evaluation, reference_cache=args.reference_cache,
+                          rm_evidence=args.rm_evidence, evaluation=args.evaluation, reference_cache=args.reference_cache, engine_config=args.engine_config,
                           system_review_rules=args.system_review_rules,
                           system_review_evidence=args.system_review_evidence,
                           rscript=args.rscript, strict_inputs=args.strict_inputs)

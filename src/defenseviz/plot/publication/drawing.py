@@ -70,12 +70,18 @@ def status_kind(state):
 
 
 def number(value, state):
+    """Format the observed count; assessment coverage is a separate axis.
+
+    Partial coverage does not change a measured integer into an open-ended
+    biological estimate. The caption scopes counts to recorded annotations;
+    missing measurements stay distinct from observed zero.
+    """
     kind = status_kind(state)
     if kind == "not_applicable":
-        return "-"
+        return "—"
     if value is None or kind == "unassessed":
-        return "NA"
-    return f"{value:,}" + ("+" if kind == "partial" else "")
+        return "—"
+    return f"{value:,}"
 
 
 class Fonts:

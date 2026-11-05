@@ -1,5 +1,16 @@
 # Changelog
 
+## 2.5.0
+
+- Add one-command full DNMB R-M execution: all-protein HMM search, complete-reference BLAST for native nominees, context/motif review, fixed-policy retention and publication.
+- Preserve qualifying saved DF/PAD nominations and exact previous R-M candidate identities alongside fresh DNMB HMM nominees; comparator nominations and previous assignments do not alter native profile scoring.
+- Propagate qualified retained R component evidence to putative effector counts and group support markers. Separate observed annotation counts from unresolved biological functions.
+- Verify full reference index/FASTA/metadata identity, actual R namespaces and complete translated-candidate search closure. Repair supplemental metadata resolution as well as primary hits.
+- Read exact-protein-bound cached DNMBsuite evidence without replacing original tool calls or saved decisions.
+- Correct explicit Type III reference parsing and numbered methylase prefixes in an audited in-memory projection; source databases remain unchanged.
+- Derive MS/RMS/MR counts from completed current-context inventories. Use concise numeric figure labels, with no repeated question-mark/plus suffixes or public `unassessed` label.
+- Preserve failed full-run logs and pin runtime, input, database and generated-evidence hashes.
+
 ## 2.4.0
 
 - Make source-bound R-M feature collection, frozen-policy evaluation and current-context review the default DNMBsuite path.
@@ -55,3 +66,9 @@
 - Synthetic examples, adversarial tests and clean-install validation.
 
 This is a new interface, not a drop-in replacement for DefenseViz 1.x R functions. Native detector and recognition-specificity execution is not included.
+
+### 2.5.0 deliverables and resource readiness
+
+- `from-suite` now always exports a classified annotation workbook and separate retained R-M and prioritized annotation TSVs alongside PDF/SVG figures.
+- `check-resources` verifies configured reference indexes, HMM/profile-role bindings, native modules, tools and loaded R packages before analysis.
+- Local runtime export preserves exact resources and rebuild sources separately from sample inputs and results.

@@ -17,6 +17,8 @@ def _update_row(row, summary):
         if field in row and row[field] != summary[field]:
             raise ValueError(f"Automatic system review disagrees with {field} membership")
     row.setdefault("metric_status", {}).update(summary["metric_status"])
+    row["observed_metric_status"] = deepcopy(summary["observed_metric_status"])
+    row["observed_count_scope"] = summary["observed_count_scope"]
     row["automatic_assessment"] = {
         "scope": "exact_observed_integrated_members",
         "reviewed_CDS": summary["CDS_count"],

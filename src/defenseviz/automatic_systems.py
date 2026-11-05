@@ -69,6 +69,14 @@ def summarize_assessments(gene_assessments, member_keys=None, *, inventory_statu
     out = {"member_keys": [list(_key(r)) for r in sorted(rows, key=_key)],
            "CDS_count": len(rows), "metric_status": {}, "unresolved_CDS": {},
            "not_applicable_CDS": {}}
+    # Availability of the observed annotation count is distinct from certainty
+    # about every CDS's function. A completed review can count zero accepted
+    # annotations while leaving all biological endpoints unresolved.
+    observed_complete = (inventory_status == "complete" and
+                         all(r.get("review_execution") == "completed" for r in rows))
+    out["observed_metric_status"] = {axis: "complete" if observed_complete else "unassessed"
+                                     for axis in _ENDPOINTS}
+    out["observed_count_scope"] = "qualified_annotations_in_reviewed_observed_integrated_members"
     for axis in _ENDPOINTS:
         states = Counter(r["endpoints"][axis]["status"] for r in rows)
         unresolved = sum(r["endpoints"][axis]["coverage"] != "complete" for r in rows)

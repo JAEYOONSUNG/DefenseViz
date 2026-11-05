@@ -14,7 +14,7 @@ def counts(value):
     """Snapshot numeric scientific endpoints, ignoring only status provenance."""
     if isinstance(value, dict):
         return {k: counts(v) for k, v in value.items()
-                if k not in {"automatic_system_review", "automatic_assessment", "availability", "system_review", "metric_status"}}
+                if k not in {"automatic_system_review", "automatic_assessment", "availability", "system_review", "metric_status", "observed_metric_status", "observed_count_scope"}}
     if isinstance(value, list):
         return [counts(v) for v in value]
     return value
@@ -33,6 +33,8 @@ def test_exact_family_scope_updates_without_numeric_or_native_changes():
     assert rloc["metric_status"]["effector"] == "complete"
     assert rloc["metric_status"]["motif"] == "unassessed"
     assert output["global_summary"]["metric_status"]["effector"] == "partial"
+    assert output["global_summary"]["observed_metric_status"]["effector"] == "complete"
+    assert output["global_summary"]["observed_count_scope"] == "qualified_annotations_in_reviewed_observed_integrated_members"
     assert output["automatic_system_review"]["materialization"]["canonical_reanalysis_runs"] == 0
 
 

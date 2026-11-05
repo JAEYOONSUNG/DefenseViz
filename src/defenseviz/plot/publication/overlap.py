@@ -115,7 +115,7 @@ def draw_flow(canvas, before, after, config):
     canvas.ledger["selection_assessment"]=after.get("selection_assessment")
     if before.get("coverage_status")=="unassessed" or after.get("coverage_status")=="unassessed":
         canvas.rect(11,28,194,43,"#F7FAF9","#C8D3D2",.4)
-        canvas.text(108,39,"Source overlap: NA",10,bold=True,ha="center",role="missing_overlap")
+        canvas.text(108,39,"Source overlap: unavailable",10,bold=True,ha="center",role="missing_overlap")
         canvas.text(108,49,"No common complete source coverage",8,ha="center")
         excluded=len(before.get("excluded_sample_ids",[]))
         canvas.text(108,59,f"0 of {excluded} genomes have all configured source outputs",7.5,ha="center")

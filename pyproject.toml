@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "defenseviz"
-version = "2.4.0"
+version = "2.5.0"
 description = "Source-traceable defense annotation integration, DNMB evidence reevaluation and comparative figures"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -29,7 +29,7 @@ defenseviz = "defenseviz.cli:main"
 where = ["src"]
 
 [tool.setuptools.package-data]
-defenseviz = ["data/*.json", "data/*.R", "data/notices/*.txt"]
+defenseviz = ["data/*.json", "data/*.R", "data/notices/*.txt", "data/native/*.R", "data/native/*.json", "data/native/source/*.R", "data/native/source/DNMB/*.R", "data/native/source/DefenseViz/*.R"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
