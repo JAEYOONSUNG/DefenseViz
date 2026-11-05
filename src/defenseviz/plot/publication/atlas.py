@@ -303,19 +303,31 @@ def _type_case_label(c, x, y, width, height, sample, wrapped):
     if (isinstance(runs,list) and runs and "\n" not in wrapped
             and all(isinstance(r,dict) and isinstance(r.get("text"),str) for r in runs)
             and " ".join(r["text"] for r in runs)==wrapped):
-        from matplotlib.font_manager import FontProperties
-        from matplotlib.textpath import TextToPath
-        from .manuscript_text import draw_manuscript_text
-        widths=[TextToPath().get_text_width_height_descent(r["text"],FontProperties(
-            family=c.fonts.pick(r["text"],True),size=9,weight="bold",
-            style="italic" if r.get("italic") else "normal"),False)[0]*25.4/72 for r in runs]
-        total=sum(widths)+.75*(len(runs)-1)
-        if total<=width-4:
+        from matplotlib.font_manager import FontProperties, findfont
+        from .manuscript_text import MM_PER_POINT, _literal_path, draw_manuscript_text
+        # Reserve a visible word gap between independently drawn font faces.
+        # Include italic overhang and the actual raster renderer's advances:
+        # at small sizes, hinted Arial text can be wider than unhinted paths.
+        spans=[]
+        renderer=c.fig.canvas.get_renderer()
+        for r in runs:
+            prop=FontProperties(family=c.fonts.pick(r["text"],True),size=9,
+                weight="bold",style="italic" if r.get("italic") else "normal")
+            path=_literal_path(findfont(prop,fallback_to_default=False),r["text"])
+            if path is None:break
+            box=path.get_extents();factor=9*MM_PER_POINT/100
+            advance=renderer.get_text_width_height_descent(r["text"],prop,False)[0]*25.4/c.fig.dpi
+            left=min(0.,box.x0*factor);right=max(box.x1*factor,advance)
+            spans.append((left,right-left))
+        gap=max(1.2,c.fonts.width(" ",9,True)+.35)
+        total=sum(w for _,w in spans)+gap*(len(runs)-1)
+        if len(spans)==len(runs) and total<=width-4:
             cursor=x+(width-total)/2
-            for r,w in zip(runs,widths):
-                draw_manuscript_text(c,cursor,y+height/2,r["text"],9,bold=True,
-                    italic=bool(r.get("italic")),owner=[x,y,width,height])
-                cursor+=w+.75
+            for r,(bearing,w) in zip(runs,spans):
+                draw_manuscript_text(c,cursor-bearing,y+height/2,r["text"],9,bold=True,
+                    italic=bool(r.get("italic")),owner=[x,y,width,height],
+                    role="type_sample_label",ref={"sample_id":sample["sample_id"]})
+                cursor+=w+gap
             return
     c.text(x+width/2,y+height/2,wrapped,9,bold=True,ha="center",owner=[x,y,width,height])
 
