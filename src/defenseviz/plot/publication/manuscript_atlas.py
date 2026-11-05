@@ -116,7 +116,7 @@ def _fraction(c,x,y,w,n,den,state,kind,scale=None,denstate=None,layout=None):
     num_known=n is not None and status_kind(state) in ("complete","partial")
     den_known=den is not None and status_kind(denstate) in ("complete","partial")
     if not num_known and not den_known:
-        _text(c,x+w-.7,y,"NA",ha="right",role="numeric")
+        _text(c,x+w-.7,y,"—",ha="right",role="numeric")
         return
     layout=layout or _fraction_layout(c.fonts,[(n,den,state,denstate)],kind)
     if w+1e-8<layout["width_mm"]:
@@ -172,9 +172,7 @@ def _family_glyph(c,x,y,row,family,config):
     ref={"sample_id":row.get("sample_id"),"family_id":family["id"]}
     outer=inner=0.
     if n is None or status_kind(state)=="unassessed":
-        _text(c,x,y,"NA",6.7,ha="center",role="missing",ref=ref)
-    elif n==0 and status_kind(state)=="partial":
-        _text(c,x,y,"0+",6.7,ha="center",role="numeric",ref=ref)
+        _text(c,x,y,"—",6.7,ha="center",role="missing",ref=ref)
     elif n:
         outer=radius(n);category=family.get("category","Unresolved")
         c.circle(x,y,outer,_color(category,config))
@@ -184,10 +182,6 @@ def _family_glyph(c,x,y,row,family,config):
         if e is not None and status_kind(est) in ("complete","partial"):
             inner=outer*math.sqrt(e/n)
             if inner:c.circle(x,y,inner,INNER)
-        if status_kind(est)=="unassessed" or status_kind(ast)=="unassessed":
-            _text(c,x,y,"?",6.7,ha="center",ref=ref)
-        if any(status_kind(s)=="partial" for s in (state,ast,est)):
-            _text(c,x+1.2,y-1.0,"+",6.7,ha="center",ref=ref)
     c.ledger["glyphs"].append(dict(ref,total=n,associated=a,effector=e,
       inventory_status=state,associated_status=ast,effector_status=est,
       outer_radius_mm=outer,inner_radius_mm=inner,inner_area_fraction=e/n if n and inner else 0,
@@ -198,16 +192,17 @@ def _role_glyph(c,x,y,w,record,key,kind):
     n=record.get("count");state=record.get("status")
     if n is None or status_kind(state)=="unassessed":
         # Status marks need visible separation even in adjacent one-CDS cells.
-        mark_pt=min(6.7,6.7*(CELL-.45)/c.fonts.width("NA",6.7))
-        _text(c,x+w/2,y,"NA",mark_pt,ha="center");return
+        mark_pt=min(6.7,6.7*(CELL-.45)/c.fonts.width("—",6.7))
+        _text(c,x+w/2,y,"—",mark_pt,ha="center");return
     if not n:
-        if status_kind(state)=="partial":_text(c,x+w/2,y,"0+",6.7,ha="center",role="numeric")
+        if kind=="context":_text(c,x+w/2,y,"0",6.7,ha="center",role="numeric")
         return
     r=radius(n);cx=x+w/2;numeric=key in ("II_R","IV_R") or kind=="context"
     if kind=="context":
-        orphan=key in ("I_MS","III_M");cx-=.9
-        c.circle(cx,y,r,"#D8CAE5" if orphan else "#BCD9D4","#81669C" if orphan else "#292929",.6)
-        if record.get("R_support_all") is True and not orphan:c.circle(cx,y,r+.254,None,TEAL,.7125)
+        # M/MS-only composition is not evidence of biological orphanhood.
+        methylation_only=key in ("I_MS","III_M");cx-=.9
+        c.circle(cx,y,r,"#D8CAE5" if methylation_only else "#BCD9D4","#81669C" if methylation_only else "#292929",.6)
+        if record.get("R_support_all") is True and not methylation_only:c.circle(cx,y,r+.254,None,TEAL,.7125)
         if record.get("reference_any") is True:c.circle(cx,y,.34,REFERENCE)
         _text(c,x+w/2+1.05,y,number(n,state),ha="center",role="numeric")
     else:
@@ -219,7 +214,6 @@ def _role_glyph(c,x,y,w,record,key,kind):
         if record.get("support_count",0) and status_kind(record.get("support_status")) in ("complete","partial"):
             c.circle(cx,y,r+.104,None,TEAL,.7)
         if numeric:_text(c,x+w/2+(1.05 if key=="II_R" else 0),y,number(n,state),ha="center",role="numeric")
-        elif status_kind(state)=="partial":_text(c,x+w-.1,y-1,"+",6.7,ha="right")
     c.ledger.setdefault("rm_symbols",[]).append({"field":key,"kind":kind,"count":n,
         "record":record,"center_mm":[cx,y],"radius_mm":r,"count_unit":"groups" if kind=="context" else "CDSs"})
 
@@ -521,7 +515,7 @@ def _legend(c,model,panels,groups,fpos,masks,sources,rows,bottom,sampleleft,conf
         _text(c,10,cy,("1","2-3","4-7","8-15","16+")[i],7.8)
     _text(c,36,y,"Subunit groups",8.8,bold=True)
     reference_label="Any REBASE-linked group" if model.get("reference_sources")==["REBASE"] else "Any reference-linked group"
-    for i,label in enumerate(("One symbol + group count","All groups R-supported",reference_label,"Orphan M(S)")):
+    for i,label in enumerate(("One symbol + group count","All groups R-supported",reference_label,"M(S)-only groups")):
         cy=y+4+3*i
         if i==2:c.circle(37,cy,.34,REFERENCE)
         else:
@@ -719,11 +713,9 @@ def manuscript_atlas_pages(result,fonts,config,page_factory):
                 for j,mask in enumerate(masks[:-1]):
                     x=panels["cases"]["left"]+j*CELL;_cell(c,x,y,CELL,ROW)
                     item=rowmasks.get(mask,{});n=item.get("count");state=item.get("status")
-                    if n is None or status_kind(state)=="unassessed":_text(c,x+CELL/2,cy,"NA",6.7,ha="center")
+                    if n is None or status_kind(state)=="unassessed":_text(c,x+CELL/2,cy,"—",6.7,ha="center")
                     elif n:
                         c.circle(x+CELL/2,cy,radius(n),"#E78E51")
-                        if status_kind(state)=="partial":_text(c,x+CELL-.1,cy-1,"+",6.7,ha="right")
-                    elif status_kind(state)=="partial":_text(c,x+CELL/2,cy,"0+",6.7,ha="center")
                     c.ledger["cells"].append({"kind":"exclusive","sample_id":sid,"mask":mask,"count":n,"status":state,"bounds_mm":[x,y,CELL,ROW]})
                 pp=panels["NonRM_summary"];_cell(c,pp["left"],y,pp["right"]-pp["left"],ROW)
                 _fraction(c,pp["left"],cy,pp["right"]-pp["left"],nc.get("intersection_CDS"),nc.get("pool_CDS"),nc.get("intersection_status"),"noncanonical",denstate=nc.get("pool_status"),layout=fractions["noncanonical"])

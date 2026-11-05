@@ -2,7 +2,8 @@
 
 This module adds no scientific assignments. Composition counts describe retained
 members of explicit saved contexts; badges require separately bound display
-evidence. They are not inferred from an effector flag or a reference hit.
+evidence or the exact current R-support policy predicate. They are not inferred
+from an effector flag, a role name or a reference hit.
 """
 from __future__ import annotations
 
@@ -118,6 +119,73 @@ def _retained_role_status(sample_id, typ, retained, assignments, saved_status):
                    not any(t == typ and role in {"R","M","S","RM","Aux","A","C","F"}
                            for t, role in rows_for_gene)) for rows_for_gene in rows)
     return "partial" if state == "complete" and unknown else state
+
+
+def _computed_context_coverage(bundle, sample_ids):
+    """Read an analysis-stage scope declaration, never a presentation guess.
+
+    Closed observed inventories can have exact zero counts even though activity
+    has not been tested. The declaration must come from the completed context
+    stage and retain source-bound provenance. Historical layout coverage remains
+    a separate backwards-compatible path.
+    """
+    stage=(bundle.get("rm_evaluation") or {}).get("current_context_review", {})
+    records=stage.get("observed_inventory_coverage", [])
+    if not isinstance(records,list):
+        raise ValueError("Computed context coverage must be a list")
+    out={}
+    for record in records:
+        if not isinstance(record,dict):
+            raise ValueError("Computed context coverage requires records")
+        key=record.get("sample_id"),record.get("family")
+        if (key[0] not in sample_ids or key[1] not in {"Type I","Type III"}
+                or key in out or record.get("status") not in {"complete","partial","missing"}
+                or record.get("scope") != "current_retained_groups_from_completed_context_scan"):
+            raise ValueError("Invalid computed context coverage identity or scope")
+        refs=_refs(record)
+        out[key]={**deepcopy(record),"source_refs":refs}
+    return out
+
+
+def _current_policy_r_support(bundle, genes, saved, retained):
+    """Project an already evaluated R-support predicate without rerunning it.
+
+    False means this annotation-support predicate was not met; it is not an
+    activity-negative claim. Legacy decisions without this contract stay
+    unassessed, even if their role or an unrelated effector flag is positive.
+    """
+    evaluation=bundle.get("rm_evaluation") or {}
+    if evaluation.get("operation")!="fresh_native_evidence_selected_policy_evaluation":
+        return {}
+    records={_key(r):r for r in evaluation.get("records",[])}
+    if len(records)!=len(evaluation.get("records",[])):
+        raise ValueError("Duplicate current policy record for R-support display")
+    hashes=bundle.get("derived_artifact_sha256",{})
+    out={}
+    for key in retained:
+        decision=saved.get(key,{})
+        if decision.get("origin")!="full_native_evidence_evaluation" or decision.get("role") not in {"R","RM"}:
+            continue
+        record=records.get(key,{})
+        predicate=decision.get("integrated_R_component_support")
+        if (type(predicate) is not bool or record.get("state")!="retained"
+                or record.get("assignment_status")!="evaluated"
+                or record.get("decision",{}).get("integrated_R_component_support") is not predicate
+                or record.get("decision",{}).get("keep") is not True
+                or not evaluation.get("evaluation_id") or decision.get("evaluation_id")!=evaluation["evaluation_id"]
+                or not evaluation.get("policy_sha256") or decision.get("policy_sha256")!=evaluation["policy_sha256"]
+                or not genes[key].get("protein_sha256")
+                or record.get("protein_sha256")!=genes[key]["protein_sha256"]
+                or decision.get("protein_sha256")!=genes[key]["protein_sha256"]
+                or record.get("evidence",{}).get("role")!=decision["role"]
+                or _TYPES.get(record.get("evidence",{}).get("family"))!=_TYPES.get(decision.get("rm_type") or decision.get("family"))):
+            raise ValueError("Current policy R-support display identity or predicate mismatch")
+        refs=_refs(record)
+        if any(hashes.get(ref["path"])!=ref["sha256"] for ref in refs):
+            raise ValueError("Current policy R-support display has unbound source hashes")
+        out[key]=dict(state="supported" if predicate else "not_supported",source_refs=refs,
+                      evaluation_id=evaluation["evaluation_id"],policy_sha256=evaluation["policy_sha256"])
+    return out
 
 
 def _taxonomy(samples, config):
@@ -298,6 +366,7 @@ def enrich_manuscript_model(bundle, result):
     group_coverage = config.get("group_coverage",{})
     if not isinstance(group_coverage,dict) or any(k not in sample_ids or v not in {"complete","partial","unassessed"} for k,v in group_coverage.items()):
         raise ValueError("Invalid atlas saved-group coverage")
+    computed_group_coverage=_computed_context_coverage(bundle,sample_ids)
     current_review_members = defaultdict(set)
     for g in bundle.get("groups", []):
         members = {(g["sample_id"], m["gene_id"]) for m in g.get("members", [])}
@@ -378,7 +447,20 @@ def enrich_manuscript_model(bundle, result):
         else:
             group_rows.append(row); dedup[ident] = row
         group_index[gkey] = row
-    role_evidence = {}; display_refs = []
+    policy_support=_current_policy_r_support(bundle,genes,saved,retained)
+    role_evidence={key:record["state"] for key,record in policy_support.items()}
+    display_refs=[ref for record in policy_support.values() for ref in record["source_refs"]]
+    for group in group_rows:
+        if (not group["current_composition"] or group["composition_class"] not in {"I_RMS","III_MR"}
+                or group["context_state"] not in {"complete","met","met_in_saved_context"}):
+            continue
+        r_members={tuple(key) for key in group["member_keys"]
+                   if any(typ==group["family"] and role in {"R","RM"} for typ,role in assignments[tuple(key)])}
+        if r_members and all(key in policy_support for key in r_members):
+            group["rm_R_support"]="supported" if all(policy_support[key]["state"]=="supported" for key in r_members) else "not_supported"
+            group["R_support_scope"]="all_current_retained_R_members_meet_selected_policy_predicate"
+            for key in sorted(r_members):
+                group["evidence_refs"].extend(deepcopy(policy_support[key]["source_refs"]))
     for a in bundle.get("annotations", []):
         kind = a.get("evidence_kind")
         if kind not in {"rm_role_display","rm_context_display"}:
@@ -463,17 +545,27 @@ def enrich_manuscript_model(bundle, result):
         comps={}
         for cls in _CLASSES:
             gs=[g for g in group_rows if g["sample_id"]==sid and g["composition_class"]==cls and g["current_composition"]]
-            status=group_coverage.get(sid,"partial" if gs else "unassessed")
             typ = "Type I" if cls.startswith("I_") else "Type III"
-            if ((sid,typ) in unresolved_group_types or (sid,None) in unresolved_group_types) and status == "complete":
-                status="partial"
-            if saved_status.get(sid) in {"partial","unassessed"} and status == "complete":
-                status="partial"
+            computed_scope=computed_group_coverage.get((sid,typ))
+            if computed_scope is not None:
+                status={"missing":"unassessed"}.get(computed_scope["status"],computed_scope["status"])
+                if status=="complete" and any(g["sample_id"]==sid and g["family"]==typ
+                        and g["current_composition"] and g["member_keys"]
+                        and g["composition_status"]!="complete" for g in group_rows):
+                    raise ValueError("Completed context inventory contains unresolved current compositions")
+            else:
+                status=group_coverage.get(sid,"partial" if gs else "unassessed")
+                if ((sid,typ) in unresolved_group_types or (sid,None) in unresolved_group_types) and status == "complete":
+                    status="partial"
+                if saved_status.get(sid) in {"partial","unassessed"} and status == "complete":
+                    status="partial"
             supported,support_state=_badge([g["rm_R_support"]for g in gs],"all")
             linked,reference_state=_badge([g["rm_reference_link"]for g in gs],"any")
             comps[cls]=dict(count=len(gs),status=status,R_support_all=supported,R_support_status=support_state,
                 reference_any=linked,reference_status=reference_state,group_ids=[g["group_id"]for g in gs],
                 member_keys=_keys(set().union(*(set(map(tuple,g["member_keys"]))for g in gs))))
+            if computed_scope is not None:
+                comps[cls]["inventory_coverage"]=deepcopy(computed_scope)
         nc={k for k in noncanonical if k[0]==sid}; masks=defaultdict(set)
         for k in nc:masks[''.join('1'if k in native_sets[p]else'0'for p in order)].add(k)
         mask_status=_intersection_state(source_status.values())

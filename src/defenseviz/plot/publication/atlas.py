@@ -26,7 +26,8 @@ def workflow(c, result, config, y=19):
         c.text(x+2,y+8,heading,8,bold=True,color=TEAL)
         label=c.fonts.wrap(body,w-4,7.2)
         c.text(x+2,y+15,label,7.2,owner=[x,y+4,w,20])
-        c.text(x+2,y+22,str(state).replace("_"," "),7,color="#6F8185")
+        display_state={"unassessed":"No support recorded","partial":"Recorded support"}.get(str(state),str(state).replace("_"," "))
+        c.text(x+2,y+22,display_state,7,color="#6F8185")
         if i<3:c.ax.annotate("",xy=(x+w+gap-.5,y+14),xytext=(x+w+.5,y+14),arrowprops={"arrowstyle":"-|>","color":TEAL,"lw":.6})
     c.ledger["workflow"]={"operation":"saved_result_import_and_aggregation","new_engine_runs":False,
                            "capabilities":result.get("availability",{}),"activity_assessed":False}
@@ -69,7 +70,7 @@ def draw_glyph(c,x,y,row,family,config,bounds):
     ast,est=metric_state(row,"associated"),metric_state(row,"effector")
     ref={"sample_id":row.get("sample_id"),"family_id":row.get("family_id",row.get("id"))}
     if status_kind(state)=="unassessed" or n is None:
-        c.text(x,y,"NA",7,ha="center",owner=bounds,role="missing",ref=ref)
+        c.text(x,y,"—",7,ha="center",owner=bounds,role="missing",ref=ref)
         radius=inner=0
     elif n==0:
         c.circle(x,y,.16,"#D7DFDF");radius=inner=0
@@ -80,10 +81,6 @@ def draw_glyph(c,x,y,row,family,config,bounds):
             c.circle(x,y,radius+.10,None,PURPLE,.55)
         inner=radius*math.sqrt(e/n) if e is not None and status_kind(est) in ("complete","partial") else 0
         if inner:c.circle(x,y,inner,PURPLE)
-        if "unassessed" in (status_kind(ast),status_kind(est)):
-            c.text(x,y,"?",7,ha="center",role="missing_evidence",ref=ref)
-        if "partial" in (status_kind(state),status_kind(ast),status_kind(est)):
-            c.text(x+1.65,y-1.25,"+",6.5,ha="center",role="partial",ref=ref)
     c.ledger["glyphs"].append(dict(ref,bounds_mm=bounds,total=n,associated=a,effector=e,
         inventory_status=state,associated_status=ast,effector_status=est,outer_radius_mm=radius,
         inner_radius_mm=inner,inner_area_fraction=(e/n if n and inner else 0),
@@ -241,7 +238,7 @@ def atlas_pages(result,fonts,config,page_factory):
                             numerator=summary.get("retained_R_CDS");denominator=summary.get("retained_RM_CDS")
                             state=summary.get("retained_ratio_status")
                             value=(number(numerator,summary.get("retained_R_counts_status",state))+"/"+
-                                   number(denominator,summary.get("retained_RM_counts_status",state))) if numerator is not None and denominator is not None and status_kind(state)!="unassessed" else "NA"
+                                   number(denominator,summary.get("retained_RM_counts_status",state))) if numerator is not None and denominator is not None and status_kind(state)!="unassessed" else "—"
                         elif field in ("rm_pool_CDS","rm_intersection_CDS"):
                             value=summary.get(field)
                             state=summary.get("rm_pool_status" if field=="rm_pool_CDS" else "rm_intersection_status")
@@ -266,7 +263,7 @@ def atlas_pages(result,fonts,config,page_factory):
                 foot=height-14
                 c.circle(10,foot,1,None,PURPLE);c.text(13,foot,"Putative nuclease-associated CDSs",7.2)
                 c.circle(76,foot,1,None,PURPLE);c.circle(76,foot,.6,PURPLE);c.text(79,foot,"Effector CDSs (inner area / total)",7.2)
-                c.text(8.45,height-8,"Count bins: 1, 2-3, 4-7, 8-15, 16+ · NA / ?: unassessed · +: observed lower bound · Activity untested",7)
+                c.text(8.45,height-8,"Count bins: 1, 2–3, 4–7, 8–15, 16+ · Recorded annotations · —: unavailable",7)
                 c.ledger["family_ids"]=[f["id"] for f in fs];c.ledger["source_order"]=allsources
                 pages.append(c)
     return pages
@@ -287,8 +284,7 @@ def _type_display(r,field):
         subset=r.get("orphan_"+field);assessed=r.get("orphan_state",{}).get(field);applicable=True
     else:assessed=None;applicable=False
     if value and status_kind(state) in ("complete","partial"):
-        if applicable and status_kind(assessed)=="unassessed":display+=" (NA)"
-        elif applicable and (subset or status_kind(assessed)=="partial"):
+        if applicable and subset and status_kind(assessed) in ("complete","partial"):
             display+=" ("+number(subset,assessed)+")"
     return display,value,state,subset
 
@@ -359,7 +355,7 @@ def type_pages(result,fonts,config,page_factory):
             c.ledger["sample_ids"]=cases
             c.ledger["sample_selection"]="explicit" if selected is not None else "highlighted_default" if any(samples[sid].get("highlight") for sid in cases) else "all_typed_default"
             c.text(8.45,9,"c  CDS inclusion by assigned R-M type",11,bold=True)
-            c.text(8.45,16,"R(n): incomplete retained context; M/S(n): orphan · NA: unassessed · +: partial · -: not applicable",7.8)
+            c.text(8.45,16,"Recorded CDSs · R(n): incomplete context; M/S(n): documented orphan · —: unavailable or not applicable",7.8)
             for ci,sid in enumerate(cases):
                 case=samples[sid];rr=[r for r in rows if r["sample_id"]==sid]
                 x=8.45+ci*(casew+gap)

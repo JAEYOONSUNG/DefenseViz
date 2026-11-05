@@ -48,6 +48,14 @@ def main():
              "assert all(p.joinpath(n).is_file() for n in "
              "('REFERENCE_CATALOGUE.txt','defensefinder-wiki-LICENSE.txt',"
              "'defense-finder-models-LICENSE.txt','CasFinder-LICENSE.txt'))"], work)
+        run([python, '-c',
+             "from importlib.resources import files; "
+             "from defenseviz.native_pipeline import _verify_bundled_sources; "
+             "native=files('defenseviz').joinpath('data','native'); "
+             "assert native.joinpath('native_metadata.R').is_file(); "
+             "assert native.joinpath('full_rm.R').is_file(); "
+             "assert _verify_bundled_sources(native); "
+             "assert files('defenseviz').joinpath('data','notices','DNMB_native_core.txt').is_file()"], work)
         run([python, '-m', 'defenseviz', 'demo', '--out', work/'demo'], work)
         run([python, '-m', 'defenseviz', 'validate', work/'demo/inputs/project.json'], work)
         run([python, '-m', 'defenseviz', 'run', work/'demo/inputs/project.json', '--out', work/'rerun'], work)
@@ -76,6 +84,17 @@ def main():
         assert (work/'suite-rerun/figures/publication.pdf').stat().st_size>1000
         assert list((work/'suite-rerun/figures').glob('*.svg'))
         native_receipt=json.loads((work/'suite-rerun/receipt.json').read_text(encoding='utf-8'))
+        from openpyxl import load_workbook
+        workbook_path = work/'suite-rerun/tables/defense_annotations.xlsx'
+        assert workbook_path.is_file()
+        workbook = load_workbook(workbook_path, read_only=True, data_only=False)
+        assert 'Classified CDSs' in workbook.sheetnames and 'R-M retained' in workbook.sheetnames
+        assert sum(1 for _ in workbook['Classified CDSs'].iter_rows()) - 1 == second['global_summary']['integrated_CDS']
+        assert sum(1 for _ in workbook['R-M retained'].iter_rows()) - 1 == second['global_summary']['retained_CDS']
+        assert sum(1 for _ in workbook['Priority CDSs'].iter_rows()) - 1 == second['global_summary']['priority_CDS']
+        workbook.close()
+        for name in ('defense_annotations.xlsx', 'classified_CDSs.tsv', 'retained_RM_annotations.tsv', 'prioritized_annotations.tsv'):
+            assert 'tables/' + name in native_receipt['outputs']
         assert native_receipt['software']['git']['status']=='not_a_source_checkout'
         assert native_receipt['detector_runs']==0 and native_receipt['exit_code']==0
         run([python, ROOT/'examples/suite_rm_evidence/make_example.py', work/'legacy-inputs'], work)

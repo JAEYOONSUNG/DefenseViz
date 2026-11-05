@@ -62,7 +62,11 @@ def source_order(result, config):
 
 
 def metric_state(row, key):
-    return row.get("metric_status",{}).get(key,row.get("counts_status") if key=="inventory" else None)
+    # Completed exact-member review can close the inventory of qualified
+    # annotations while biological function remains unresolved. Only an
+    # explicit analysis declaration changes count availability.
+    return row.get("observed_metric_status",{}).get(key,
+        row.get("metric_status",{}).get(key,row.get("counts_status") if key=="inventory" else None))
 
 
 def visible_rows(rows):
@@ -302,7 +306,7 @@ def _footer(c,config,sources=()):
     c.rect(8.45,266.1,2,1.4,ASSOCIATED);c.text(11.4,266.8,"Putative nuclease-associated CDSs",7.0)
     c.rect(65,266.1,2,1.4,EFFECTOR);c.text(68,266.8,"Effector CDSs",7.0)
     c.text(c.width-8.45,266.8,"Rows overlap",7.0,ha="right")
-    c.text(8.45,271,"Track: row union · NA: unassessed · +: partial · Activity untested",7.0)
+    c.text(8.45,271,"Counts: recorded annotations · Track: row union · —: unavailable",7.0)
     labels=[f"{alias(s,config)}: {s}" for s in sources if alias(s,config)!=s]
     if labels:
         text="; ".join(labels)

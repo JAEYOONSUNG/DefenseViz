@@ -121,7 +121,9 @@ def analyze_saved(data):
     evaluation_meta = d.get("rm_evaluation") or {}
     policy_attempts = evaluation_meta.get("policy_evaluations", evaluation_meta.get("scoring_runs",0))
     policy_decisions = evaluation_meta.get("policy_decisions",policy_attempts)
-    warnings = [("Stored R-M evidence reevaluated with the selected DNMB policy; no detector run."
+    full_execution = bool(d.get("evaluation_execution", {}).get("fresh_full_execution"))
+    warnings = [("Current DNMB R-M engine evidence evaluated with the selected policy; original DF/PAD/DP outputs preserved."
+                 if full_execution else "Stored R-M evidence reevaluated with the selected DNMB policy; no detector run."
                  if policy_decisions else "Stored R-M evidence evaluated; all new retention decisions remain unassessed. Native decisions replayed."
                  if policy_attempts else "Saved-result import and aggregation; no detector or scoring run."),
                 "Annotation evidence does not establish activity. Missing evidence is unassessed.",
@@ -1100,7 +1102,7 @@ def analyze_saved(data):
             inventory_by_sample=inventory_by_sample, assessment_coverage_by_sample=assessment_by_sample,
             assessment_coverage_provenance_by_sample=assessment_provenance),
         workflow_capabilities=deepcopy((d.get("suite") or {}).get("capabilities",{})),
-        provenance=dict(operation="stored_evidence_evaluation_and_aggregation" if policy_decisions else "stored_evidence_bounds_and_saved_result_aggregation" if policy_attempts else "saved_result_import_and_aggregation",detector_runs=0,
+        provenance=dict(operation="completed_native_evidence_aggregation" if full_execution else "stored_evidence_evaluation_and_aggregation" if policy_decisions else "stored_evidence_bounds_and_saved_result_aggregation" if policy_attempts else "saved_result_import_and_aggregation",detector_runs=0,
             scoring_runs=evaluation.get("scoring_runs", 0),
             policy_evaluations=policy_attempts,policy_decisions=policy_decisions,
             component_registry_version=registry["version"],component_registry_sha256=registry_sha,

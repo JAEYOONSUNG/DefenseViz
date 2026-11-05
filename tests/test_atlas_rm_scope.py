@@ -295,7 +295,7 @@ def test_atlas_crosschecks_same_native_endpoint_export(field, bad_value):
 
 
 @pytest.mark.parametrize("partial", [False, True])
-def test_result_only_analysis_to_fraction_preserves_real_partial_markers(partial):
+def test_result_only_analysis_to_fraction_preserves_counts_and_audited_coverage(partial):
     from defenseviz.plot.publication.drawing import Canvas, Fonts
     from defenseviz.plot.publication.manuscript_atlas import _fraction, _fraction_layout
     from defenseviz.plot.publication.manuscript_model import build_manuscript_atlas_model
@@ -315,5 +315,5 @@ def test_result_only_analysis_to_fraction_preserves_real_partial_markers(partial
     canvas.validate()
     labels = {name:[t["text"] for t in canvas.ledger["texts"] if (t.get("source_ref") or {}).get("endpoint") == name]
               for name in ["intersection", "retained"]}
-    assert labels["intersection"] == (["3+", "/", "3+"] if partial else ["3", "/", "3"])
-    assert labels["retained"] == (["0+", "/", "2+"] if partial else ["1", "/", "3"])
+    assert labels["intersection"] == ["3", "/", "3"]
+    assert labels["retained"] == (["0", "/", "2"] if partial else ["1", "/", "3"])

@@ -22,7 +22,7 @@ def test_outside_unassessed_nominee_does_not_make_a_fully_assessed_type_partial(
     assert len(result['rm_candidate_scope']['member_keys']) == 2
 
 
-def test_unknown_member_inside_type_pool_keeps_the_display_partial():
+def test_unknown_member_inside_type_pool_preserves_partial_audit_and_observed_count():
     data = base('r', 'other')
     data['calls'] = [dict(call(g), family='Type I', rm_type='Type I', category='R-M') for g in ['r', 'other']]
     data['coverage'] = cov('DefenseFinder')
@@ -30,7 +30,7 @@ def test_unknown_member_inside_type_pool_keeps_the_display_partial():
     row = next(r for r in analyze_saved(data)['type_tables'] if r['rm_type'] == 'Type I')
     assert (row['pool_CDS'], row['unique_CDS']) == (2, 1)
     assert row['within_pool_counts_status'] == 'partial'
-    assert _type_display(row, 'DNMB')[0] == '1+'
+    assert _type_display(row, 'DNMB')[0] == '1'
 
 
 def test_reference_and_typed_candidates_define_rm_input_not_untyped_no_hit_nominees():

@@ -110,6 +110,9 @@ def fake_stages(monkeypatch, data, *, fail=False, mutate=False):
     monkeypatch.setitem(sys.modules, analysis.__name__, analysis)
     monkeypatch.setitem(sys.modules, plot.__name__, plot)
     monkeypatch.setitem(sys.modules, model.__name__, model)
+    exports = ModuleType('defenseviz.suite_exports')
+    exports.export_suite_workbook = lambda data, result, out: {}
+    monkeypatch.setitem(sys.modules, exports.__name__, exports)
 
 
 def test_suite_transaction_records_exact_inputs_and_outputs(tmp_path, monkeypatch):
