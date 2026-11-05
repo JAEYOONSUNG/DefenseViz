@@ -145,6 +145,8 @@ def run_suite(root, output_dir, *, manifest=None, supplement=None, rm_evidence=N
             result["provenance"]["scoring_runs"] = data["rm_evaluation"]["scoring_runs"]
         from .plot.publication.manuscript_model import enrich_manuscript_model
         result = enrich_manuscript_model(data, result)
+        from .knowledge import describe_systems
+        result['system_information'] = describe_systems(data, result)
         analysis_seconds = time.monotonic() - tick
         path_map = {str(p): provenance_path(p, source_root) for p in paths}
         path_map[str(source_root)] = "."
@@ -163,6 +165,8 @@ def run_suite(root, output_dir, *, manifest=None, supplement=None, rm_evidence=N
             write_json(stage / "rm_evaluation.json", native_export["rm_evaluation"])
         table_dir = stage / "tables"
         table_dir.mkdir()
+        from .knowledge_output import write_system_information
+        write_system_information(stage, analysis_export['system_information'])
         for name, headers in RESULT_TABLES.items():
             _write_table(table_dir / f"{name}.tsv", _table_rows(analysis_export[name], name), headers)
         review_tables = {
@@ -199,7 +203,11 @@ def run_suite(root, output_dir, *, manifest=None, supplement=None, rm_evidence=N
         tick = time.monotonic()
         figure_dir = stage / "figures"
         figure_dir.mkdir()
-        figures = render_publication(analysis_export, figure_dir, title=title, **layout_options)
+        # Reference context is exported alongside the analysis; it is not a
+        # rendering input and must not change the publication model identity.
+        figure_model = {key: value for key, value in analysis_export.items()
+                        if key != 'system_information'}
+        figures = render_publication(figure_model, figure_dir, title=title, **layout_options)
         render_seconds = time.monotonic() - tick
         resolved_figures = [Path(p).resolve() for p in figures]
         if not resolved_figures or len(set(resolved_figures)) != len(resolved_figures):
@@ -243,6 +251,8 @@ def run_suite(root, output_dir, *, manifest=None, supplement=None, rm_evidence=N
             "endpoint_definitions": result.get("endpoint_definitions", {}),
             "availability": result.get("availability", {}),
             "system_review": {"accounting": review["accounting"], "provenance": review["provenance"]},
+            "system_information": {"accounting": analysis_export['system_information']['accounting'],
+                                   "provenance": analysis_export['system_information']['provenance']},
             "warnings": suite_warnings(data, result),
             "scientific_scope": "Saved annotation/evidence only. Missing is unassessed; neither activity nor independent performance is inferred.",
             "outputs": {p.relative_to(stage).as_posix(): digest(p) for p in sorted(stage.rglob("*")) if p.is_file()},

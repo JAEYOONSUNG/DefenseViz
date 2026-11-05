@@ -1,5 +1,30 @@
 # Release validation
 
+## 2.3.0 official reference catalogue
+
+- Regression suite: 1,047 tests passed on the frozen implementation.
+- Clean installed-wheel checks exercise offline catalogue search/export, native
+  and normalized analyses, metadata sidecars and installed source notices outside
+  the repository.
+- Source inventory reconciles all 152 wiki pages, 710 native model definitions
+  (including the separate CasFinder package) and 6,970 component entries against
+  pinned original file trees, contents and hashes. All 152 mechanism summaries
+  were reviewed against their cited source sections. Source citation inventories
+  are retained; this does not independently validate every cited paper.
+- Exact saved-detection identity reconciliation preserves all 6,240 observations
+  in the private 52-genome baseline. A frozen accepted figure input reproduces its
+  original hash after excluding the additive information layer. Execution-time
+  provenance can still change a raw model hash without changing scientific data.
+- Real native TSV regression covers a present-but-empty model FQN. Malformed
+  optional identity/version fields remain diagnostic metadata and do not prevent
+  a previously valid analysis from producing figures. Explicit malformed identity
+  cannot fall back to a stronger model assignment.
+
+Catalogue descriptions do not change query-level evidence or establish activity.
+Source-unknown, absent, incompatible and ambiguous information remain separate.
+[Reference information semantics](KNOWLEDGE.md) and [review findings](REVIEW.md)
+describe these boundaries.
+
 ## 2.2.0 system review
 
 - Repository regression suite: 940 tests passed on the final implementation.

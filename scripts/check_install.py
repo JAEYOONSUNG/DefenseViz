@@ -31,13 +31,26 @@ def main():
         bindir = work/'venv'/('Scripts' if os.name=='nt' else 'bin')
         python = bindir/('python.exe' if os.name=='nt' else 'python')
         run([python, '-m', 'pip', 'install', '--disable-pip-version-check', str(wheel) + '[suite]'], work)
-        assert 'DefenseViz 2.2.0' in run([python, '-m', 'defenseviz', 'version'], work)
+        assert 'DefenseViz 2.3.0' in run([python, '-m', 'defenseviz', 'version'], work)
+        catalog = json.loads(run([python, '-m', 'defenseviz', 'catalog', 'Wadjet', '--out', work/'catalog'], work))
+        assert catalog['row_counts']['wiki_systems'] > 0
+        assert catalog['row_counts']['model_definitions'] > 0
+        assert (work/'catalog/model_components.tsv').is_file()
+        assert (work/'catalog/catalog.json').is_file()
+        run([python, '-c',
+             "from importlib.resources import files; "
+             "p=files('defenseviz').joinpath('data','notices'); "
+             "assert all(p.joinpath(n).is_file() for n in "
+             "('REFERENCE_CATALOGUE.txt','defensefinder-wiki-LICENSE.txt',"
+             "'defense-finder-models-LICENSE.txt','CasFinder-LICENSE.txt'))"], work)
         run([python, '-m', 'defenseviz', 'demo', '--out', work/'demo'], work)
         run([python, '-m', 'defenseviz', 'validate', work/'demo/inputs/project.json'], work)
         run([python, '-m', 'defenseviz', 'run', work/'demo/inputs/project.json', '--out', work/'rerun'], work)
         a=json.loads((work/'demo/results/analysis.json').read_text(encoding='utf-8'))
         b=json.loads((work/'rerun/analysis.json').read_text(encoding='utf-8'))
         assert a==b, 'Demo and standalone run must be analytically identical'
+        assert (work/'rerun/system_information.json').is_file()
+        assert (work/'rerun/tables/system_information.tsv').is_file()
         assert (work/'rerun/figure2_ab.pdf').stat().st_size>1000
         assert list((work/'rerun').glob('*.svg'))
         receipt=json.loads((work/'rerun/receipt.json').read_text(encoding='utf-8'))
@@ -53,6 +66,8 @@ def main():
         first=json.loads((work/'suite-demo/results/analysis.json').read_text(encoding='utf-8'))
         second=json.loads((work/'suite-rerun/analysis.json').read_text(encoding='utf-8'))
         assert first==second, 'Native demo and standalone suite run must have identical analytical results'
+        assert (work/'suite-rerun/system_information.json').is_file()
+        assert (work/'suite-rerun/tables/system_information.tsv').is_file()
         assert (work/'suite-rerun/figures/publication.pdf').stat().st_size>1000
         assert list((work/'suite-rerun/figures').glob('*.svg'))
         native_receipt=json.loads((work/'suite-rerun/receipt.json').read_text(encoding='utf-8'))

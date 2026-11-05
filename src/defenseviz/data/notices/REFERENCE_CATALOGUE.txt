@@ -1,0 +1,34 @@
+Reference catalogue attribution
+
+DefenseViz software is licensed under MIT. Upstream reference material is
+attributed separately; including its metadata does not relicense that material
+as MIT. No HMM profiles, executable XML, full wiki pages or article abstracts
+are included in the bundled catalogue.
+
+DefenseFinder wiki (MDM lab and its contributors)
+https://gitlab.pasteur.fr/mdm-lab/defensefinder-website/wiki
+Commit: ee7647d8da3a6dd1750d233987f3ed8feb0fc0eb
+Upstream declaration: GPL-3.0-or-later. See defensefinder-wiki-LICENSE.txt.
+The catalogue normalizes structured facts, retains citations and independently
+paraphrases short mechanism descriptions. All changes and source lines are
+identified in defensefinder_wiki.json.
+
+DefenseFinder models (MDM lab and its contributors)
+https://github.com/mdmparis/defense-finder-models
+Commit: afb0e5a8b466be53586b13266f5d38d98c3ac268
+Root LICENSE says GPL-3.0. metadata.yml contains both GPL-3.0 and
+CC BY-NC-SA 4.0 declarations; this conflict is retained, not resolved by
+DefenseViz. See defense-finder-models-LICENSE.txt and source metadata links.
+The catalogue exports factual definition/component attributes, not raw XML.
+
+CasFinder (MacSyFinder contributors)
+https://github.com/macsy-models/CasFinder
+Commit: c7b02a90900e38a43a4f5e4f669f13c50dcf6491
+Upstream declaration: CC BY-NC-SA 4.0.
+https://creativecommons.org/licenses/by-nc-sa/4.0/
+See CasFinder-LICENSE.txt. The catalogue normalizes definition/component
+metadata and package references, not HMM profiles or executable definitions.
+
+Every record links to the pinned original source. These sources do not endorse
+DefenseViz or its interpretations. Original source files and their declared
+terms remain available at the links above and in each catalogue record.
