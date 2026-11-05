@@ -554,3 +554,61 @@ def test_conflicting_later_taxonomy_colors_rejected_when_first_sample_color_is_u
         with pytest.raises(ValueError,match="(?i)(taxonomy.*colo|contradict.*colo|colo.*conflict)"):
             render_pages(result)
         assert result==before
+
+
+def _long_taxonomy_result(samples=6,categories=None):
+    result=synthetic_result(samples=samples,categories=CATEGORIES if categories is None else categories)
+    for collection in (result["manuscript_atlas"]["rows"],result["manuscript_atlas"]["samples"]):
+        for i,row in enumerate(collection):
+            row["species"]=("longensis subsp. exceptionallyelongata" if i%2==0 else "brevis")+f" {i}"
+    return result
+
+
+def _assert_taxonomy_text_clear(page):
+    measured=[row for row in page.measure() if row["role"]=="taxonomy_legend"]
+    assert measured and all(row["font_pt"]==7.8 for row in measured)
+    for i,left in enumerate(measured):
+        x,y,w,h=left["bounds_mm"]
+        assert x+w<=page.width-5 and y+h<=page.height-4
+        for right in measured[i+1:]:
+            if left["source_ref"]==right["source_ref"]:continue
+            a,b,c,d=right["bounds_mm"]
+            assert min(x+w,a+c)<=max(x,a) or min(y+h,b+d)<=max(y,b)
+    page.validate()
+    return measured
+
+
+def test_long_species_legend_measures_column_gap_and_preserves_atlas_panels():
+    result=_long_taxonomy_result(categories=[("Nuclease",30)])
+    before=deepcopy(result);page=render_pages(result)[0]
+    control=render_pages(synthetic_result(samples=6,categories=[("Nuclease",30)]))[0]
+    assert page.ledger["panel_bounds"]==control.ledger["panel_bounds"]
+    assert result==before
+    section=next(s for s in page.ledger["taxonomy_legend_layout"]["sections"] if s["title"]=="Species")
+    assert section["columns"]==2 and section["column_widths_mm"][0]>40
+    measured=_assert_taxonomy_text_clear(page)
+    ox,oy=page.ledger["taxonomy_legend_layout"]["origin_mm"]
+    for left,right in zip(section["items"][::2],section["items"][1::2]):
+        text=next(row for row in measured if row["source_ref"]=={"section":"Species","key":left["key"]})
+        assert text["bounds_mm"][0]+text["bounds_mm"][2] < ox+right["x_mm"]-1
+
+
+def test_long_taxonomy_stacks_and_budgets_legend_height_on_continuation_pages():
+    result=_long_taxonomy_result(samples=26)
+    pages=render_pages(result,atlas_page_size=[447,200],max_rows_per_page=30)
+    assert len(pages)>1
+    seen=[]
+    for page in pages:
+        assert page.width==447 and page.height<=200
+        section=next(s for s in page.ledger["taxonomy_legend_layout"]["sections"] if s["title"]=="Species")
+        assert section["columns"]==1
+        _assert_taxonomy_text_clear(page)
+        seen.extend(row["sample_id"] for row in page.ledger["cells"] if row["kind"]=="strain")
+    assert seen==[row["sample_id"] for row in result["samples"]]
+
+
+def test_taxonomy_legend_cannot_overrun_page_with_unbounded_label():
+    result=_declared_taxonomy_result()
+    result["manuscript_atlas"]["taxonomy_legend"]["species"][0]["label"]="unbounded descriptive taxonomy "*100
+    with pytest.raises(ValueError,match="Taxonomy legend labels exceed.*shorter display labels"):
+        render_pages(result)

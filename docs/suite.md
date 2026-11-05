@@ -15,10 +15,23 @@ defenseviz inspect-suite /path/to/DNMBsuite_outputs
 defenseviz from-suite /path/to/DNMBsuite_outputs --out defenseviz-results
 ```
 
-The input can be one genome's result directory or a parent containing per-genome
-directories. Discovery is limited to immediate children. Original files are
+The input can be one genome's result directory or a parent containing nested
+per-genome directories. Discovery walks subdirectories and stops at each native
+DNMBsuite root, so its module and plasmid subfolders are not separate samples.
+Hidden directories and verified DefenseViz result directories are excluded;
+ordinary folders named `output` or `outputs` may still contain native inputs.
+GenBank assembly metadata supplies stable sample identities, and source organism
+and strain qualifiers supply display labels. Without assembly metadata the folder
+basename remains the identity. Repeated distinct runs of the same identity require
+an explicit manifest instead of silently selecting one. Original files are
 read-only, and the output directory must be new. `inspect-suite` validates and
-reports available endpoints without generating figures.
+reports available endpoints without generating figures; it is not a required
+preprocessing step for `from-suite`.
+
+The full command automatically writes the classified workbook, retained R-M and
+priority annotation lists, and the atlas, type tables and comparison figures.
+PDF, editable SVG and PNG previews are generated together without a separate
+plotting command. An optional layout file can disable PNG with `preview_png: false`.
 
 R reads saved RDS completion/version metadata and, when requested, current
 reference metadata through fixed packaged helpers. Set `--rscript /path/to/Rscript` when it is not on `PATH`.

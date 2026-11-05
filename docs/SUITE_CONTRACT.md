@@ -13,12 +13,17 @@ render_publication(result, output_dir, *, title="DefenseViz", **layout_options) 
 ```
 
 `defenseviz from-suite ROOT --out OUTPUT` discovers one per-genome output directory
-or immediate children of a cohort directory. It also accepts `--manifest FILE`,
+or recursively nested native roots in a cohort directory. Accepted native roots
+are traversal boundaries. Hidden trees and verified DefenseViz output roots are
+excluded; sample module/plasmid trees are not independent samples. It also accepts `--manifest FILE`,
 `--supplement FILE`, `--rm-evidence FILE`, `--rscript PATH`, and `--strict-inputs`. The manifest has
 `schema_version: 1` and `samples` entries with `sample_id`, `path`, `label` and
 optional `highlight`, `genus`, `species`, `cohort`, `modules`. Manifest paths are
-relative to the manifest. Basenames are literal default sample identifiers;
-accessions and species are never guessed from filenames.
+relative to the manifest. Without a manifest, exact GenBank assembly metadata
+supplies sample identifiers when available; otherwise basenames remain literal
+identifiers. Organism/strain display metadata is source-bound and hashed.
+Accessions and species are not guessed from descriptive filenames. Distinct
+native roots with the same inferred identifier raise an ambiguity error.
 
 ## Canonical analysis inputs
 

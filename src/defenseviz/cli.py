@@ -31,7 +31,7 @@ def parser():
     for name, help_text in [('from-suite', 'Import DNMBsuite result folders and export publication figures'),
                             ('inspect-suite', 'Validate and summarize saved DNMBsuite outputs without writing results')]:
         s = sub.add_parser(name, help=help_text)
-        s.add_argument('root', type=Path, help='One completed suite folder or a parent containing per-genome folders')
+        s.add_argument('root', type=Path, help='One completed suite folder or a parent recursively containing per-genome folders')
         s.add_argument('--manifest', type=Path, help='Explicit sample paths, identities and display metadata')
         s.add_argument('--supplement', type=Path, help='Optional source-bound saved reviews')
         s.add_argument('--reference-cache', type=Path, help='Optional current DNMB REBASE cache for fresh, source-pinned homology evaluation of saved candidates')
@@ -45,7 +45,7 @@ def parser():
         s.add_argument('--strict-inputs', action='store_true', help='Reject conflicting saved artifact/run metadata')
         if name == 'from-suite':
             s.add_argument('--out', type=Path, required=True)
-            s.add_argument('--title', default='DefenseViz')
+            s.add_argument('--title', default='DNMB integrated defense comparison')
             s.add_argument('--layout', type=Path, help='Publication layout options JSON')
     sub.add_parser('version', help='Print the installed package version')
     return p
