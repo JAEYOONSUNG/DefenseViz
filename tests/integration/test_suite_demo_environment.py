@@ -1,5 +1,6 @@
 """Synthetic demo must not depend on configured genome analysis resources."""
 import json
+import shlex
 
 
 def test_suite_demo_uses_stored_examples_with_engine_configured(tmp_path, monkeypatch, capsys):
@@ -21,3 +22,17 @@ def test_suite_demo_uses_stored_examples_with_engine_configured(tmp_path, monkey
     assert receipt["operation"] == "saved_suite_result_import_aggregation_and_render"
     assert (output / "results/figures/publication.pdf").stat().st_size > 1000
     assert list((output / "results/figures").glob("*.svg"))
+
+    # Follow the generated instructions under the same configured environment.
+    # This checks the user-visible command, not a separately constructed replay.
+    readme = (output / "inputs/README.txt").read_text()
+    command = shlex.split(readme.split("reproduce with: ", 1)[1])
+    assert command[0] == "defenseviz"
+    monkeypatch.chdir(output / "inputs")
+    assert main(command[1:]) == 0
+    rerun = json.loads((output / "rerun/receipt.json").read_text())
+    assert rerun["options"]["evaluation"] == "stored"
+    assert rerun["detector_runs"] == rerun["hmm_search_runs"] == rerun["homology_search_runs"] == 0
+    original = json.loads((output / "results/analysis.json").read_text())
+    repeated = json.loads((output / "rerun/analysis.json").read_text())
+    assert repeated["global_summary"] == original["global_summary"]

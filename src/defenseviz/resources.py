@@ -17,11 +17,16 @@ def _profile_binding(database, metadata):
     """Validate the exact named GA models and their declared role mapping."""
     database=Path(database);metadata=Path(metadata)
     database_hash=native.digest(database)
-    records=[];name=None;ga=False
+    records=[];lengths={};name=None;ga=False;length=None
     for line in database.read_text().splitlines():
         if line.startswith('NAME '):
             if name is not None:raise ValueError('HMM record lacks // terminator before '+line)
-            name=line.split()[1];ga=False
+            name=line.split()[1];ga=False;length=None
+        elif line.startswith('LENG '):
+            fields=line.split()
+            if name is None or length is not None or len(fields)!=2 or not fields[1].isdigit() or int(fields[1])<=0:
+                raise ValueError('HMM profile needs one positive integer LENG: '+str(name))
+            length=int(fields[1])
         elif line.startswith('GA '):
             try:
                 values=[float(x.rstrip(';')) for x in line.split()[1:]]
@@ -30,16 +35,22 @@ def _profile_binding(database, metadata):
         elif line.strip()=='//':
             if name is None:raise ValueError('HMM record lacks a NAME')
             if not ga:raise ValueError('HMM profile lacks valid sequence/domain GA cutoffs: '+name)
+            if length is None:raise ValueError('HMM profile lacks LENG: '+name)
+            lengths[name]=length
             records.append(name);name=None
     if name is not None:raise ValueError('Final HMM record lacks // terminator')
     if not records or len(records)!=len(set(records)):
         raise ValueError('HMM database must contain nonempty unique profile names')
     with metadata.open(newline='') as stream:
         reader=csv.DictReader(stream,delimiter='\t')
-        required={'profile_name','off_target','roles','type_hints'}
+        required={'profile_name','off_target','roles','type_hints','profile_length','library_sha256'}
         missing=required-set(reader.fieldnames or [])
         if missing:raise ValueError('Profile metadata lacks columns: '+', '.join(sorted(missing)))
+        if len(reader.fieldnames)!=len(set(reader.fieldnames)):
+            raise ValueError('Profile metadata has duplicate columns')
         rows=list(reader)
+        if any(None in row or None in row.values() for row in rows):
+            raise ValueError('Profile metadata row/header widths differ')
     names=[row['profile_name'] for row in rows]
     if len(names)!=len(set(names)) or set(names)!=set(records):
         raise ValueError('HMM profile names and role metadata do not match exactly')
@@ -48,9 +59,12 @@ def _profile_binding(database, metadata):
             raise ValueError('Invalid off_target value for '+row['profile_name'])
         if row['roles'] and not set(row['roles'].split(';')) <= {'R','M','S','unknown'}:
             raise ValueError('Invalid role hint for '+row['profile_name'])
-        recorded=row.get('library_sha256','')
-        if recorded and recorded!=database_hash:
+        recorded=row['library_sha256']
+        if recorded!=database_hash:
             raise ValueError('Profile metadata library_sha256 does not match configured HMM database')
+        declared=row['profile_length']
+        if not declared.isdigit() or int(declared)!=lengths[row['profile_name']]:
+            raise ValueError('Profile metadata profile_length does not match HMM LENG: '+row['profile_name'])
     excluded=sum(row['off_target'].lower() in {'true','1'} for row in rows)
     return dict(profiles=len(records),off_target_profiles=excluded,reportable_profiles=len(records)-excluded,
                 database_sha256=database_hash,metadata_sha256=native.digest(metadata),
