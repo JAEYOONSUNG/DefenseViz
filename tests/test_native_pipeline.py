@@ -51,7 +51,10 @@ def test_preparation_preserves_whole_protein_binding_and_audits_stop(tmp_path):
     assert _prepare_sample(bundle(),'a',directory,out)==gb
     assert (out/'proteins.faa').read_text()=='>x\nMAC\n'
     assert 'REBASEfinder_old' not in (out/'annotations.tsv').read_text()
-    assert json.loads((out/'protein_binding.json').read_text())['source_protein_sha256']['x']==hashlib.sha256(b'MAC*').hexdigest()
+    binding=json.loads((out/'protein_binding.json').read_text())
+    assert binding['source_protein_sha256']['x']==hashlib.sha256(b'MAC*').hexdigest()
+    assert binding['genbank']==str(gb)
+    assert binding['genbank_sha256']==hashlib.sha256(gb.read_bytes()).hexdigest()
 
 
 def test_preparation_rejects_sequence_mutation(tmp_path):
@@ -100,14 +103,16 @@ def test_nomination_union_preserves_qualified_saved_evidence_without_mixed_score
     assert rows[1]['profile_name']=='REase_II_00013'
 
 
-def test_full_orchestrator_executes_fresh_stages_and_pins_private_outputs(tmp_path,monkeypatch):
+@pytest.mark.parametrize('corrupt_genbank_copy',[False,True])
+def test_full_orchestrator_executes_fresh_stages_and_pins_private_outputs(tmp_path,monkeypatch,corrupt_genbank_copy):
     from types import SimpleNamespace
     from defenseviz import native_pipeline as module
     from defenseviz import full_hmm
     path,cfg=config(tmp_path)
     for name in ('rebase_data.rds','rebase_db.fasta','rebase_db.fasta.phr','rebase_db.fasta.pin','rebase_db.fasta.psq'):
         (tmp_path/name).write_text('fixed resource')
-    sample=tmp_path/'sample';sample.mkdir();(sample/'genome.gbff').write_text('native GBFF')
+    sample=tmp_path/'sample';sample.mkdir();gb=sample/'genome.gbff';gb.write_text('native GBFF')
+    source_faa=gb.with_suffix('.faa');sentinel=b'original FAA must remain unchanged\n';source_faa.write_bytes(sentinel)
     data=bundle('MAC');data['samples']=[{'sample_id':'a'}]
     data['suite']['samples']=[{'sample_id':'a','directory':str(sample)}]
     data['genes'][0]['protein_length']=3
@@ -127,6 +132,8 @@ def test_full_orchestrator_executes_fresh_stages_and_pins_private_outputs(tmp_pa
     def process(argv,**kwargs):
         if 'full_rm.R' in ' '.join(argv):
             out=Path(argv[-2]);seen.append(('native',argv))
+            # Mirror the upstream organizer's unconditional adjacent FAA write.
+            Path(argv[5]).with_suffix('.faa').write_text('>x\nMAC\n')
             (out/'completion.json').write_text(json.dumps({'passed':True,'full_reference_search':True}))
             (out/'search_commands.json').write_text('[]')
             (out/'runtime_packages.json').write_text(json.dumps(runtime_record))
@@ -135,17 +142,44 @@ def test_full_orchestrator_executes_fresh_stages_and_pins_private_outputs(tmp_pa
     monkeypatch.setattr(module,'_capture_r_runtime',runtime)
     monkeypatch.setattr(module,'_resolve_blastdbcmd',lambda cfg:sys.executable)
     monkeypatch.setattr(module,'_validate_reference_index',validate)
+    if corrupt_genbank_copy:
+        original_copyfile=module.shutil.copyfile
+        def corrupt_copy(src,dst,*args,**kwargs):
+            copied=original_copyfile(src,dst,*args,**kwargs)
+            if Path(dst).parent.name=='genbank':
+                Path(dst).write_bytes(Path(dst).read_bytes()+b'changed')
+            return copied
+        monkeypatch.setattr(module.shutil,'copyfile',corrupt_copy)
     work=tmp_path/'work'
+    if corrupt_genbank_copy:
+        with pytest.raises(ValueError,match='GenBank copy hash mismatch'):
+            module.execute_full_pipeline(data,tmp_path,path,work)
+        assert seen==[]  # Neither HMM nor native execution may use a damaged copy.
+        assert source_faa.read_bytes()==sentinel
+        assert gb.read_bytes()==b'native GBFF'
+        return
     stages=module.execute_full_pipeline(data,tmp_path,path,work)
     assert seen[0]==('hmm','a','>x\nMAC\n') and seen[1][0]=='native'
+    inputs=Path(stages[0]['native_dir']).parent/'inputs'
+    private_gb=inputs/'genbank'/gb.name
+    assert seen[1][1][5]==str(private_gb)
+    assert not private_gb.is_symlink() and not private_gb.samefile(gb)
+    assert private_gb.read_bytes()==gb.read_bytes()==b'native GBFF'
+    assert source_faa.read_bytes()==sentinel
+    assert private_gb.with_suffix('.faa').read_text()=='>x\nMAC\n'
+    binding=json.loads((inputs/'protein_binding.json').read_text())
+    assert binding['genbank']==str(gb) and binding['genbank_sha256']==module.digest(gb)
     manifest=json.loads((Path(stages[0]['native_dir'])/'stage_manifest.json').read_text())
+    assert manifest['input_sha256'][str(gb)]==manifest['input_sha256'][str(private_gb)]==module.digest(gb)
     assert any(p.endswith('protein_binding.json') for p in manifest['input_sha256'])
     assert str(Path(stages[0]['hmm_dir'])/'execution.json') in manifest['input_sha256']
     assert manifest['native_execution']['sha256']==module.digest(manifest['native_execution']['path'])
     assert 'runtime_validation.json' in manifest['artifacts']
     assert manifest['blast_database']['prefix']==str(work/'cache/db_modules/rebasefinder/cache/rebase_db.fasta')
     assert all(module.digest(p)==v for p,v in manifest['input_sha256'].items())
-    assert json.loads((work/'execution.json').read_text())['homology_search_runs']==0
+    execution=json.loads((work/'execution.json').read_text())
+    assert execution['homology_search_runs']==0
+    assert execution['input_sha256'][str(gb)]==execution['input_sha256'][str(private_gb)]==module.digest(gb)
     assert (work/'cache/db_modules/rebasefinder/cache/rebase_data.rds').read_bytes()==(tmp_path/'rebase_data.rds').read_bytes()
 
 

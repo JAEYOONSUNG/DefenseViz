@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "rscript": "/opt/biotools/bin/Rscript",
+  "r_libraries": [
+    "/opt/defenseviz/native-r/library",
+    "/opt/biotools/lib/R/library"
+  ],
+  "reference_cache": "/resources/rebase",
+  "hmm_database": "/resources/rm-hmm/RM_HMMs.hmm",
+  "profile_metadata": "/resources/rm-hmm/profile_roles.tsv",
+  "hmmsearch": "/opt/biotools/bin/hmmsearch",
+  "cath_resolve_hits": "/opt/defenseviz/bin/cath-resolve-hits",
+  "blastp": "/opt/biotools/bin/blastp",
+  "blastdbcmd": "/opt/biotools/bin/blastdbcmd",
+  "cpu": 4
+}

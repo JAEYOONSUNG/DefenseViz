@@ -1,0 +1,38 @@
+# DNMBsuite tool environment plus the DefenseViz analysis/export stage.
+# Databases, sample data and proprietary fonts are supplied at runtime.
+FROM ghcr.io/jaeyoonsung/dnmbsuite@sha256:2702a0615bfadd6e98b8ac67b38f45d5db6cbe4957aa90a9d371e9ab62d1f47c
+ARG TARGETARCH
+ARG DEFENSEVIZ_REVISION
+LABEL org.opencontainers.image.defenseviz.source="https://github.com/JAEYOONSUNG/DefenseViz" \
+      org.opencontainers.image.defenseviz.revision="${DEFENSEVIZ_REVISION}" \
+      org.opencontainers.image.defenseviz.base="ghcr.io/jaeyoonsung/dnmbsuite@sha256:2702a0615bfadd6e98b8ac67b38f45d5db6cbe4957aa90a9d371e9ab62d1f47c"
+RUN test "${TARGETARCH}" = amd64 \
+ && printf '%s\n' "${DEFENSEVIZ_REVISION}" | grep -Eq '^[0-9a-f]{40}$'
+COPY pyproject.toml README.md LICENSE /opt/defenseviz/source/
+COPY src /opt/defenseviz/source/src/
+COPY scripts/install_native_runtime.py /opt/defenseviz/source/scripts/install_native_runtime.py
+COPY docker/dnmbsuite /opt/defenseviz/container/
+# Keep the original global PATH and Python/R environments unchanged.
+RUN /opt/biotools/bin/python -m venv /opt/defenseviz/venv \
+ && /opt/defenseviz/venv/bin/python -m pip install --no-cache-dir '/opt/defenseviz/source[suite]' \
+ && /opt/defenseviz/venv/bin/python -m pip freeze > /opt/defenseviz/python-packages.txt \
+ && /opt/defenseviz/venv/bin/python -m pip check
+# Install pinned public source namespaces into an app-private library. The base
+# supplies compatible CRAN/Bioconductor dependencies; no base library is changed.
+RUN env -u R_HOME /opt/defenseviz/venv/bin/python /opt/defenseviz/source/scripts/install_native_runtime.py \
+      --out /opt/defenseviz/native-r \
+      --rscript /opt/biotools/bin/Rscript \
+      --dependency-library /opt/biotools/lib/R/library
+RUN mkdir -p /opt/defenseviz/bin /opt/defenseviz/licenses \
+ && curl --fail --location --retry 3 \
+      https://github.com/UCLOrengoGroup/cath-tools/releases/download/v0.16.10/cath-resolve-hits.ubuntu-20.04 \
+      --output /opt/defenseviz/bin/cath-resolve-hits \
+ && echo '538a43d60df049a4959cb8a2ca8d704a21b6dbd10c439384aedbdb18bd02b5b7  /opt/defenseviz/bin/cath-resolve-hits' | sha256sum -c - \
+ && chmod 0755 /opt/defenseviz/bin/cath-resolve-hits \
+ && /opt/defenseviz/bin/cath-resolve-hits --version \
+ && cp /opt/defenseviz/container/CATH-LICENSE.txt /opt/defenseviz/licenses/ \
+ && cp /opt/defenseviz/container/defenseviz /opt/defenseviz/bin/defenseviz \
+ && chmod 0755 /opt/defenseviz/bin/defenseviz \
+ && /opt/defenseviz/bin/defenseviz --help
+# Inherit DNMBsuite ENTRYPOINT, CMD and WORKDIR. The dedicated executable is
+# selected explicitly with --entrypoint; ordinary DNMBsuite commands still work.

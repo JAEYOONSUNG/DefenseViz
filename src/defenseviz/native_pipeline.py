@@ -493,6 +493,15 @@ def execute_full_pipeline(data,root,config_path,workspace):
         sample_dir=work/key;sample_dir.mkdir();inputs=sample_dir/'inputs';inputs.mkdir()
         directory=_sample_path(data,sid,root)
         gb=_prepare_sample(data,sid,directory,inputs);resources[str(gb.resolve())]=digest(gb)
+        # Genbank_organizer writes an adjacent FAA even with save_output=FALSE.
+        # Keep that side effect in the private workspace, not the input folder.
+        private_genbank_dir=inputs/'genbank';private_genbank_dir.mkdir()
+        private_gb=private_genbank_dir/gb.name
+        shutil.copyfile(gb,private_gb)
+        gb_sha256=resources[str(gb.resolve())]
+        if digest(gb)!=gb_sha256 or digest(private_gb)!=gb_sha256:
+            raise ValueError('GenBank copy hash mismatch: '+str(gb))
+        resources[str(private_gb.resolve())]=gb_sha256
         hmm=sample_dir/'hmm'
         run_hmm(SimpleNamespace(sample=sid,fasta=str(inputs/'proteins.faa'),gene_map=str(inputs/'gene_map.tsv'),
             hmm=cfg['hmm_database'],profiles=cfg['profile_metadata'],hmmsearch=cfg['hmmsearch'],
@@ -506,7 +515,7 @@ def execute_full_pipeline(data,root,config_path,workspace):
         write_json(inputs/'nomination.json',nomination)
         output=sample_dir/'native';output.mkdir()
         cmd=[cfg['rscript'],'--vanilla',str(native/'full_rm.R'),str(work/'runtime.json'),str(native),
-             str(gb),str(inputs/'annotations.tsv'),str(nominees),str(work/'cache'),str(output),str(cfg['cpu'])]
+             str(private_gb),str(inputs/'annotations.tsv'),str(nominees),str(work/'cache'),str(output),str(cfg['cpu'])]
         input_bindings={**resources,**data.get('input_sha256',{}),**hmm_bindings,
             **{str(p.resolve()):digest(p) for p in inputs.rglob('*') if p.is_file()}}
         for path,expected in input_bindings.items():
