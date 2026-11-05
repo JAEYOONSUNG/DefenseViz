@@ -9,6 +9,8 @@ import subprocess
 import sys
 import tempfile
 import venv
+import zipfile
+from email.parser import Parser
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -27,11 +29,14 @@ def main():
         work = Path(temp)
         run([sys.executable, '-m', 'build', '--wheel', '--outdir', work/'wheels', ROOT], work)
         wheel = next((work/'wheels').glob('*.whl'))
+        with zipfile.ZipFile(wheel) as archive:
+            metadata_path = next(p for p in archive.namelist() if p.endswith('.dist-info/METADATA'))
+            version = Parser().parsestr(archive.read(metadata_path).decode('utf-8'))['Version']
         venv.EnvBuilder(with_pip=True).create(work/'venv')
         bindir = work/'venv'/('Scripts' if os.name=='nt' else 'bin')
         python = bindir/('python.exe' if os.name=='nt' else 'python')
         run([python, '-m', 'pip', 'install', '--disable-pip-version-check', str(wheel) + '[suite]'], work)
-        assert 'DefenseViz 2.3.0' in run([python, '-m', 'defenseviz', 'version'], work)
+        assert f'DefenseViz {version}' == run([python, '-m', 'defenseviz', 'version'], work).strip()
         catalog = json.loads(run([python, '-m', 'defenseviz', 'catalog', 'Wadjet', '--out', work/'catalog'], work))
         assert catalog['row_counts']['wiki_systems'] > 0
         assert catalog['row_counts']['model_definitions'] > 0
