@@ -5,6 +5,8 @@
 - Discover nested DNMBsuite result folders from one parent directory, stopping at each native sample root to avoid nested-module duplication.
 - Read automatic assembly identities and strain labels from source-bound GenBank metadata while preserving explicit manifests.
 - Produce publication PNG previews alongside PDF/SVG by default in `from-suite`, with the same classified workbook and filtered annotation exports.
+- Use the generic DNMB comparison title without requiring a custom layout.
+- Measure taxonomy legend columns to keep long organism names separate.
 
 ## 2.5.0
 

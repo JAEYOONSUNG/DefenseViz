@@ -167,7 +167,7 @@ def analyze_suite(data):
 
 
 def run_suite(root, output_dir, *, manifest=None, supplement=None, rm_evidence=None, rscript=None,
-              strict_inputs=False, title="DefenseViz", layout=None, argv=None,
+              strict_inputs=False, title="DNMB integrated defense comparison", layout=None, argv=None,
               system_review_rules=None, system_review_evidence=None, evaluation="auto", reference_cache=None, engine_config=None):
     """Import native exports, aggregate saved evidence, publish a fresh directory."""
     from .analysis.saved import analyze_saved

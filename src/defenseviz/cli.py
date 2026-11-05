@@ -45,7 +45,7 @@ def parser():
         s.add_argument('--strict-inputs', action='store_true', help='Reject conflicting saved artifact/run metadata')
         if name == 'from-suite':
             s.add_argument('--out', type=Path, required=True)
-            s.add_argument('--title', default='DefenseViz')
+            s.add_argument('--title', default='DNMB integrated defense comparison')
             s.add_argument('--layout', type=Path, help='Publication layout options JSON')
     sub.add_parser('version', help='Print the installed package version')
     return p

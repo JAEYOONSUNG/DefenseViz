@@ -507,7 +507,71 @@ def _marker_selected(row,marker):
     return marker is not None and row.get("display",{}).get(marker["field"]) is True
 
 
-def _legend(c,model,panels,groups,fpos,masks,sources,rows,bottom,sampleleft,config,taxonomy_colors):
+def _taxonomy_legend_plan(fonts,model,rows,groups,fpos,config,taxonomy_colors,available):
+    """Keep the original two-column key when it fits measured italic text.
+
+    Long entries widen their own column. If two columns cannot fit, stack
+    entries at the same readable size and reserve their actual vertical space.
+    """
+    from matplotlib import font_manager
+    from matplotlib.textpath import TextToPath
+    genus=OrderedDict();species=OrderedDict()
+    for row in rows:
+        disp=row.get("display",{});g=row.get("genus");s=row.get("species")
+        if g:genus.setdefault(g,{"label":disp.get("genus_label",g),"color":disp.get("genus_color",stable_color(g))})
+        if s:species.setdefault((g,s),{"label":disp.get("species_label",s),"color":disp.get("species_color",stable_color(s))})
+    declared=model.get("taxonomy_legend",{})
+    if declared.get("genera"):genus=OrderedDict((z["key"],z) for z in declared["genera"] if z["key"] in genus)
+    if declared.get("species"):
+        present_species={r.get("species") for r in rows}
+        species=OrderedDict((z["key"],z) for z in declared["species"] if z["key"] in present_species)
+    sections=[]
+    for title,entries,field in (("Genus",genus,"genus"),("Species",species,"species")):
+        items=[]
+        for key,entry in entries.items():
+            color_key=key[-1] if isinstance(key,tuple) else key
+            runs=entry.get("label_runs")
+            if runs is None:
+                runs=([{"text":entry["abbreviation"],"italic":True},{"text":"=","italic":False},
+                       {"text":entry["label"],"italic":True}] if title=="Genus" and entry.get("abbreviation")
+                      else [{"text":entry["label"],"italic":entry.get("italic",True)}])
+            items.append(dict(key=str(key),runs=runs,color=taxonomy_colors[field].get(color_key) or entry.get("color") or stable_color(str(color_key))))
+        sections.append((title,items,3.,5. if title=="Genus" else 6.))
+    extras=[]
+    if groups.get("Other mechanisms"):extras.append(("Other",_color("Other mechanisms",config)))
+    if config.get("highlight_label") and any(r.get("highlight") for r in rows):extras.append((config["highlight_label"],TARGET))
+    if groups.get("Unresolved"):extras.append(("Mechanism not assigned yet",_color("Unresolved",config)))
+    if any(_absence_cell(r,fid) for r in rows for fid in fpos):extras.append(("No "+str(model.get("absence_label","saved family")),"#D0CFE5"))
+    marker=config.get("sample_marker")
+    if any(_marker_selected(r,marker) for r in rows):extras.append((marker["label"],marker["color"]))
+    sections.append(("Annotations",[dict(key=label,runs=[dict(text=label,italic=False)],color=color) for label,color in extras],4.,4.))
+    plan=dict(sections=[],bottom_mm=3.4);y=3.4
+    for title,items,step,after in sections:
+        if not items:continue
+        for item in items:
+            width=0.
+            for run in item["runs"]:
+                prop=font_manager.FontProperties(family=fonts.pick(run["text"]),size=7.8,
+                    style="italic" if run.get("italic") else "normal")
+                width+=TextToPath().get_text_width_height_descent(run["text"],prop,False)[0]*25.4/72+.65
+            # Four mm separates each swatch/text; two mm protects the next
+            # swatch from italic overhang and gives a visible inter-column gap.
+            item["width_mm"]=4.+width+2.
+        columns=2 if len(items)>1 else 1
+        widths=[max(40.,max(item["width_mm"] for item in items[j::columns])) for j in range(columns)]
+        if sum(widths)>available:
+            columns=1;widths=[max(item["width_mm"] for item in items)]
+        if sum(widths)>available:
+            raise ValueError("Taxonomy legend labels exceed atlas_page_size; increase the page limit or provide shorter display labels")
+        for i,item in enumerate(items):
+            item.update(x_mm=sum(widths[:i%columns]),y_mm=y+4+(i//columns)*step)
+        plan["sections"].append(dict(title=title,y_mm=y,columns=columns,column_widths_mm=widths,items=items))
+        y+=after+math.ceil(len(items)/columns)*step
+        plan["bottom_mm"]=max(plan["bottom_mm"],items[-1]["y_mm"]+2.)
+    return plan
+
+
+def _legend(c,model,panels,groups,fpos,masks,sources,rows,bottom,sampleleft,config,taxonomy_colors,taxonomy_plan):
     y=bottom+3.4
     _text(c,6,y,"Coding",8.8,bold=True);_text(c,6,y+3,"sequences (CDSs)",8.8,bold=True)
     for i,n in enumerate((1,2,4,8,16)):
@@ -544,51 +608,17 @@ def _legend(c,model,panels,groups,fpos,masks,sources,rows,bottom,sampleleft,conf
             state=_intersection_state(item.get("status","unassessed") for item in outside)
             label=number(sum(item.get("count") or 0 for item in outside),state)
             _text(c,panels["cases"]["left"],ys[-1]+5,"Outside shown sources: "+label+" CDSs",7.7)
-    # Taxonomy colors are supplied metadata or deterministic generic defaults.
-    tx=sampleleft;genus=OrderedDict();species=OrderedDict()
-    for row in rows:
-        disp=row.get("display",{});g=row.get("genus");s=row.get("species")
-        if g:genus.setdefault(g,{"label":disp.get("genus_label",g),"color":disp.get("genus_color",stable_color(g))})
-        if s:species.setdefault((g,s),{"label":disp.get("species_label",s),"color":disp.get("species_color",stable_color(s))})
-    declared=model.get("taxonomy_legend",{})
-    if declared.get("genera"):genus=OrderedDict((z["key"],z) for z in declared["genera"] if z["key"] in genus)
-    if declared.get("species"):
-        present_species={r.get("species") for r in rows}
-        species=OrderedDict((z["key"],z) for z in declared["species"] if z["key"] in present_species)
-    def legend_text(x,y,entry,genus=False):
-        runs=entry.get("label_runs")
-        if runs is None:
-            runs=([{"text":entry["abbreviation"],"italic":True},{"text":"=","italic":False},
-                   {"text":entry["label"],"italic":True}] if genus and entry.get("abbreviation")
-                  else [{"text":entry["label"],"italic":entry.get("italic",True)}])
-        from matplotlib.textpath import TextToPath
-        for run in runs:
-            artist=_text(c,x,y,run["text"],7.8,italic=bool(run.get("italic")))
-            x+=TextToPath().get_text_width_height_descent(run["text"],artist.get_fontproperties(),False)[0]*25.4/72+.65
-    if genus:_text(c,tx,y,"Genus",8.8,bold=True)
-    for i,(key,z) in enumerate(genus.items()):
-        xx=tx+(i%2)*40;yy=y+4+(i//2)*3
-        c.rect(xx,yy-1.2,2.2,2.2,taxonomy_colors["genus"].get(key) or z.get("color") or stable_color(str(key)));legend_text(xx+4,yy,z,True)
-    sy=y+8+max(0,(len(genus)-1)//2)*3 if genus else y
-    if species:_text(c,tx,sy,"Species",8.1,bold=True)
-    for i,(key,z) in enumerate(species.items()):
-        xx=tx+(i%2)*40;yy=sy+4+(i//2)*3
-        species_key=key[-1] if isinstance(key,tuple) else key
-        c.rect(xx,yy-1.2,2.2,2.2,taxonomy_colors["species"].get(species_key) or z.get("color") or stable_color(str(species_key)));legend_text(xx+4,yy,z)
-    fy=sy+4+math.ceil(len(species)/2)*3+2 if species else sy
-    extras=[]
-    if groups.get("Other mechanisms"):extras.append(("Other",_color("Other mechanisms",config)))
-    if config.get("highlight_label") and any(r.get("highlight") for r in rows):extras.append((config["highlight_label"],TARGET))
-    if groups.get("Unresolved"):extras.append(("Mechanism not assigned yet",_color("Unresolved",config)))
-    if any(_absence_cell(r,fid) for r in rows for fid in fpos):extras.append(("No "+str(model.get("absence_label","saved family")),"#D0CFE5"))
-    marker=config.get("sample_marker")
-    if any(_marker_selected(r,marker) for r in rows):extras.append((marker["label"],marker["color"]))
-    if extras:
-        _text(c,tx,fy,"Annotations",8.1,bold=True)
-        fy+=4
-    for i,(label,color) in enumerate(extras):
-        xx=tx+(i%2)*40;yy=fy+(i//2)*4
-        c.rect(xx,yy-1.2,2.2,2.2,color);_text(c,xx+4,yy,label,7.8)
+    from matplotlib.textpath import TextToPath
+    c.ledger["taxonomy_legend_layout"]={**taxonomy_plan,"origin_mm":[sampleleft,bottom]}
+    for section in taxonomy_plan["sections"]:
+        _text(c,sampleleft,bottom+section["y_mm"],section["title"],8.8 if section["title"]=="Genus" else 8.1,bold=True)
+        for item in section["items"]:
+            xx=sampleleft+item["x_mm"];yy=bottom+item["y_mm"]
+            c.rect(xx,yy-1.2,2.2,2.2,item["color"]);xx+=4
+            for run in item["runs"]:
+                artist=_text(c,xx,yy,run["text"],7.8,italic=bool(run.get("italic")),role="taxonomy_legend",
+                    ref={"section":section["title"],"key":item["key"]})
+                xx+=TextToPath().get_text_width_height_descent(run["text"],artist.get_fontproperties(),False)[0]*25.4/72+.65
 
 
 def manuscript_atlas_pages(result,fonts,config,page_factory):
@@ -640,14 +670,25 @@ def manuscript_atlas_pages(result,fonts,config,page_factory):
         panels,groups,fpos,masks,sampleleft,width=_layout(fs,sources,refs,config,fractions)
         heading_plan=_header_plan(fonts,width,panels,groups,fpos,sources,refs,config)
         dy=heading_plan["body_offset_mm"]
-        maxrows=max(1,min(config["max_rows_per_page"],int((config["atlas_page_size"][1]-BODY_TOP-dy-55)/ROW)))
         labelwidth=max((sum(fonts.width(part,NUM,bool(r.get("highlight"))) for part in _strain_parts(r))+2 for r in allrows),default=58.)
         width=max(width,min(maxwidth,sampleleft+labelwidth+8))
-        chunks=[allrows[i:i+maxrows] for i in range(0,len(allrows),maxrows)] or [[]]
+        maxrows=max(1,min(config["max_rows_per_page"],int((config["atlas_page_size"][1]-BODY_TOP-dy-55)/ROW)))
+        chunks=[];cursor=0
+        # Budget the legend for each page's taxa, not the entire cohort. A
+        # tall one-column key can reduce rows without shrinking any labels.
+        while cursor<len(allrows):
+            count=min(maxrows,len(allrows)-cursor)
+            while count>1:
+                trial=_taxonomy_legend_plan(fonts,model,allrows[cursor:cursor+count],groups,fpos,config,taxonomy_colors,width-sampleleft-6)
+                if BODY_TOP+dy+count*ROW+max(50.,trial["bottom_mm"]+5.)<=config["atlas_page_size"][1]:break
+                count-=1
+            chunks.append(allrows[cursor:cursor+count]);cursor+=count
+        if not chunks:chunks=[[]]
         for rows in chunks:
             top=BODY_TOP+dy;bottom=top+len(rows)*ROW
             longlabel=max((fonts.width(display_label(f),8.3) for f in fs),default=0.)
-            taxonomy_height=16+math.ceil(len({(r.get("genus"),r.get("species")) for r in allrows})/2)*3+12
+            taxonomy_plan=_taxonomy_legend_plan(fonts,model,rows,groups,fpos,config,taxonomy_colors,width-sampleleft-6)
+            taxonomy_height=taxonomy_plan["bottom_mm"]+5.
             height=max(160.,bottom+max(50.,longlabel+7,taxonomy_height))
             if width>maxwidth or height>config["atlas_page_size"][1]:
                 raise ValueError("Manuscript labels/evidence columns exceed atlas_page_size; increase the page limit or provide shorter display labels")
@@ -751,7 +792,7 @@ def manuscript_atlas_pages(result,fonts,config,page_factory):
             for key,kind,typ,label,units in ROLE_COLUMNS:
                 if typ=="IV":_text(c,x+units*CELL/2,bottom+1.7,"R: nuclease" if key=="IV_R" else "A: auxiliary",7.7,ha="right",rotation=90)
                 x+=units*CELL
-            _legend(c,model,panels,groups,fpos,masks,sources,rows,bottom,sampleleft,config,taxonomy_colors)
+            _legend(c,model,panels,groups,fpos,masks,sources,rows,bottom,sampleleft,config,taxonomy_colors,taxonomy_plan)
             c.ledger["workflow"]={"operation":"saved_result_import_and_aggregation","new_engine_runs":False,"activity_assessed":False}
             pages.append(c)
     return pages
