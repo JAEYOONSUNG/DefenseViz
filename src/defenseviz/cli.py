@@ -21,6 +21,9 @@ def parser():
     a = sub.add_parser('assess', help='Assess supplied source-bound domain/reference evidence; no new search')
     a.add_argument('--registry', type=Path, required=True); a.add_argument('--candidates', type=Path, required=True)
     a.add_argument('--source-root', type=Path); a.add_argument('--out', type=Path, required=True)
+    k = sub.add_parser('catalog', help='Browse or export bundled official defense-system reference information')
+    k.add_argument('query', nargs='?', help='Optional text search for browsing; not a detection identity rule')
+    k.add_argument('--out', type=Path, help='Export all matching reference records as JSON and TSV to a fresh directory')
     for name, help_text in [('from-suite', 'Import DNMBsuite result folders and export publication figures'),
                             ('inspect-suite', 'Validate and summarize saved DNMBsuite outputs without writing results')]:
         s = sub.add_parser(name, help=help_text)
@@ -45,6 +48,16 @@ def main(argv=None):
     try:
         if args.command == 'version':
             print(f'DefenseViz {__version__}'); return 0
+        if args.command == 'catalog':
+            if args.out is not None:
+                from .knowledge_output import export_catalog
+                response = export_catalog(args.out, query=args.query,
+                                          argv=['defenseviz', *(argv or sys.argv[1:])])
+            else:
+                from .knowledge import search_catalog
+                response = search_catalog(args.query)
+            print(json.dumps(response, ensure_ascii=True, allow_nan=False))
+            return 0
         if args.command in {'from-suite', 'inspect-suite'}:
             from .suite_pipeline import prepare_suite, run_suite, suite_warnings
             kwargs = dict(manifest=args.manifest, supplement=args.supplement,
@@ -59,10 +72,13 @@ def main(argv=None):
                 from .analysis.saved import analyze_saved
                 data = prepare_suite(args.root, **kwargs)
                 result = analyze_saved(data)
+                from .knowledge import describe_systems
+                information = describe_systems(data, result)
                 response = {'valid': True, 'samples': len(data['samples']),
                             'summary': result.get('global_summary', {}),
                             'availability': result.get('availability', {}),
                             'system_review': result.get('system_review', {}).get('accounting', {}),
+                            'system_information': information['accounting'],
                             'rm_evaluation': ({k: data['rm_evaluation'][k] for k in
                                 ('operation', 'policy_evaluations', 'policy_sha256', 'scoring_runs', 'thresholds_changed')}
                                 if data.get('rm_evaluation') else None),

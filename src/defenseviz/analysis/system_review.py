@@ -341,6 +341,24 @@ def _defense_scope(call):
     return "unresolved", "native_namespace_unresolved"
 
 
+def declared_defense_scope(call):
+    """Native namespace scope, separate from descriptive catalogue context."""
+    return _defense_scope(call)
+
+
+def detection_identity(call, replicon):
+    """Canonical saved-detection identity using an already resolved replicon.
+
+    Callers use the explicit native replicon, otherwise the gene's contig.
+    Sharing this recipe prevents metadata joins from inventing a second identity.
+    """
+    key = (call["sample_id"], call["gene_id"])
+    return [key, call.get("caller"), call.get("run_id"), replicon,
+            call.get("system_id"), call.get("evidence_kind", "final_member"),
+            call.get("native_family", call.get("family")), call.get("family"),
+            call.get("native_model"), call.get("reference_id"), call.get("selected", True)]
+
+
 def _protein_binding(call, gene):
     current = gene.get("protein_sha256")
     native = call.get("native_fields") or {}
@@ -639,8 +657,7 @@ def review_all_systems(data, result, rules=None):
                                     ("replicon_binding_origins", "native_call" if call.get("replicon_id") is not None else "gene_contig" if replicon is not None else "unavailable")):
             if origin not in unit[destination]:
                 unit[destination].append(origin)
-        detection_identity = [key, provider, run, replicon, system, kind, call.get("native_family", call.get("family")), call.get("family"), call.get("native_model"), call.get("reference_id"), call.get("selected", True)]
-        did = _id("detection", detection_identity)
+        did = _id("detection", detection_identity(call, replicon))
         if did in call_index:
             raise ValueError("Duplicate canonical detection in system review")
         call_index[did] = call

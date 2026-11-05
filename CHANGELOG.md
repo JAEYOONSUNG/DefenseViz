@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.3.0
+
+- Add source-pinned offline system information from the official DefenseFinder wiki, DefenseFinder definitions and CasFinder definitions.
+- Export a searchable catalogue and automatic per-observation metadata beside DNMBsuite and normalized-project analyses.
+- Keep wiki knowledge, model identity, version compatibility and query evidence distinct; no changes to accepted scientific memberships or figure categories.
+
 ## 2.2.0
 
 - Review every observed native system and ungrouped detection, including unknown families, with distinct evidence axes, reason codes and a review queue.

@@ -129,6 +129,49 @@ def test_suite_transaction_records_exact_inputs_and_outputs(tmp_path, monkeypatc
     with pytest.raises(FileExistsError): run_suite(tmp_path, tmp_path / 'result')
 
 
+def test_reference_information_is_exported_but_not_a_figure_input(tmp_path, monkeypatch):
+    data, _, _ = binding_fixture(tmp_path)
+    fake_stages(monkeypatch, data)
+    plot = sys.modules['defenseviz.plot.publication']
+    render = plot.render_publication
+    consumed = []
+    def inspect(result, *args, **kwargs):
+        consumed.append(copy.deepcopy(result))
+        return render(result, *args, **kwargs)
+    monkeypatch.setattr(plot, 'render_publication', inspect)
+    run_suite(tmp_path, tmp_path / 'result')
+    analyzed = json.loads((tmp_path / 'result/analysis.json').read_text())
+    assert analyzed['system_information'] == json.loads((tmp_path / 'result/system_information.json').read_text())
+    assert consumed and 'system_information' not in consumed[0]
+    assert consumed[0] == {key: value for key, value in analyzed.items() if key != 'system_information'}
+
+
+def test_native_blank_fqn_does_not_abort_publication(tmp_path):
+    import csv
+    from defenseviz.suite_demo import write_suite_project
+    paths = write_suite_project(tmp_path / 'inputs')
+    for path in paths['root'].rglob('defensefinder_best_solution_genes.tsv'):
+        with path.open(encoding='utf-8', newline='') as stream:
+            reader = csv.DictReader(stream, delimiter='\t')
+            fields = [*reader.fieldnames, 'model_fqn']
+            rows = list(reader)
+        with path.open('w', encoding='utf-8', newline='') as stream:
+            writer = csv.DictWriter(stream, fields, delimiter='\t')
+            writer.writeheader()
+            writer.writerows(rows)
+    # No supplement: its native-artifact binding intentionally refers to the
+    # unmodified synthetic input. This checks the direct native import route.
+    out = tmp_path / 'publication'
+    result = run_suite(paths['root'], out, manifest=paths['manifest'])
+    assert result['samples'] == 3
+    info = json.loads((out / 'system_information.json').read_text(encoding='utf-8'))
+    assert any(row['provider'] == 'DefenseFinder' and row['native_model_fqn'] == ''
+               and 'native_fqn_field_present_but_missing' in row['reason_codes']
+               for row in info['detections'])
+    assert info['accounting']['unaccounted_detections'] == 0
+    assert (out / 'figures/publication.pdf').stat().st_size > 1000
+
+
 @pytest.mark.parametrize('reason', ['failure', 'source_changed'])
 def test_failed_suite_publication_leaves_no_partial_output(tmp_path, monkeypatch, reason):
     data, _, _ = binding_fixture(tmp_path)

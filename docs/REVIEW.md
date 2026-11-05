@@ -1,5 +1,29 @@
 # DefenseViz review
 
+## 2.3.0: official system information
+
+The actual external review was invoked with
+`--model claude-opus-5-5 --effort max`. It identified an optional-field compatibility
+regression and unnecessary coupling of descriptive metadata to figure-input
+identity. The corrected implementation handles empty native FQNs, preserves
+malformed optional values with diagnostics, and keeps reference information out
+of the renderer input. A shared saved-detection identity recipe is checked against
+both independent synthetic controls and the actual earlier 52-genome IDs.
+
+The review also drove separate native/catalogue scope fields, per-provider
+matching counts, explicit cross-provider name-coincidence labels, and component
+comparisons qualified by their version relationship. Exact model identity,
+package-version agreement, family context and functional evidence remain different
+outcomes. Installed notices preserve upstream source declarations, including the
+model repository's conflicting licence metadata.
+
+Independent source review corrected two ambiguous paraphrases (Lit and RosmerTA)
+and flagged an upstream Wadjet citation-scope issue while retaining the original
+DOI and source lines. It checked all 152 source summaries, not all cited papers as
+independent experimental evidence. Claude read code and evidence; tests and
+installation checks were executed separately. No review claims biological
+validation of the query proteins.
+
 ## 2.2.0: review beyond the component catalogue
 
 Independent design and primary-source review separated detector quorum from a
