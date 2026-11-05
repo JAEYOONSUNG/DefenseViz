@@ -119,7 +119,7 @@ def analyze_saved(data):
     if not isinstance(options, dict):
         raise ValueError("options must be an object")
     warnings = [("Stored R-M evidence reevaluated with the selected DNMB policy; no detector run."
-                 if d.get("rm_evaluation") else "Saved-result import and aggregation; no detector or scoring run."),
+                 if (d.get("rm_evaluation") or {}).get("policy_evaluations", (d.get("rm_evaluation") or {}).get("scoring_runs",0)) else "Saved-result import and aggregation; no detector or scoring run."),
                 "Annotation evidence does not establish activity. Missing evidence is unassessed.",
                 "Family/category rows can overlap; sums are not a unique CDS union."]
 
@@ -1067,7 +1067,7 @@ def analyze_saved(data):
             complete_context_state="observed_saved_assessment" if any(g["sample_id"] == sid and g["membership_kind"] == "saved_context" and g.get("context_state") is not None for g in group_index.values()) else "unassessed",
             rm_scope_definitions={"rm_pool":"original R-M source/reference union plus explicitly typed current DNMB candidates; untyped and broader historical nominees stay in audit", "intersection":"legacy all-configured-source intersection, including reference providers; rm_intersection_CDS and rm_all_source_intersection_CDS are aliases, with status from source coverage only", "native_intersection":"native final R-M members across rm_native_intersection_sources, including selected general predictions projected into the observed R-M pool; reference and HMM-only channels excluded; status from native endpoint coverage only", "general_prediction_RM":"saved general predictions intersect original R-M candidate pool; not a native RM type call", "noncanonical":"current integrated union minus current R-M display-category pool; source counts intersect this same pool"}))
     result = dict(schema_version="saved-results-v1",samples=samples,sources=source_out,sample_summary=sample_summary,
-        selected_policy=deepcopy(evaluation.get("policy")) if evaluation else None,
+        selected_policy=deepcopy(evaluation.get("policy")) if evaluation and (evaluation.get("policy_evaluations",evaluation.get("scoring_runs",0)) or evaluation.get("operation") != "automatic_features_with_saved_decision_replay") else None,
         source_sets=[dict(source_id=s,endpoint=source_out[i]["kind"],member_keys=_keys(source_members[s]),count=len(source_members[s]),coverage_status=source_out[i]["coverage_status"]) for i,s in enumerate(sources)],
         global_summary=global_summary,overlap_regions=overlap(),priority_overlap_regions=overlap(P),
         inventory_rows=dict(categories=category_rows,families=family_rows),cells=cells,rm_components=components,type_tables=type_tables,
@@ -1090,7 +1090,7 @@ def analyze_saved(data):
             inventory_by_sample=inventory_by_sample, assessment_coverage_by_sample=assessment_by_sample,
             assessment_coverage_provenance_by_sample=assessment_provenance),
         workflow_capabilities=deepcopy((d.get("suite") or {}).get("capabilities",{})),
-        provenance=dict(operation="stored_evidence_evaluation_and_aggregation" if evaluation else "saved_result_import_and_aggregation",detector_runs=0,
+        provenance=dict(operation="stored_evidence_evaluation_and_aggregation" if evaluation.get("policy_evaluations",evaluation.get("scoring_runs",0)) else "saved_result_import_and_aggregation",detector_runs=0,
             scoring_runs=evaluation.get("scoring_runs", 0),
             component_registry_version=registry["version"],component_registry_sha256=registry_sha,
             automatic_component_assignments=automatic,source_metadata=tables["source_metadata"],input_sha256=d.get("input_sha256",{})))
