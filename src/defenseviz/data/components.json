@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "version": "1.1.0",
+  "version": "1.2.0",
   "scope": "Exact selected native component annotations and explicit complete-module identities. No cohort counts, observed minima, activity or motif validation. Unknown models unassessed.",
   "component_rules": [
     {
@@ -1184,6 +1184,85 @@
           }
         ]
       }
+    },
+    {
+      "component": "SduA",
+      "assignment_kind": "individual_nuclease_effector",
+      "substrate": "DNA",
+      "primary_sources": [
+        "https://doi.org/10.1016/j.molcel.2024.12.004"
+      ],
+      "functional_scope": "putative_nuclease_effector_family_annotation_not_query_site_validation",
+      "rule_id": "shedu_df_sdua_selected_v1",
+      "provider": "DefenseFinder",
+      "exact_models": [
+        "Shedu__SduA"
+      ],
+      "exact_native_families": [
+        "Shedu"
+      ],
+      "model_sources": [
+        {
+          "url": "https://github.com/mdmparis/defense-finder-models/blob/afb0e5a8b466be53586b13266f5d38d98c3ac268/definitions/DefenseFinder/Shedu/Shedu.xml",
+          "sha256": "e2cf5c89a13db608186e47f2add01a9cbebf5f29f14548999be47c90a202a630"
+        }
+      ]
+    },
+    {
+      "component": "SduA",
+      "assignment_kind": "individual_nuclease_effector",
+      "substrate": "DNA",
+      "primary_sources": [
+        "https://doi.org/10.1016/j.molcel.2024.12.004"
+      ],
+      "functional_scope": "putative_nuclease_effector_family_annotation_not_query_site_validation",
+      "rule_id": "shedu_pad_sdua_selected_v1",
+      "provider": "PADLOC",
+      "exact_models": [
+        "SduA_00001",
+        "SduA_00002",
+        "SduA_00003",
+        "SduA_00004",
+        "SduA_00005",
+        "SduA_00006",
+        "SduA_00007",
+        "SduA_00008",
+        "SduA_00009",
+        "SduA_00010",
+        "SduA_00011",
+        "SduA_00012",
+        "SduA_00013",
+        "SduA_00014",
+        "SduA_00015",
+        "SduA_00016",
+        "SduA_00017",
+        "SduA_00018",
+        "SduA_00019",
+        "SduA_00020",
+        "SduA_00021",
+        "SduA_00022",
+        "SduA_00023",
+        "SduA_00024",
+        "SduA_00025",
+        "SduA_00026",
+        "SduA_00027",
+        "SduA_00028",
+        "SduA_00029",
+        "SduA_00030"
+      ],
+      "exact_native_families": [
+        "shedu"
+      ],
+      "model_sources": [
+        {
+          "url": "https://github.com/padlocbio/padloc-db/blob/7f99b47b75e232b111c18626badb9ac32e8e0b5a/sys/shedu.yaml",
+          "sha256": "48ae57ffa394f70ac35224d091e32a710ab5935baf132bc7d47677dfd78d34f7"
+        },
+        {
+          "url": "https://github.com/padlocbio/padloc-db/blob/7f99b47b75e232b111c18626badb9ac32e8e0b5a/hmm_meta.txt",
+          "sha256": "61009bfac5e8a78df78bbec6020ef9b3aa466249d37f847290ec004ed4911c60"
+        }
+      ]
     }
   ],
   "complex_rules": [

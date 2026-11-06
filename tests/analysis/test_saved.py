@@ -629,3 +629,89 @@ def test_mixed_provider_general_prediction_does_not_relabel_specific_calls():
     assert result['sample_summary'][0]['rm_source_counts']['MixedProvider']==1
     assert result['sample_summary'][0]['rm_source_counts']['RMSource']==2
     assert result['global_summary']['native_union_CDS']==2
+
+
+@pytest.mark.parametrize('provider,native_family,model',
+    [('DefenseFinder','Shedu','Shedu__SduA')]+
+    [('PADLOC','shedu',f'SduA_{n:05d}') for n in range(1,31)])
+def test_selected_shedu_exact_component_is_putative_effector_not_validated_site(provider,native_family,model):
+    d=base('sdua');d['coverage']=cov(provider)
+    d['calls']=[call('sdua',provider,family='Shedu',native_family=native_family,model=model)]
+    result=analyze_saved(d);summary=result['global_summary'];ledger=result['gene_ledger'][0]
+    assert (summary['individual_effector_CDS'],summary['priority_CDS'],summary['motif_CDS'])==(1,1,0)
+    assert ledger['family_ids']==['Shedu']
+    assert ledger['motif_site_supported'] is False and ledger['activity']=='unassessed'
+    evidence=ledger['effector_evidence'][0]
+    assert evidence['native_family']==native_family and evidence['native_model']==model
+    assert evidence['substrate']=='DNA' and evidence['motif_state']=='unassessed'
+    assert evidence['primary_sources']==['https://doi.org/10.1016/j.molcel.2024.12.004']
+    assert evidence['functional_scope']=='putative_nuclease_effector_family_annotation_not_query_site_validation'
+    assert all(len(source['sha256'])==64 for source in evidence['model_sources'])
+
+
+@pytest.mark.parametrize('provider,native_family,model,extra',[
+    ('DefenseFinder',None,'Shedu__SduA',{}),
+    ('DefenseFinder','Other','Shedu__SduA',{}),
+    ('DefenseFinder','shedu','Shedu__SduA',{}),
+    ('DefenseFinder','Shedu','SduA',{}),
+    ('DefenseFinder','Shedu','Shedu__SduA',{'kind':'hmm_hit'}),
+    ('DefenseFinder','Shedu','Shedu__SduA',{'selected':False}),
+    ('DefenseFinder','Shedu','Shedu__SduA',{'origin':'supplement'}),
+    ('PADLOC',None,'SduA_00022',{}),
+    ('PADLOC','Shedu','SduA_00022',{}),
+    ('PADLOC','PD-T4-8','SduA_00022',{}),
+    ('PADLOC','shedu','PD-T4-8_WP_163657221.1',{}),
+    ('PADLOC','shedu','SduA',{}),
+    ('PADLOC','shedu','DUF4263',{}),
+    ('PADLOC','shedu','PF14082',{}),
+    ('PADLOC','shedu','SduA_00031',{}),
+    ('PADLOC','shedu','sdua_00022',{}),
+    ('PADLOC','shedu','SduA_00022',{'kind':'hmm_hit'}),
+    ('PADLOC','shedu','SduA_00022',{'selected':False}),
+    ('PADLOC','shedu','SduA_00022',{'origin':'supplement'}),
+])
+def test_shedu_requires_original_family_exact_model_and_final_selected_member(provider,native_family,model,extra):
+    d=base('sdua');d['coverage']=cov(provider)
+    row=call('sdua',provider,family='Shedu',model=model,**extra)
+    if native_family is not None:row['native_family']=native_family
+    d['calls']=[row]
+    assert analyze_saved(d)['global_summary']['individual_effector_CDS']==0
+
+
+def test_shedu_multiple_sources_count_one_cds_and_preserve_system_review():
+    from defenseviz.analysis.system_review import review_all_systems
+    d=base('sdua');d['coverage']=cov('DefenseFinder','PADLOC')
+    d['calls']=[call('sdua','DefenseFinder',family='Shedu',native_family='Shedu',model='Shedu__SduA'),
+                call('sdua','PADLOC',family='Shedu',native_family='shedu',model='SduA_00022')]
+    result=analyze_saved(d)
+    assert result['global_summary']['individual_effector_CDS']==1
+    assert len(result['gene_ledger'][0]['effector_evidence'])==2
+    reviewed=review_all_systems(d,result)['gene_reviews'][0]
+    assert reviewed['axes']['component_role']['status']=='supported'
+    assert reviewed['axes']['motif_site']['status']=='unassessed'
+    assert reviewed['axes']['activity']['status']=='unassessed'
+    assert reviewed['accepted_membership']['effector'] is True
+    assert reviewed['accepted_membership']['motif_site_supported'] is False
+
+
+def test_shedu_source_required_and_specific_noncatalytic_review_vetoes_rule():
+    d=base('sdua');d['coverage']=cov('PADLOC')
+    d['calls']=[call('sdua','PADLOC',family='Shedu',native_family='shedu',model='SduA_00022')]
+    d['calls'][0].pop('source_ref')
+    assert analyze_saved(d)['global_summary']['individual_effector_CDS']==0
+    d['calls'][0]['source_ref']=REF
+    d['annotations']=[dict(**gene('sdua'),status='supported',assignment_kind='noncatalytic_component',
+                          rule_id='specific_nonfunctional_review',source_refs=[REF])]
+    assert analyze_saved(d)['global_summary']['individual_effector_CDS']==0
+
+
+def test_shedu_component_rule_preserves_explicit_family_map_and_category():
+    d=base('sdua');d['coverage']=cov('DefenseFinder')
+    row=call('sdua',family='Custom',native_family='Shedu',model='Shedu__SduA',category_source='family_map')
+    row['category']='Other mechanisms';d['calls']=[row]
+    result=analyze_saved(d)
+    assert result['global_summary']['individual_effector_CDS']==1
+    assert result['gene_ledger'][0]['family_ids']==['Custom']
+    family_rows=result['inventory_rows']['families']
+    assert len(family_rows)==1
+    assert family_rows[0]['label']=='Custom' and family_rows[0]['category']=='Other mechanisms'

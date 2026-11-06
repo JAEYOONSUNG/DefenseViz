@@ -1,0 +1,17 @@
+**
+!Dockerfile.dnmbsuite
+!Dockerfile.dnmbsuite.dockerignore
+!pyproject.toml
+!README.md
+!LICENSE
+!src/
+!src/**
+!scripts/
+scripts/**
+!scripts/install_native_runtime.py
+!docker/
+docker/**
+!docker/dnmbsuite/
+!docker/dnmbsuite/**
+**/__pycache__/**
+**/*.pyc

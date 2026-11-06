@@ -98,15 +98,54 @@ def _source_metadata(path):
     return dict(path=str(path), sha256=digest.hexdigest(), records=records)
 
 
+def _declared_strains(record):
+    return list(dict.fromkeys(alias.strip() for value in record["source"].get("strain", [])
+                             for alias in re.split(r"[;=]", value) if alias.strip()))
+
+
+def _organism_strain_suffix(organism, strains):
+    """Separate only declared suffixes or anchored explicit alias chains."""
+    parts = re.split(r"\s*[=;]\s*", organism)
+    collection = r"[A-Z]{2,}[A-Z0-9_-]*\s*\d[A-Za-z0-9._/-]*"
+    if len(parts) > 1:
+        # '=' is source-declared equivalence, but an unknown free-text prefix
+        # must not become a guessed strain or a truncated taxon. The last
+        # alias must exactly match a source strain qualifier.
+        infer_collection = "=" in organism and ";" not in organism
+        if parts[-1] not in strains or any(
+                part not in strains and not (infer_collection and re.fullmatch(collection, part))
+                for part in parts[1:]):
+            return organism, []
+    else:
+        infer_collection = False
+    matched = [strain for strain in strains if parts[0].endswith(" " + strain)]
+    first = max(matched, key=len) if matched else None
+    if first is None and infer_collection:
+        match = re.search(r"(?:^|\s)(" + collection + r")$", parts[0])
+        first = match[1] if match else None
+    if first is None:
+        return organism, []
+    taxon = parts[0][:-len(first)].rstrip()
+    if taxon.endswith(" strain"):
+        taxon = taxon[:-7].rstrip()
+    return (taxon, [first, *parts[1:]]) if taxon else (organism, [])
+
+
 def _display_metadata(sources, directory):
     records = [record for source in sources for record in source["records"]]
     assemblies = sorted({value for record in records for value in record["assemblies"]})
     if len(assemblies) > 1:
         raise ValueError(f"{directory}: conflicting GenBank assembly identities {assemblies}; use an explicit manifest to select a sample")
     labels = set()
-    all_strains = list(dict.fromkeys(alias.strip() for record in records
-                                    for value in record["source"].get("strain", [])
-                                    for alias in value.split(";") if alias.strip()))
+    equivalences, preferences = [], []
+    all_strains = list(dict.fromkeys(alias for record in records for alias in _declared_strains(record)))
+    source_alias_groups = []
+    for record in records:
+        declared = _declared_strains(record)
+        organism = next(iter(record["source"].get("organism", [])), record["organism"])
+        _, matched = _organism_strain_suffix(organism, declared) if organism else (None, [])
+        source_alias_groups.append(set([*declared, *matched]))
+        all_strains.extend(alias for alias in matched if alias not in all_strains)
     for record in records:
         organisms = set(record["source"].get("organism", []))
         if len(organisms) > 1:
@@ -114,23 +153,49 @@ def _display_metadata(sources, directory):
         organism = next(iter(organisms), record["organism"])
         if not organism:
             continue
-        strains = list(dict.fromkeys(alias.strip() for value in record["source"].get("strain", [])
-                                     for alias in value.split(";") if alias.strip()))
-        if not strains:
+        declared = _declared_strains(record)
+        strains = declared
+        if declared:
+            aliases = set(declared)
+            while True:
+                expanded = aliases | set().union(*(group for group in source_alias_groups if group & aliases))
+                if expanded == aliases:
+                    break
+                aliases = expanded
+            strains = [alias for alias in all_strains if alias in aliases]
+        else:
             # A plasmid/contig may omit the strain qualifier that is present
             # on the chromosome. Its organism still must agree after removal
             # of an exact, declared strain suffix.
-            strains = [s for s in all_strains if organism.endswith(" " + s)]
+            _, inherited = _organism_strain_suffix(organism, all_strains)
+            strains = inherited
         if not strains:
             strains = list(dict.fromkeys(record["source"].get("isolate", [])))
-        # Prefer a declared alias already present at the end of the organism;
-        # otherwise retain the first declared strain. Never parse the folder.
-        matched = [s for s in strains if organism.endswith(" " + s)]
-        strain = max(matched, key=len) if matched else (strains[0] if strains else "")
-        taxon = organism[:-len(strain)].rstrip() if matched else organism
-        if matched and taxon.endswith(" strain"):
-            taxon = taxon[:-7].rstrip()
+        taxon, matched = _organism_strain_suffix(organism, strains)
+        if not matched and re.split(r"\s*[=;]\s*", organism)[-1] in strains and re.search(r"[=;]", organism):
+            raise ValueError(f"{directory}: ambiguous GenBank organism/strain alias chain; use an explicit manifest")
+        strain = matched[0] if matched else (strains[0] if strains else "")
         labels.add((taxon, strain))
+        if strain:
+            equivalences.append((taxon, set([*declared, *matched, strain])))
+            preferences.append((taxon, matched or [strain]))
+    # Equivalent chromosome/plasmid aliases get one consistent display name.
+    # Prefer the first alias in an explicit organism chain, then an exact
+    # organism suffix, without merging unrelated declared strains.
+    reconciled = set()
+    for taxon, strain in labels:
+        aliases = {strain} if strain else set()
+        while True:
+            expanded = aliases | set().union(*(group for name, group in equivalences
+                                               if name == taxon and group & aliases))
+            if expanded == aliases:
+                break
+            aliases = expanded
+        ordered = sorted(preferences, key=lambda item: len(item[1]) < 2)
+        preferred = next((alias for name, group in ordered if name == taxon
+                          for alias in group if alias in aliases), strain)
+        reconciled.add((taxon, preferred))
+    labels = reconciled
     # In one assembly, plasmids/contigs can declare only the organism. Fill a
     # missing strain only from one unambiguous explicit strain of that exact
     # taxon; retain all original source qualifiers in the inventory. Neither

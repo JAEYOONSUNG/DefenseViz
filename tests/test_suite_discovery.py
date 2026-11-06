@@ -155,6 +155,74 @@ def test_wrapped_source_name_and_multirecord_genbank_keep_one_sample(tmp_path):
     assert row["display"]["strain_label"] == "X/Y"
 
 
+@pytest.mark.parametrize("declaration", ["Alpha; Beta", "Alpha = Beta"])
+@pytest.mark.parametrize("separator", [" = ", "; "])
+def test_complete_declared_alias_chain_is_removed_without_losing_provenance(tmp_path, declaration, separator):
+    organism = "Example species subsp. subgroup strain Alpha" + separator + "Beta"
+    native(tmp_path / "arbitrary", "GCF_000000020.1", organism, declaration)
+    item = discover_suite(tmp_path)["samples"][0]
+    assert item["spec"]["display"] == {
+        "taxon_label": "Example species subsp. subgroup", "strain_label": "Alpha"}
+    qualifiers = item["metadata_sources"][0]["records"][0]["source"]
+    assert qualifiers["organism"] == [organism]
+    assert qualifiers["strain"] == [declaration]
+
+
+@pytest.mark.parametrize("alias", ["ABC 123", "XYZ456"])
+def test_explicit_organism_equivalence_is_anchored_by_declared_terminal_strain(tmp_path, alias):
+    organism = "Example species subsp. subgroup " + alias + " = QRS 789"
+    sample = native(tmp_path / "misleading folder", "GCF_000000021.1", organism, "QRS 789")
+    chromosome = (sample / "source.gbff").read_text()
+    # Source records may use either declared equivalent name or omit strain.
+    plasmid = genbank("GCF_000000021.1", "Example species subsp. subgroup QRS 789", "QRS 789")
+    other = genbank("GCF_000000021.1", "Example species subsp. subgroup " + alias, "").replace(
+        '                     /strain=""\n', "")
+    taxon_only = genbank("GCF_000000021.1", "Example species subsp. subgroup", "").replace(
+        '                     /strain=""\n', "")
+    (sample / "source.gbff").write_text(chromosome + plasmid + other + taxon_only)
+    item = discover_suite(tmp_path)["samples"][0]
+    assert item["spec"]["display"] == {
+        "taxon_label": "Example species subsp. subgroup", "strain_label": alias}
+    assert item["spec"]["species"] == "species subsp. subgroup"
+    records = item["metadata_sources"][0]["records"]
+    assert records[0]["source"]["organism"] == [organism]
+    assert records[0]["source"]["strain"] == ["QRS 789"]
+    assert "strain" not in records[2]["source"]
+
+
+@pytest.mark.parametrize("organism", [
+    "Example species unknown = QRS 789",
+    "Example species ABC 123 = unknown = QRS 789",
+])
+def test_unknown_alias_chain_is_not_partially_stripped(tmp_path, organism):
+    from defenseviz.io.suite_discovery import _organism_strain_suffix
+    assert _organism_strain_suffix(organism, ["QRS 789"]) == (organism, [])
+    native(tmp_path / "sample", "GCF_000000022.1", organism, "QRS 789")
+    with pytest.raises(ValueError, match="ambiguous.*alias chain"):
+        discover_suite(tmp_path)
+
+
+def test_collection_shaped_species_text_is_not_removed_without_equivalence(tmp_path):
+    native(tmp_path / "sample", "GCF_000000023.1", "Example species group ABC 123", "QRS 789")
+    row = specs(tmp_path)[0]
+    assert row["display"] == {"taxon_label": "Example species group ABC 123", "strain_label": "QRS 789"}
+
+
+def test_organism_equivalence_requires_an_exact_declared_terminal_anchor():
+    from defenseviz.io.suite_discovery import _organism_strain_suffix
+    organism = "Example species ABC 123 = QRS 789"
+    assert _organism_strain_suffix(organism, ["Other-1"]) == (organism, [])
+    assert _organism_strain_suffix(organism, ["QRS 78"]) == (organism, [])
+
+
+def test_explicit_alias_chain_does_not_reconcile_conflicting_strain(tmp_path):
+    sample = native(tmp_path / "sample", "GCF_000000024.1", "Example species ABC 123 = QRS 789", "QRS 789")
+    with (sample / "source.gbff").open("a") as stream:
+        stream.write(genbank("GCF_000000024.1", "Example species", "Different-1"))
+    with pytest.raises(ValueError, match="conflicting GenBank"):
+        discover_suite(tmp_path)
+
+
 def test_assembly_mentions_in_comments_are_not_sample_identities(tmp_path):
     sample = native(tmp_path / "arbitrary")
     text = genbank("", "Example bacterium", "S-1").replace(

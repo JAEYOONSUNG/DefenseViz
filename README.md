@@ -2,7 +2,7 @@
 
 **Analyze DNMBsuite results and export a classified Excel workbook, filtered annotations and editable publication figures.**
 
-DefenseViz separates original tool output, saved DNMB decisions, component evidence and visualization. Version 2.5.1 can run the full DNMB R-M evidence pipeline and generate the complete figure set in one invocation. Configure the installed DNMB runtime and local references once; all-protein HMM search, nominated-gene BLAST, context/motif review and fixed-policy retention then run automatically. Without an engine configuration, automatic mode evaluates stored evidence and records its limits. The offline catalogue of official DefenseFinder system information and source model definitions is linked to every saved observation without changing its scientific assessment. The source-traceable system review retains the manuscript's five-card workflow (a), detailed defense landscape (b), R-M type tables, original/prioritized overlaps and category/family comparisons. Samples, counts and evidence come from the supplied results; the layout has no built-in cohort or target-strain/transformability legends. Optional sample annotations need explicit labels. The earlier normalized-project evaluation workflow remains available.
+DefenseViz separates original tool output, saved DNMB decisions, component evidence and visualization. Version 2.5.2 can run the full DNMB R-M evidence pipeline and generate the complete figure set in one invocation. Configure the installed DNMB runtime and local references once; all-protein HMM search, nominated-gene BLAST, context/motif review and fixed-policy retention then run automatically. Without an engine configuration, automatic mode evaluates stored evidence and records its limits. The offline catalogue of official DefenseFinder system information and source model definitions is linked to every saved observation without changing its scientific assessment. The source-traceable system review retains the manuscript's five-card workflow (a), detailed defense landscape (b), R-M type tables, original/prioritized overlaps and category/family comparisons. Samples, counts and evidence come from the supplied results; the layout has no built-in cohort or target-strain/transformability legends. Optional sample annotations need explicit labels. The earlier normalized-project evaluation workflow remains available.
 
 ![Synthetic saved-output comparison](docs/assets/suite-comparison.svg)
 
@@ -31,6 +31,8 @@ after installation. `defenseviz demo --out demo-output` runs the earlier
 normalized-project example.
 
 ## Use your results
+
+For a shared full-analysis installation, use the [DNMBsuite container](docs/dnmbsuite-container.md). It adds DefenseViz to the existing DNMBsuite tools; inputs and databases mount read-only and all generated files go to the output folder. The full workflow uses Python, R, BLAST, HMMER and CATH; R alone is insufficient. The lightweight `Dockerfile` remains for the Python-only workflow.
 
 For **DNMBsuite result directories**, configure the DNMB databases and runtime once using the [runtime and resource setup](docs/runtime-install.md), then run:
 

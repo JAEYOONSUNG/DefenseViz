@@ -1,5 +1,14 @@
 # Changelog
 
+## 2.5.2
+
+- Isolate native GenBank processing in the output workspace so full evaluation can use read-only DNMBsuite inputs.
+- Add a pinned DNMBsuite container layer with isolated Python/R helpers, Linux CATH, mounted reference databases and the complete DefenseViz workflow.
+- Keep the original DNMBsuite entrypoint and environment intact; invoke DefenseViz through its dedicated wrapper.
+- Keep synthetic demonstrations independent of configured full-engine resources.
+- Separate explicit GenBank strain-alias chains from taxon labels while preserving source metadata.
+- Normalize source-specific Shedu family names and recognize exact selected SduA component models as putative nuclease effectors, with no automatic motif or activity validation.
+
 ## 2.5.1
 
 - Discover nested DNMBsuite result folders from one parent directory, stopping at each native sample root to avoid nested-module duplication.
