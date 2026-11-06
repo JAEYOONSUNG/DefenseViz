@@ -101,7 +101,7 @@ def write_suite_project(output_dir):
     (out / "review.json").write_text(json.dumps(supplement, indent=2) + "\n", encoding="utf-8")
     layout = {"preview_png": True, "type_samples": ["isolate-a", "isolate-b"]}
     (out / "layout.json").write_text(json.dumps(layout, indent=2) + "\n", encoding="utf-8")
-    (out / "README.txt").write_text("Entirely synthetic DNMBsuite-format data. No genomes, sequences or quantitative results from a manuscript are included. Reproduce with: defenseviz from-suite runs --manifest cohort.json --supplement review.json --layout layout.json --out ../rerun\n", encoding="utf-8")
+    (out / "README.txt").write_text("Entirely synthetic DNMBsuite-format data. No genomes, sequences or quantitative results from a manuscript are included. From this inputs directory, reproduce with: defenseviz from-suite runs --manifest cohort.json --supplement review.json --layout layout.json --evaluation stored --out ../rerun\n", encoding="utf-8")
     return {"root": out / "runs", "manifest": out / "cohort.json", "supplement": out / "review.json", "layout": out / "layout.json"}
 
 

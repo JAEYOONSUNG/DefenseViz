@@ -9,6 +9,7 @@
 !scripts/
 scripts/**
 !scripts/install_native_runtime.py
+!scripts/prepare_hmm_resources.py
 !docker/
 docker/**
 !docker/dnmbsuite/

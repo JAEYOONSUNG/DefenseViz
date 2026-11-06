@@ -39,7 +39,7 @@ validated-databases/
     profile_roles.tsv
 ```
 
-Use the validated resource export described in [runtime-bundle.md](runtime-bundle.md), or an equivalent source-traceable DNMB resource set. The paired HMM and role metadata must describe the same profiles. Copying a Mac runtime bundle wholesale into Linux is not supported; mount only its `databases` directory. Database distribution terms and provenance remain with the resources.
+For a new installation, follow [resource-preparation.md](resource-preparation.md). For an existing validated installation, use the export described in [runtime-bundle.md](runtime-bundle.md). The paired HMM and role metadata must describe the same profiles, lengths and library hash; `check-resources` rejects incomplete or mismatched metadata. Copying a Mac runtime bundle wholesale into Linux is not supported; mount only its `databases` directory. Database distribution terms and provenance remain with the resources.
 
 Set absolute host paths; create a fresh writable output parent:
 

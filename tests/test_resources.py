@@ -9,8 +9,8 @@ from defenseviz import resources
 
 
 def profiles(tmp_path):
-    hmm=tmp_path/'library.hmm';hmm.write_text('HMMER3/f\nNAME  Restriction\nGA  20 20;\n//\n')
-    meta=tmp_path/'roles.tsv';meta.write_text('profile_name\toff_target\troles\ttype_hints\tlibrary_sha256\nRestriction\tfalse\tR\tII\t'+hashlib.sha256(hmm.read_bytes()).hexdigest()+'\n')
+    hmm=tmp_path/'library.hmm';hmm.write_text('HMMER3/f\nNAME  Restriction\nLENG  100\nGA  20 20;\n//\n')
+    meta=tmp_path/'roles.tsv';meta.write_text('profile_name\toff_target\troles\ttype_hints\tprofile_length\tlibrary_sha256\nRestriction\tfalse\tR\tII\t100\t'+hashlib.sha256(hmm.read_bytes()).hexdigest()+'\n')
     return hmm,meta
 
 
@@ -27,6 +27,33 @@ def test_exact_HMM_role_binding(tmp_path,fault):
         assert result['exact_profile_name_binding']
     else:
         with pytest.raises(ValueError):resources._profile_binding(hmm,meta)
+
+
+@pytest.mark.parametrize('fault',[
+    'missing_hash_column','missing_length_column','empty_hash','empty_length',
+    'wrong_length','fractional_length','missing_LENG','duplicate_LENG',
+    'zero_LENG','duplicate_column','short_row','long_row',
+])
+def test_preflight_rejects_metadata_that_full_evaluation_cannot_bind(tmp_path,fault):
+    import csv
+    hmm,meta=profiles(tmp_path)
+    with meta.open() as stream: rows=list(csv.reader(stream,delimiter='\t'))
+    header,row=rows
+    if fault.startswith('missing_') and fault.endswith('_column'):
+        name='library_sha256' if fault=='missing_hash_column' else 'profile_length'
+        index=header.index(name);header.pop(index);row.pop(index)
+    elif fault=='empty_hash':row[header.index('library_sha256')]=''
+    elif fault in {'empty_length','wrong_length','fractional_length'}:
+        row[header.index('profile_length')]={'empty_length':'','wrong_length':'99','fractional_length':'100.5'}[fault]
+    elif fault in {'missing_LENG','duplicate_LENG','zero_LENG'}:
+        replacement={'missing_LENG':'','duplicate_LENG':'LENG  100\nLENG  100\n','zero_LENG':'LENG  0\n'}[fault]
+        hmm.write_text(hmm.read_text().replace('LENG  100\n',replacement))
+        row[header.index('library_sha256')]=hashlib.sha256(hmm.read_bytes()).hexdigest()
+    elif fault=='duplicate_column':header.append('roles');row.append('R')
+    elif fault=='short_row':row.pop()
+    elif fault=='long_row':row.append('unexpected')
+    with meta.open('w',newline='') as stream:csv.writer(stream,delimiter='\t').writerows([header,row])
+    with pytest.raises(ValueError):resources._profile_binding(hmm,meta)
 
 
 def environment(tmp_path,monkeypatch):

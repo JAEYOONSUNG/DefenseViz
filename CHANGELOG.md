@@ -1,5 +1,12 @@
 # Changelog
 
+## 2.5.3
+
+- Prepare source-bound HMM resources for a new installation without a historical benchmark workspace.
+- Reject missing or mismatched HMM library hashes and profile lengths during resource preflight.
+- Make the generated synthetic replay command independent of configured full-engine resources.
+- Document source-based sample labels, partial-evaluation prerequisites and first-time database preparation.
+
 ## 2.5.2
 
 - Isolate native GenBank processing in the output workspace so full evaluation can use read-only DNMBsuite inputs.
