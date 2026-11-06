@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.0.0
+
+- Set the Python package, CLI and execution receipt version to 1.0.0.
+- Preserve the earlier development records below under their original version numbers.
+
+## Previous development snapshots
+
 ## 2.5.3
 
 - Prepare source-bound HMM resources for a new installation without a historical benchmark workspace.
