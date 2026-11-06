@@ -2,3 +2,5 @@
 examples/** text=auto eol=lf
 # Frozen upstream native modules are SHA256-bound, including original whitespace.
 src/defenseviz/data/native/source/** -text whitespace=-blank-at-eol,-blank-at-eof
+# Preserve generated figure bytes and collapse their diffs on GitHub.
+docs/assets/benchmark52/*.svg -text whitespace=-blank-at-eol,-blank-at-eof linguist-generated=true

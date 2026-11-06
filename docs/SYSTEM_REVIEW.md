@@ -9,8 +9,11 @@ what evidence is still needed.
 defenseviz from-suite RESULTS --out reviewed-results
 ```
 
-This evaluates saved DNMB results. It does not rerun DefenseFinder, PADLOC,
-sequence searches, or recognition-specificity algorithms.
+The default auto mode uses a configured DNMB engine when available; otherwise it
+evaluates stored evidence. Use `--evaluation stored` to replay saved decisions.
+Full mode performs DNMB R–M sequence searches before system review. Original
+DefenseFinder, PADLOC and DefensePredictor calls remain saved inputs, and
+recognition-specificity algorithms are unchanged.
 
 ## Outputs
 

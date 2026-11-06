@@ -2,36 +2,35 @@
 
 ## 2.3.0: official system information
 
-The actual external review was invoked with
-`--model claude-opus-5-5 --effort max`. It identified an optional-field compatibility
+Code review identified an optional-field compatibility
 regression and unnecessary coupling of descriptive metadata to figure-input
 identity. The corrected implementation handles empty native FQNs, preserves
 malformed optional values with diagnostics, and keeps reference information out
 of the renderer input. A shared saved-detection identity recipe is checked against
 both independent synthetic controls and the actual earlier 52-genome IDs.
 
-The review also drove separate native/catalogue scope fields, per-provider
+The corrections add separate native/catalogue scope fields, per-provider
 matching counts, explicit cross-provider name-coincidence labels, and component
 comparisons qualified by their version relationship. Exact model identity,
 package-version agreement, family context and functional evidence remain different
 outcomes. Installed notices preserve upstream source declarations, including the
 model repository's conflicting licence metadata.
 
-Independent source review corrected two ambiguous paraphrases (Lit and RosmerTA)
+Source review corrected two ambiguous paraphrases (Lit and RosmerTA)
 and flagged an upstream Wadjet citation-scope issue while retaining the original
 DOI and source lines. It checked all 152 source summaries, not all cited papers as
-independent experimental evidence. Claude read code and evidence; tests and
-installation checks were executed separately. No review claims biological
+independent experimental evidence. Code and evidence review was separate from
+test execution and installation checks. No review claims biological
 validation of the query proteins.
 
 ## 2.2.0: review beyond the component catalogue
 
-Independent design and primary-source review separated detector quorum from a
+Design and primary-source review separated detector quorum from a
 complete component set, intrinsic protein evidence from native-unit evidence,
 and review execution from scientific support. The implementation reviews unknown
 families and ungrouped predictions without adding unsupported functions.
 
-An actual Claude review exposed cross-unit core/role propagation, source-path
+Code review identified cross-unit core/role propagation, source-path
 binding, version-field conflation, family-only role claims, anti-defense scope
 and coverage consistency issues. These were corrected with independent
 counterexamples. A follow-up code review closed the high/medium findings; actual
@@ -57,18 +56,18 @@ Genuine unknown current evidence remains partial or unassessed.
 
 ## 2.1.3 native retention and completeness review
 
-Actual read-only Claude Opus critique reviewed the implementation, source-bound
+Read-only review covered the implementation, source-bound
 ledgers and all nine final figure pages across separate historical, current and
 external-comparator cohorts. The final software review found no remaining blocker
 or High issue. It identified one Medium input-metadata omission: an external
 sample used a custom cohort string, so its case header lacked the supported
 external styling. The corrected manifest uses the existing `external` value and
 an explicit display label; no specimen rule or scientific assignment is added.
-A narrow Claude follow-up inspected the corrected PNG/SVG and metadata delta,
+A follow-up review inspected the corrected PNG/SVG and metadata delta,
 confirmed the external-label finding closed, and found no new clipping or
 typographic defect. Independent parity checks confirm unchanged scientific data.
 
-The review drove the following corrections and independent checks:
+Corrections and independent checks covered the following:
 
 - Complete saved R-M Evidence is evaluated through the unchanged policy with
   exact native-artifact, gene and whole-protein bindings. Missing evidence is not
@@ -88,7 +87,7 @@ The review drove the following corrections and independent checks:
   proportional effector glyphs. Count banks, uniform bar tracks, typography,
   observed PT pairs and partial states were inspected in actual PDF/SVG output.
 
-Claude retracted two unsupported interpretations after direct source checks:
+Direct source checks ruled out two proposed issues:
 one apparent lost Type-IV value was actually the neighboring retained-summary
 numerator, and a narrow policy-support flag cannot justify excluding an otherwise
 retained R annotation from the broad annotation-based prioritization endpoint.
@@ -96,16 +95,16 @@ That broad endpoint and its stricter support-qualified subset remain separate.
 Generic figures intentionally do not infer target-strain or transformability
 legends from study-specific metadata.
 
-Independent reviewers checked original source arrays, exact scientific sets,
-installed execution and final figure geometry. Root ran the tests and clean-wheel
-checks; Claude read their receipts and did not execute them. These reviews verify
+Checks covered original source arrays, exact scientific sets, installed execution
+and final figure geometry. Tests and clean-wheel checks were executed separately
+from the read-only review, which inspected their receipts. These checks verify
 source reconciliation and software behavior, not biological activity, exhaustive
 nuclease detection, or predictive accuracy. See [validation](VALIDATION.md) for
 executed checks; remote CI results remain separately reported by GitHub Actions.
 Subsequent Windows CI findings were isolated to fixture newline hashing and
 default text decoding. Their assertions were retained, explicit byte/UTF-8
 handling was added, and two CRLF tamper regressions strengthen the fixture scope.
-No production rule or renderer changed after the Claude artifact closeout.
+No production rule or renderer changed after the final artifact review.
 
 ---
 
@@ -113,7 +112,7 @@ No production rule or renderer changed after the Claude artifact closeout.
 
 The first 2.1 publication layout preserved counts but simplified the approved figure too far. This correction ports the original five-card vector workflow and detailed landscape, and checks them against the original geometric ledger and rendered image. It restores source mini-bars, 13 R-M role/context columns, exclusive-membership symbols, family glyph areas, paired category bands, taxonomy, pink rows, font styles and grouped legends. The compact view remains opt-in.
 
-Actual Claude review exposed generic boundary defects that the original-cohort match alone did not exercise. Explicitly excluded saved-group members are now excluded from composition and badge binding; incomplete type/role information stays partial. HMM-only providers do not become native atlas sources, and general-defense projection only applies to the actual generic predictions. Native and reference channels remain distinct, including mixed-provider fallback. Display-evidence merging is order independent; conflicting saved criteria cannot be overridden by layout configuration.
+Additional review found boundary defects that the original-cohort match alone did not exercise. Explicitly excluded saved-group members are now excluded from composition and badge binding; incomplete type/role information stays partial. HMM-only providers do not become native atlas sources, and general-defense projection only applies to the actual generic predictions. Native and reference channels remain distinct, including mixed-provider fallback. Display-evidence merging is order independent; conflicting saved criteria cannot be overridden by layout configuration.
 
 Partial zero cells have explicit marks, source-pattern totals honor coverage, out-of-shown-source members are disclosed without changing their pool, and taxonomy strips agree with the declared key. Role-level and group-level support semantics are stated separately in the accompanying figure caption, preserving the approved short in-figure legend. Micro-adjusted mini-bar tracks reserve measured number widths; all count scaling remains linear.
 
@@ -121,7 +120,7 @@ Partial zero cells have explicit marks, source-pattern totals honor coverage, ou
 
 # DefenseViz 2.1 review resolutions
 
-Independent input, analysis and renderer reviewers cross-checked each other's work. Actual Claude Opus critique reviewed the implementation and rendered PNGs; the review was read-only and did not execute tests. Root independently executed the regression and installation checks. The final Claude closeout found no unresolved High findings or blockers; its readiness verdict was conditional on the final tests, installation and native-folder runs, which passed locally.
+Read-only review of the implementation and rendered PNGs found no unresolved High findings or blockers after corrections. The review did not execute tests; its readiness assessment was conditional on the final regression, installation and native-folder checks, which were executed separately and passed locally.
 
 - Reviews can no longer masquerade as native retained decisions, native systems, run identities or member retention. Per-sample native-artifact and current protein hashes are required.
 - Missing ledgers, malformed outputs, stale inputs and implementation changes abort publication before the final output directory is created. Empty tables retain headers and explicit endpoint availability.
@@ -136,9 +135,9 @@ Raw motif flags, domains, orthology and inter-tool agreement are not automatical
 
 ---
 
-# Historical independent critique and resolution log
+# Historical review findings and resolutions
 
-The analysis, IO and rendering components were implemented with separate ownership and then cross-reviewed by developers who did not write the reviewed components. Root reruns the integrated tests and verifies real stored data independently.
+Historical review covered analysis, IO and rendering. Integrated tests and stored-data checks were executed separately.
 
 ## Scientific and data-contract findings resolved
 

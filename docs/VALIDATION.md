@@ -8,7 +8,7 @@ The independent audit reconciled every candidate's exact protein, source hashes,
 
 The four-page output passed an independent visual/data audit, including Arial, section labels 1–5, right-aligned separate Total/Effector columns, DF/PAD/DP order, and context support markers. Repeated uncertainty suffixes are removed; genuinely unavailable measurements remain an em dash. A separate 51-genome explicitly reviewed historical replay retained fifteen byte-identical scientific tables. Current-source reaggregation also reproduced its selected memberships, context projection and eight aggregate tables. This replay is not an engine rerun.
 
-An actual Claude Opus 5.5 review was invoked with maximum effort on a preceding source snapshot. Its five P1 and three P2 findings were reproduced and corrected with regression controls; three unresolved questions received separate source/actual-run audits. The final implementation was independently tested, not subsequently approved by Claude. Controls cover comparator-only nomination, terminal stop normalization, exact supplemental reference metadata, candidate-search closure, untranslated groups, required schemas and complete database/runtime/source binding.
+Code review of a preceding source snapshot identified five P1 and three P2 findings. These were reproduced and corrected with regression controls; three unresolved questions received separate source and execution audits. That review did not cover the final implementation, which was tested separately. Controls cover comparator-only nomination, terminal stop normalization, exact supplemental reference metadata, candidate-search closure, untranslated groups, required schemas and complete database/runtime/source binding.
 
 A fresh installation directly from GitHub also completed the five-sample full run using relocated input/database/runtime resources. All 412 candidate evidence/decision records, integrated memberships and scientific summaries matched the validated run; 25 TSVs and all four PNG pages were byte-identical. Machine-specific provenance changed as expected. The generated Excel workbook contained 319 classified, 17 retained and 31 priority CDSs, matching its companion filtered TSVs.
 
@@ -78,10 +78,10 @@ describe these boundaries.
   three-sample figure, only justified primary-sample partial-count markers
   changed after restoring their source-bound assessment scope; external-sample
   uncertainty remained. These inputs are not redistributed.
-- An actual Claude code review identified issues that were corrected and
+- Code review identified issues that were corrected and
   covered by counterexamples. Its follow-up found no unresolved high- or
   medium-severity blockers within the documented saved-evidence review scope.
-  Claude did not execute tests; the checks above were executed separately.
+  The review did not execute tests; the checks above were executed separately.
 
 These are software and evidence-contract checks, not experimental validation or
 an accuracy estimate for every known or future defense family. See
@@ -141,8 +141,8 @@ editable SVG come from the same render. Only synthetic inputs are distributed.
 Type-table assessment is conditional on the observed assigned-type pool; broader
 candidate assessment remains separately exported. Untyped no-hit nominees remain
 in the evaluation audit without inflating the R-M display pool. Partial counts
-and unavailable assessments remain distinct from zero. Actual Claude critique
-and its resolutions are recorded in [REVIEW.md](REVIEW.md).
+and unavailable assessments remain distinct from zero. Code-review findings
+and their resolutions are recorded in [REVIEW.md](REVIEW.md).
 
 ---
 
@@ -196,7 +196,7 @@ The private source-bound display projection passes 16,094 comparisons against th
 
 Regression cases cover explicit excluded group members, unknown roles/types, HMM-only providers, missing versus partial endpoints, provider-specific general predictions, mixed native/reference identities, neutral bound display annotations, contradictory saved criteria, long names, small and large cohorts, partial zeros, outside-source memberships and taxonomy color consistency. Actual native folders, synthetic CLI execution and clean wheel installation were rerun. The original live text helper also passes on Matplotlib 3.7.5 and 3.11.2 in separate environments.
 
-Exact original design review and actual read-only Claude code critique are separate checks. Review findings were reproduced with synthetic inputs before correction; private genomic inputs were not included in the Claude source snapshot. See [review resolutions](REVIEW.md). Remote CI results remain authoritative for the operating-system/Python matrix.
+Original design review and read-only code review were separate checks. Findings were reproduced with synthetic inputs before correction; the code-review source snapshot excluded private genomic inputs. See [review resolutions](REVIEW.md). Remote CI results remain authoritative for the operating-system/Python matrix.
 
 ---
 
@@ -214,14 +214,14 @@ Validation separates two data sources: seven read-only native folders spanning m
 - A built wheel installed into a fresh virtual environment passes legacy and native demos, inspection, standalone execution and analytical equivalence outside the checkout (`CLEAN_INSTALL_OK`).
 - All **seven real native folders** import and render through `from-suite`; consumed input hashes remain unchanged. Existing metadata/export conflicts remain explicit, not silently repaired. Tests also cover strict rejection.
 - The separate **52-genome source-plus-review regression passes 17,965 checks**. Its integrated union (2,929), effector CDSs (497) and annotation-based priorities (500) remain identical to the pinned reviewed inputs.
-- Root visually inspected native, synthetic and private-cohort outputs. Geometry checks cover text/track collisions, right-aligned numbers, fixed bar dimensions, exact intersections, type states, nested glyph areas, pagination and editable text.
+- Visual inspection covered native, synthetic and private-cohort outputs. Geometry checks cover text/track collisions, right-aligned numbers, fixed bar dimensions, exact intersections, type states, nested glyph areas, pagination and editable text.
 
 
 The private regression checks exact membership and all family/category/cell/source intersections, typed-pool partitions and case context/orphan subsets. It does not tune thresholds or assess biological accuracy. Final gene-union and priority quantities remain equal to the pinned reviewed inputs. Sources and producer versions remain explicit; unknown historical producer versions are not backfilled from a newer checkout.
 
 ## Review and limitations
 
-Independent input, analysis and rendering reviewers identified and corrected native ID/schema variants, contradictory duplicate context, false zero states, non-RM contamination of typed totals, review/native provenance confusion and small-cohort layout collisions. Actual Claude Opus review was used for the code and rendered figures; its material findings were reproduced and fixed before publication. See [review resolutions](REVIEW.md).
+Review of inputs, analysis, rendering and the resulting figures identified native ID/schema variants, contradictory duplicate context, false zero states, non-RM contamination of typed totals, review/native provenance confusion and small-cohort layout collisions. The findings were reproduced and corrected before publication. See [review resolutions](REVIEW.md).
 
 Automatic effector transfer uses exact annotated components and complete required cores. Raw motif/domain/orthology observations remain separate. Older exports without saved curation or detailed functional review remain unassessed or lower bounds. Context completeness does not demonstrate activity. No broad accuracy metrics or superiority claims are made.
 

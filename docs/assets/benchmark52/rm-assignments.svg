@@ -1,0 +1,114 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="749" viewBox="0 0 1600 749" role="img" aria-labelledby="title desc">
+<title id="title">DNMB R–M evidence integration from 3,280 original annotation CDSs</title>
+<desc id="desc">52 genomes, original source union3280. The R-M source pool971 is unchanged, including968 scored CDSs and3 native controller-protein CDSs. Original score-pass346 and below-cutoff622 are unchanged. Four score-supported M proteins have been reassigned to BREX2, DISARM1 and Hma1 based on reviewed system context; their methylase evidence is preserved. The current Type I-III selection is342, comprising R106 M171 S64 and one fusedRM. Original intersection249 yields235 current assigned; remaining722 yields107. Separate review of190 TypeIV nominees from within622 supports115 R and36 auxiliary components. Current R-M output493 equals342 plus151. Not in current R-M478 equals471 below-cutoff afterIVselection plus3 controllers plus4 context-reassigned. These rejoin2309 remaining input CDSs to form2787. The53 R-M-assigned records with other native labels remain available for shared annotation review; overlaps do not establish dual function. All integrated2929 identities, global effectors497 and priority500 remain unchanged. Bin icons indicate intermediate review disposition, not deletion or biological negatives. This is a fresh interpretation of stored calls and a figure update, not an engine rerun or measured activity.</desc>
+<defs><marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 Z" fill="#91A2BD"/></marker><marker id="review-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 Z" fill="#78628D"/></marker></defs>
+<g font-family="Arial, Helvetica, sans-serif">
+<rect x="0" y="0" width="1600" height="749" rx="0" fill="#FFFFFF"/>
+<rect x="370" y="25" width="1205" height="544" rx="20" fill="#F3F8F5" stroke="#457C7C" stroke-width="2.6"/>
+<circle cx="401" cy="55" r="15" fill="#457C7C"/>
+<text x="401" y="62" font-size="22" font-weight="700" fill="white" text-anchor="middle">1</text>
+<text x="425" y="64" font-size="27" font-weight="700" fill="#457C7C" text-anchor="start">R–M evidence integration and curation</text>
+<g id="original-annotation-input">
+<rect x="20" y="124" width="300" height="235" rx="15" fill="#FFFFFF" stroke="#96A6C9" stroke-width="2.2"/>
+<text x="170" y="158" font-size="25" font-weight="700" fill="#687EAE" text-anchor="middle">Input · 52 genomes</text>
+<g font-style="italic">
+<text x="170" y="188" font-size="21" font-weight="400" fill="#25373D" text-anchor="middle">(Para)Geobacillus</text>
+</g>
+<text x="170" y="218" font-size="21" font-weight="400" fill="#25373D" text-anchor="middle">Original annotations</text>
+<text x="170" y="257" font-size="34" font-weight="700" fill="#25373D" text-anchor="middle">3,280 CDSs</text>
+<path d="M42,274 H298" fill="none" stroke="#96A6C9" stroke-width="1.2"/>
+<text x="170" y="300" font-size="19" font-weight="400" fill="#25373D" text-anchor="middle">PAD 2,001 · DF 1,378</text>
+<text x="170" y="328" font-size="19" font-weight="400" fill="#25373D" text-anchor="middle">DP 1,831 · REB 968</text>
+<text x="346" y="205" font-size="16" font-weight="700" fill="#25373D" text-anchor="middle">R–M</text>
+<text x="346" y="225" font-size="14" font-weight="400" fill="#25373D" text-anchor="middle">subset</text>
+<path d="M330,238 H386" fill="none" stroke="#8BA3A7" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#arrow)"/>
+<path d="M170,362 V384" fill="none" stroke="#8BA3A7" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#arrow)"/>
+<rect x="20" y="390" width="300" height="81" rx="10" fill="#F4F7F8" stroke="#C7D3D6" stroke-width="1.2"/>
+<text x="170" y="420" font-size="21" font-weight="400" fill="#25373D" text-anchor="middle">Remaining input CDSs</text>
+<text x="170" y="454" font-size="28" font-weight="700" fill="#25373D" text-anchor="middle">2,309</text>
+</g>
+<g id="candidate-pool">
+<rect x="396" y="108" width="282" height="235" rx="11" fill="white" stroke="#96A6C9" stroke-width="2.2"/>
+<text x="410" y="144" font-size="26" font-weight="700" fill="#25373D" text-anchor="start">971 candidate CDSs</text>
+<text x="410" y="175" font-size="20" font-weight="400" fill="#457C7C" text-anchor="start">Pool = 968 + 3</text>
+<text x="410" y="215" font-size="20" font-weight="400" fill="#25373D" text-anchor="start">REBASE</text>
+<text x="662" y="215" font-size="22" font-weight="700" fill="#25373D" text-anchor="end">968</text>
+<text x="410" y="247" font-size="20" font-weight="400" fill="#25373D" text-anchor="start">PAD-only C-proteins</text>
+<text x="662" y="247" font-size="22" font-weight="700" fill="#25373D" text-anchor="end">3</text>
+<path d="M410,267 H662" fill="none" stroke="#96A6C9" stroke-width="1.2"/>
+<text x="410" y="311" font-size="19" font-weight="400" fill="#25373D" text-anchor="start">968 scored · 346 score-pass</text>
+</g>
+<g id="intersection-and-remainder">
+<rect x="720" y="86" width="204" height="112" rx="11" fill="white" stroke="#96A6C9" stroke-width="2.2"/>
+<text x="822" y="115" font-size="23" font-weight="400" fill="#25373D" text-anchor="middle">Intersection</text>
+<text x="822" y="149" font-size="31" font-weight="700" fill="#25373D" text-anchor="middle">249</text>
+<text x="822" y="180" font-size="21" font-weight="400" fill="#25373D" text-anchor="middle">(235 assigned)</text>
+<rect x="720" y="246" width="204" height="112" rx="11" fill="white" stroke="#96A6C9" stroke-width="2.2"/>
+<text x="822" y="275" font-size="23" font-weight="400" fill="#25373D" text-anchor="middle">Remaining</text>
+<text x="822" y="309" font-size="31" font-weight="700" fill="#25373D" text-anchor="middle">722</text>
+<text x="822" y="340" font-size="21" font-weight="400" fill="#25373D" text-anchor="middle">(107 assigned)</text>
+<path d="M678,223 H699" fill="none" stroke="#91A2BD" stroke-width="2.3"/>
+<path d="M699,142 L699,302" fill="none" stroke="#91A2BD" stroke-width="2.3"/>
+<path d="M699,142 H714" fill="none" stroke="#8BA3A7" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#arrow)"/>
+<path d="M699,302 H714" fill="none" stroke="#8BA3A7" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#arrow)"/>
+<path d="M924,142 H946" fill="none" stroke="#91A2BD" stroke-width="2.3"/>
+<path d="M924,302 H946" fill="none" stroke="#91A2BD" stroke-width="2.3"/>
+<path d="M946,142 L946,302" fill="none" stroke="#91A2BD" stroke-width="2.3"/>
+<path d="M946,223 H971" fill="none" stroke="#8BA3A7" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#arrow)"/>
+</g>
+<g id="retained-evidence">
+<text x="1264" y="93" font-size="20" font-weight="700" fill="#457C7C" text-anchor="middle">Score ≥ 50 + system context</text>
+<rect x="978" y="105" width="572" height="208" rx="11" fill="white" stroke="#96A6C9" stroke-width="2.2"/>
+<rect x="980" y="107" width="568" height="62" rx="9" fill="#4C7379"/>
+<text x="1264" y="134" font-size="27" font-weight="700" fill="white" text-anchor="middle">342 assigned CDSs · Types I–III</text>
+<text x="1264" y="160" font-size="22" font-weight="400" fill="white" text-anchor="middle">R106 | M171 | S64 | RM1</text>
+<text x="992" y="199" font-size="22" font-weight="400" fill="#25373D" text-anchor="start">Homology: REBASE / HMM</text>
+<text x="992" y="231" font-size="22" font-weight="400" fill="#25373D" text-anchor="start">Domains / function: InterPro / eggNOG</text>
+<text x="992" y="263" font-size="22" font-weight="400" fill="#25373D" text-anchor="start">Motifs / cognate context</text>
+<text x="992" y="295" font-size="22" font-weight="400" fill="#25373D" text-anchor="start">Type-specific structural / site support</text>
+</g>
+<g id="score-disposition">
+<g transform="translate(394,359)" fill="none" stroke="#6D7E84" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M1,5 H19 M7,5 V1 H13 V5 M3,5 L4.5,22 H15.5 L17,5 M8,9 V18 M12,9 V18"/></g>
+<text x="423" y="380" font-size="20" font-weight="400" fill="#25373D" text-anchor="start">Below scoring cutoff</text>
+<text x="668" y="380" font-size="23" font-weight="700" fill="#25373D" text-anchor="end">622</text>
+<g transform="translate(394,392)" fill="none" stroke="#6D7E84" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M1,5 H19 M7,5 V1 H13 V5 M3,5 L4.5,22 H15.5 L17,5 M8,9 V18 M12,9 V18"/></g>
+<text x="423" y="413" font-size="19" font-weight="400" fill="#25373D" text-anchor="start">Controllers (unscored)</text>
+<text x="668" y="413" font-size="22" font-weight="700" fill="#25373D" text-anchor="end">3</text>
+<text x="423" y="445" font-size="20" font-weight="400" fill="#78628D" text-anchor="start">Other-system context</text>
+<text x="668" y="445" font-size="22" font-weight="700" fill="#78628D" text-anchor="end">4</text>
+<path d="M681,373 H951 V344 H970" fill="none" stroke="#78628D" stroke-width="2.3" stroke-linejoin="round" marker-end="url(#review-arrow)"/>
+<text x="814" y="398" font-size="17" font-weight="400" fill="#78628D" text-anchor="middle">Type IV re-review</text>
+<path d="M699,373 V397" fill="none" stroke="#78628D" stroke-width="2.1" marker-end="url(#review-arrow)"/>
+<path d="M699,397 V462 H760 V476 M681,407 H699 M681,438 H699" fill="none" stroke="#78628D" stroke-width="2.1" stroke-linejoin="round"/>
+<path d="M760,462 V476" fill="none" stroke="#78628D" stroke-width="2.1" marker-end="url(#review-arrow)"/>
+<text x="555" y="474" font-size="17" font-weight="400" fill="#78628D" text-anchor="middle">After re-review</text>
+</g>
+<g id="type-IV-followup">
+<text x="991" y="345" font-size="24" font-weight="700" fill="#25373D" text-anchor="start">Type IV review: 190 candidate CDSs</text>
+<text x="991" y="375" font-size="22" font-weight="400" fill="#25373D" text-anchor="start">R115 | Auxiliary 36 | Unresolved 39</text>
+<text x="991" y="406" font-size="20" font-weight="400" fill="#287D7B" text-anchor="start">151 assigned to Type IV</text>
+<path d="M1264,413 V476" fill="none" stroke="#8BA3A7" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#arrow)"/>
+<rect x="978" y="483" width="572" height="68" rx="7" fill="#E0EEEA"/>
+<text x="1264" y="510" font-size="22" font-weight="700" fill="#287D7B" text-anchor="middle">DNMB R–M assignments</text>
+<text x="1264" y="540" font-size="26" font-weight="700" fill="#287D7B" text-anchor="middle">493 CDSs = 342 + 151</text>
+<rect x="396" y="483" width="528" height="68" rx="7" fill="#F5F3F6" stroke="#D3CDD9" stroke-width="1.2"/>
+<text x="660" y="510" font-size="22" font-weight="700" fill="#25373D" text-anchor="middle">Not assigned to R–M</text>
+<text x="660" y="540" font-size="26" font-weight="700" fill="#25373D" text-anchor="middle">478 CDSs = 971 − 493</text>
+</g>
+<g id="shared-downstream-review">
+<path d="M170,471 L170,590" fill="none" stroke="#91A2BD" stroke-width="2.3"/>
+<path d="M170,590 H660" fill="none" stroke="#91A2BD" stroke-width="2.3"/>
+<path d="M660,551 V612" fill="none" stroke="#8BA3A7" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#arrow)"/>
+<circle cx="660" cy="590" r="3.4" fill="#91A2BD"/>
+<text x="297" y="581" font-size="18" font-weight="400" fill="#5D7077" text-anchor="middle">2,309 + 478</text>
+<path d="M1264,552 V612" fill="none" stroke="#78628D" stroke-width="2.3" marker-end="url(#review-arrow)"/>
+<text x="1281" y="589" font-size="18" font-weight="400" fill="#78628D" text-anchor="start">Other-system calls</text>
+<rect x="396" y="617" width="1154" height="78" rx="10" fill="white" stroke="#AB9CBA" stroke-width="1.7"/>
+<text x="973" y="648" font-size="25" font-weight="700" fill="#25373D" text-anchor="middle">System / effector re-review candidates</text>
+<text x="660" y="680" font-size="22" font-weight="400" fill="#25373D" text-anchor="middle">2,787 remaining CDSs</text>
+<text x="1264" y="680" font-size="22" font-weight="400" fill="#78628D" text-anchor="middle">53 R–M-assigned CDSs with other-system calls</text>
+</g>
+<text x="397" y="722" font-size="17" font-weight="400" fill="#5D7077" text-anchor="start">Intersection: PAD R–M ∩ DF R–M ∩ DP flags</text>
+<text x="1550" y="722" font-size="17" font-weight="400" fill="#5D7077" text-anchor="end">Annotation overlap ≠ confirmed dual function</text>
+</g></svg>

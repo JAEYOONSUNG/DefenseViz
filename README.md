@@ -1,40 +1,49 @@
 # DefenseViz
 
-**Analyze DNMBsuite results and export a classified Excel workbook, filtered annotations and editable publication figures.**
+Analyze DNMBsuite results and export classified annotations, Excel summaries and editable figures.
 
-DefenseViz separates original tool output, saved DNMB decisions, component evidence and visualization. Version 2.5.3 can run the full DNMB R-M evidence pipeline and generate the complete figure set in one invocation. Configure the installed DNMB runtime and local references once; all-protein HMM search, nominated-gene BLAST, context/motif review and fixed-policy retention then run automatically. Without an engine configuration, automatic mode evaluates stored evidence and records its limits. The offline catalogue of official DefenseFinder system information and source model definitions is linked to every saved observation without changing its scientific assessment. The source-traceable system review retains the manuscript's five-card workflow (a), detailed defense landscape (b), R-M type tables, original/prioritized overlaps and category/family comparisons. Samples, counts and evidence come from the supplied results; the layout has no built-in cohort or target-strain/transformability legends. Optional sample annotations need explicit labels. The earlier normalized-project evaluation workflow remains available.
+DefenseViz combines DNMB R–M evidence with saved defense annotations. It produces a defense landscape, R–M type tables, source-overlap plots and family comparisons, together with the CDS lists behind each figure.
 
-![Synthetic saved-output comparison](docs/assets/suite-comparison.svg)
+## Example results
 
-[View the synthetic manuscript-style atlas](docs/assets/suite-atlas.svg). Unavailable measurements use an em dash; the example does not invent reviewed manuscript results.
+Reviewed 52-genome Geobacillus benchmark, including supplied context-review annotations. Sample highlights belong to this study; new runs use their own sample labels and annotations.
 
-## Install and try
+[![Defense landscape and R–M assignments across 52 genomes](docs/assets/benchmark52/atlas.png)](docs/assets/benchmark52/atlas.svg)
 
-Python 3.10 or newer. Run inside a virtual environment:
+<details>
+<summary>Source overlap, prioritization and family comparisons</summary>
+
+[![Original and prioritized annotation overlaps with category and family counts](docs/assets/benchmark52/comparison.png)](docs/assets/benchmark52/comparison.svg)
+
+</details>
+
+[Full PDF](docs/assets/benchmark52/publication.pdf) · [Atlas SVG](docs/assets/benchmark52/atlas.svg) · [Comparison SVG](docs/assets/benchmark52/comparison.svg) · [R–M assignment flow](docs/assets/benchmark52/rm-assignments.svg) · [Example details](docs/example-results.md)
+
+## Install
+
+Python 3.10 or newer:
 
 ```sh
 git clone https://github.com/JAEYOONSUNG/DefenseViz.git
 cd DefenseViz
 python -m venv .venv
-# macOS/Linux
 . .venv/bin/activate
-# Windows PowerShell: .venv\Scripts\Activate.ps1
 python -m pip install '.[suite]'
+```
+
+On Windows PowerShell, activate the environment with `.venv\Scripts\Activate.ps1`.
+
+Try the synthetic example without installing databases or the native analysis tools:
+
+```sh
 defenseviz demo --suite --out suite-demo
 ```
 
-Open `suite-demo/results/figures/publication.pdf`; editable SVG pages are alongside
-it. The entirely synthetic inputs in `suite-demo/inputs/` demonstrate completed
-zero outputs, reference-only matches, saved retention and a complete annotated
-effector core. No databases, detector installation or network access are required
-after installation. `defenseviz demo --out demo-output` runs the earlier
-normalized-project example.
+Open `suite-demo/results/figures/publication.pdf`. The demo uses synthetic data; the benchmark figures above are a separate reviewed dataset.
 
-## Use your results
+## Analyze DNMBsuite results
 
-For a shared full-analysis installation, use the [DNMBsuite container](docs/dnmbsuite-container.md). It adds DefenseViz to the existing DNMBsuite tools; inputs and databases mount read-only and all generated files go to the output folder. The full workflow uses Python, R, BLAST, HMMER and CATH; R alone is insufficient. The lightweight `Dockerfile` remains for the Python-only workflow.
-
-For **DNMBsuite result directories**, configure the DNMB databases and runtime once using the [runtime and resource setup](docs/runtime-install.md), then run:
+Set up the [native runtime and databases](docs/runtime-install.md), or use the [DNMBsuite container with DefenseViz](docs/dnmbsuite-container.md).
 
 ```sh
 defenseviz check-resources --engine-config engine.json --out resource-check
@@ -42,70 +51,53 @@ defenseviz from-suite /path/to/DNMBsuite_outputs \
   --engine-config engine.json --evaluation full --out results
 ```
 
-The result contains `tables/defense_annotations.xlsx`, classified CDSs, separate retained R-M and prioritized annotation TSVs, and `figures/publication.pdf` with editable SVG pages. The workbook includes summaries, CDS classifications, retained R-M annotations, priority CDSs, candidate evaluations, systems, families, categories and R-M type counts. Original annotation records and decisions remain in the audit tables. No spreadsheet assembly or separate plotting script is needed.
+The input can be one genome's result folder or a parent containing nested per-genome folders. DefenseViz discovers the samples, reads available assembly and strain metadata, evaluates the evidence and writes the tables and figures. Use a new output directory for each run.
 
-Use a single genome output folder or one parent containing nested per-genome folders. Native results are discovered recursively; their module and plasmid subfolders are not counted as extra samples. GenBank assembly and organism/strain metadata provide source-bound identities and labels automatically. No sample manifest or separate plotting step is required. PNG previews accompany PDF and SVG by default. Optional manifests choose subsets, override labels or add pink highlights. Saved RDS evidence is read with Rscript. To execute the full R-M engine, use `--evaluation full --engine-config engine.json`; see the [runtime setup](docs/suite.md#full-dnmb-r-m-execution). Native and later reviewed evidence remain distinct. Older exports without saved curation fields are evaluated automatically from exact proteins, native annotations and stored context. Missing measurements produce conservative score bounds; unresolved decisions stay visible. `--reference-cache /path/to/current/DNMB/REBASE/cache` can perform fresh, source-pinned homology evaluation when old exports lack reference coverage. `--evaluation stored` replays saved decisions; `--rm-evidence evidence.json` remains available for explicit complete evidence. See [the DNMBsuite guide](docs/suite.md) and [saved-result contract](docs/SUITE_CONTRACT.md).
+Full mode runs DNMB R–M HMM and REBASE searches with the configured tools and databases. DefenseFinder, PADLOC and DefensePredictor calls are imported from the existing results. Use `--evaluation stored` to replay saved DNMB decisions. The default `auto` mode uses a configured engine when available and otherwise evaluates stored evidence.
 
-Every run also exports `system_review.json` and review tables: observed systems,
-ungrouped predictions, component/domain/site evidence, and an actionable queue
-for unresolved interpretations. Extend exact review rules with
-`--system-review-rules`; add verified domain/reference evidence with
-`--system-review-evidence`. See [system review](docs/SYSTEM_REVIEW.md).
+The full workflow requires Python, R and native search tools. Docker provides a shared runtime; a native installation is also supported. Databases are prepared separately under their distribution terms. See [resource preparation](docs/resource-preparation.md) for a new installation.
 
-Each analysis also exports `system_information.json` and per-system reference
-tables. Browse all bundled official system information offline:
+## Output
 
-```sh
-defenseviz catalog --out system-reference
-defenseviz catalog Wadjet
-```
+Paths below are relative to the output directory.
 
-See [system reference information](docs/KNOWLEDGE.md) for source scope,
-component metadata, exact identity and model-version semantics, and
-[reference-source attribution](THIRD_PARTY_NOTICES.md) for upstream notices.
+| File | Contents |
+|---|---|
+| `tables/defense_annotations.xlsx` | Classified CDSs, R–M assignments, priorities and summaries |
+| `tables/classified_CDSs.tsv` | Integrated annotation list |
+| `tables/retained_RM_annotations.tsv` | R–M CDSs selected by the evidence policy |
+| `tables/prioritized_annotations.tsv` | Prioritized restriction-role and effector annotations |
+| `figures/publication.pdf` | Combined figure set |
+| `figures/publication_page*.svg` / `*.png` | Editable pages and previews |
+| `analysis.json`, `system_review.json`, `receipt.json` | Counts, evidence review and execution provenance |
 
-For an existing **normalized project**:
+Figures summarize CDS annotations. An assignment does not establish an active or complete defense system. Missing evidence remains distinct from a completed zero result. See [figure semantics](docs/figures.md) and the [saved-result contract](docs/SUITE_CONTRACT.md).
+
+## Other workflows
+
+Run a normalized project:
 
 ```sh
 defenseviz validate project.json
 defenseviz run project.json --out results
 ```
 
-All paths inside `project.json` are relative to that file. Existing outputs are never overwritten. Use a new output directory for each run.
+Browse the bundled system reference catalogue:
 
-```json
-{
-  "schema_version": 1,
-  "samples": "samples.tsv",
-  "calls": [
-    {"format": "defensefinder", "path": "sampleA/defense_finder_genes.tsv", "sample_id": "sampleA"},
-    {"format": "padloc", "path": "sampleA/padloc.csv", "sample_id": "sampleA"}
-  ],
-  "coverage": "coverage.tsv",
-  "family_map": "families.tsv",
-  "evidence": "evidence.json",
-  "options": {"title": "My defense landscape", "max_rows_per_page": 40, "max_families_per_page": 24}
-}
+```sh
+defenseviz catalog Wadjet
+defenseviz catalog --out system-reference
 ```
 
-A normalized call table is also supported. `samples.tsv` supplies sample IDs and display labels; an optional `highlight` column accepts booleans and uses a pink row background. Caller coverage explicitly distinguishes a completed zero-call result from a missing/not-run result. Exact ID mapping is required when caller protein IDs differ from evidence gene IDs. Unknown families remain visible as unresolved; names alone do not establish biochemical roles.
+- [DNMBsuite inputs and run options](docs/suite.md)
+- [Normalized input formats](docs/inputs.md)
+- [System and effector review](docs/SYSTEM_REVIEW.md)
+- [System reference information](docs/KNOWLEDGE.md)
+- [Evidence policy](docs/evidence.md)
+- [Reference extensions](examples/reference_extension/README.md)
+- [Source and database attribution](THIRD_PARTY_NOTICES.md)
 
-See [input formats](docs/inputs.md), [evidence policy](docs/evidence.md), [figure semantics](docs/figures.md), and the [API contract](docs/CONTRACT.md). Excel input support is optional: `python -m pip install '.[excel]'`.
-
-## What is computed
-
-- Distinct gene-level unions and exact caller overlaps; native system counts remain caller-specific.
-- Fresh evaluation of **supplied evidence** with the versioned DNMB policy. Sequence-related points are capped, motif/context/structure axes remain distinct, and unsupported/missing evidence stays unassessed.
-- Saved-result mode preserves DNMB decisions and counts individual effectors separately from required complex cores and motif/site evidence. Explicit source-bound reviews can supplement older results; stale input/protein hashes are rejected.
-- Editable PDF and SVG, paginated for larger cohorts; right-aligned comparison counts with separate associated Total and Effector CDSs columns; machine-readable inventories, priorities, layout measurements and provenance receipts.
-
-DefenseViz does not run DefenseFinder, PADLOC, DefensePredictor or structure prediction. An explicitly configured reference cache enables a fresh homology search of the original REBASE nominees; this is recorded separately from stored calls. Raw HMM hits are evidence records, not selected native system members. Component annotation is not a demonstration of biological activity. Distinct R/M/S counts are not automatically complete systems. Tool agreement is not ground truth, and no broad sensitivity, specificity or precision estimates are emitted.
-
-An optional `evidence_extension` links a source-bound family registry, candidate domain/reference evidence and family-level admission rules into the same score evaluation. Run `defenseviz assess --registry registry.json --candidates candidates.json --out assessed` to inspect these evidence layers separately. See [the reference-extension example](examples/reference_extension/README.md).
-
-The bundled DNMB preset reproduces the selected historical evidence policy. Some evidence criteria were historically calibrated; the preset is **not independent validation on a new population**, and this project performs no new threshold fitting. A bare native caller file cannot reconstruct motif, structural or other evidence that the caller did not provide.
-
-## Reproducibility and development
+## Development
 
 ```sh
 python -m pip install '.[dev,excel]'
@@ -113,8 +105,10 @@ python -m pytest -q
 python scripts/check_install.py
 ```
 
-See [source provenance](docs/PROVENANCE.md) and [release validation](docs/VALIDATION.md) for migration, historical parity, independent critique and current limitations. Only synthetic demonstration data belong in this repository. Original analysis projects and frozen evidence are not modified or redistributed.
+See [release validation](docs/VALIDATION.md) and [source provenance](docs/PROVENANCE.md). The original R implementation is available on the [`master` branch](https://github.com/JAEYOONSUNG/DefenseViz/tree/master); the current Python package is on `main`.
 
-The original R implementation remains available on the [`master` branch](https://github.com/JAEYOONSUNG/DefenseViz/tree/master); DefenseViz 2, implemented in Python, lives on `main`.
+## Author
 
-License: MIT. Copyright 2026 Jae-Yoon Sung.
+[Jae-Yoon Sung](https://github.com/JAEYOONSUNG)
+
+MIT License. Copyright 2026 Jae-Yoon Sung.

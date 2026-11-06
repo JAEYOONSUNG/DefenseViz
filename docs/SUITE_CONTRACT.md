@@ -1,8 +1,12 @@
 # Saved DNMBsuite results contract
 
-This additive interface preserves the existing normalized-project evaluation API.
-`from-suite` imports saved results and aggregates explicit evidence; it never calls
-the historical scoring predicate on incomplete native exports or reruns detectors.
+This interface preserves the existing normalized-project evaluation API.
+`from-suite` imports saved results. Full mode runs DNMB R–M searches and evaluation
+with the configured runtime and databases; stored mode replays saved decisions.
+Default auto mode selects the configured engine when available and otherwise
+evaluates stored evidence. None of these modes reruns the upstream DefenseFinder,
+PADLOC or DefensePredictor programs. Incomplete native exports are not passed to
+the historical scoring predicate as complete evidence.
 
 ## Entry points
 
