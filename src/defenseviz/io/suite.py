@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import csv
 import hashlib
+import io
 import json
 import math
 import re
@@ -18,6 +19,7 @@ from importlib.resources import files
 from pathlib import Path
 
 from .project import Reader, _canonical, _family_maps, _string
+from .suite_curation import CURATION_MARKERS, native_curation_record
 from .suite_discovery import discover_suite
 
 MODULES = {"defensefinder": "DefenseFinder", "padloc": "PADLOC",
@@ -62,6 +64,128 @@ REFERENCE_PAIRS = (
     # Only a subject-specific exported family can classify this observation.
     ("supplemental_blast", "supplemental_blast_match", "supplemental_blast_identity", ("supplemental_blast_family",)),
 )
+
+
+class _TsvWidthError(ValueError):
+    pass
+
+
+def _quoted_tsv_header(line):
+    """A uniformly quote-encoded header declares the escaped TSV dialect."""
+    line = line.rstrip("\r\n")
+    try:
+        fields = next(csv.reader([line], delimiter="\t", strict=True))
+    except (csv.Error, StopIteration):
+        return False
+    return bool(fields) and line == "\t".join('"' + value.replace('"', '""') + '"' for value in fields)
+
+
+def _escaped_tsv_structure(content):
+    """Validate candidate quoted syntax without interpreting literal TSV text."""
+    state, structural, index = "start", False, 0
+    while index < len(content):
+        char = content[index]
+        if state == "quoted":
+            if char == '"':
+                if index + 1 < len(content) and content[index + 1] == '"':
+                    index += 2
+                    continue
+                state = "closed"
+            elif char in "\t\r\n":
+                structural = True
+        elif state == "closed":
+            if char not in "\t\r\n":
+                raise ValueError("text after closing field quote")
+            state = "start"
+        elif char == '"':
+            if state != "start":
+                raise ValueError("bare quote inside unquoted field of quoted table")
+            state = "quoted"
+        elif char in "\t\r\n":
+            state = "start"
+        else:
+            state = "literal"
+        index += 1
+    if state == "quoted":
+        raise ValueError("unterminated quoted field")
+    return structural
+
+
+def _tsv_records(content, path, quoting):
+    parser = csv.reader(io.StringIO(content, newline=""), delimiter="\t", quoting=quoting, strict=True)
+    try:
+        headers = next(parser, None)
+        Reader.headers(headers, path)
+        rows, multiline = [], []
+        previous = parser.line_num
+        structural = False
+        for values in parser:
+            first, previous = previous + 1, parser.line_num
+            if not values:
+                continue
+            if len(values) != len(headers):
+                raise _TsvWidthError(f"{path}: row/header column count differs")
+            rows.append(dict(zip(headers, values)))
+            if first != parser.line_num:
+                multiline.append(dict(row=len(rows) + 1, first_line=first, last_line=parser.line_num))
+            if quoting != csv.QUOTE_NONE and any(re.search(r"[\t\r\n]", value) for value in values):
+                structural = True
+        return rows, set(headers), multiline, structural
+    except csv.Error as exc:
+        raise ValueError(f"{path}: malformed quoted TSV: {exc}") from exc
+
+
+def _native_tsv_table(content, path):
+    """Decode a declared or uniquely valid escaped table, preserving literal quotes.
+
+    DNMB commonly writes quote=FALSE. A same-width quoted scalar therefore stays
+    literal unless the header declares quoting. If both dialects are valid but
+    disagree about row/column boundaries, require an explicit quoted-header
+    export rather than inventing additional rows or silently joining them.
+    """
+    if "\x00" in content:
+        raise ValueError(f"{path}: NUL byte in table")
+    lines = content.splitlines(keepends=True)
+    skipped = 0
+    while lines and (not lines[0].strip() or lines[0].startswith("# ")):
+        lines.pop(0)
+        skipped += 1
+    if not lines:
+        raise ValueError(f"{path}: empty file lacks a header")
+    content = "".join(lines)
+    if _quoted_tsv_header(lines[0]):
+        _escaped_tsv_structure(content)
+        rows, headers, multiline, _ = _tsv_records(content, path, csv.QUOTE_MINIMAL)
+        dialect, reason = "quoted", "uniformly_quoted_header"
+    else:
+        try:
+            rows, headers, multiline, _ = _tsv_records(content, path, csv.QUOTE_NONE)
+        except _TsvWidthError as literal_error:
+            try:
+                rows, headers, multiline, structural = _tsv_records(content, path, csv.QUOTE_MINIMAL)
+                if not structural or not _escaped_tsv_structure(content):
+                    raise ValueError("no escaped delimiter or newline explains the row width")
+            except ValueError as quoted_error:
+                raise ValueError(f"{literal_error}; quoted TSV invalid: {quoted_error}") from quoted_error
+            dialect, reason = "quoted", "invalid_literal_width_with_valid_escaped_structure"
+        else:
+            # Most native tables contain no field-opening quotes. Avoid a second
+            # parse in that common case. Never choose a dialect by quote frequency.
+            if re.search(r'(?:^|[\t\r\n])"', content):
+                try:
+                    _, _, _, structural = _tsv_records(content, path, csv.QUOTE_MINIMAL)
+                    structural = structural and _escaped_tsv_structure(content)
+                except ValueError:
+                    structural = False
+                if structural:
+                    raise ValueError(f"{path}: ambiguous structural quoting; export a uniformly quoted header to declare escaped TSV")
+            dialect, reason = "literal", "valid_literal_table_preserved"
+    transform = dict(operation="native_tsv_decode", dialect=dialect, selection_reason=reason,
+                     preamble_lines=skipped, logical_data_rows=len(rows),
+                     row_numbering="logical data row with header numbered 1",
+                     multiline_records=[{**r, "first_line": r["first_line"] + skipped,
+                                         "last_line": r["last_line"] + skipped} for r in multiline])
+    return rows, headers, transform
 
 
 def _value(v):
@@ -235,7 +359,7 @@ class SuiteReader:
         self.rscript = rscript
         self.strict = strict
         self.data = {k: [] for k in ("samples", "calls", "genes", "coverage", "saved_decisions", "annotations",
-                                     "effector_evidence", "groups", "complexes", "source_metadata", "evidence_records")}
+                                     "effector_evidence", "groups", "complexes", "source_metadata", "evidence_records", "curation_records")}
         self.raw = {k: [] for k in ("sources", "identity_maps", "coverage", "features", "contexts", "motifs",
                                     "structures", "profiles", "scores", "annotations", "reference_matches", "conflicts",
                                     "capabilities", "warnings", "commands", "unmapped_records", "unresolved_contexts", "software_resources", "table_transforms")}
@@ -291,21 +415,12 @@ class SuiteReader:
         try:
             csv.field_size_limit(max(previous_limit, 64 * 1024 * 1024))
             if Path(path).suffix.lower() == ".tsv":
-                # DNMB writes native TSV with quote=FALSE. Literal quote characters
-                # in annotation text are data, not CSV escape delimiters.
                 with Path(path).open(encoding="utf-8-sig", newline="") as stream:
-                    lines = iter(stream)
-                    first = next(lines, "")
-                    while first.startswith("# ") or (first and not first.strip()):
-                        first = next(lines, "")
-                    import itertools
-                    parser = csv.DictReader(itertools.chain([first], lines), delimiter="\t", quoting=csv.QUOTE_NONE)
-                    self.reader.headers(parser.fieldnames, path)
-                    headers = set(parser.fieldnames)
-                    rows = list(parser)
-                    if any(None in row or any(v is None for v in row.values()) for row in rows):
-                        raise ValueError(f"{path}: row/header column count differs")
+                    rows, headers, transform = _native_tsv_table(stream.read(), path)
                 self.pin(path)
+                transform.update(ref)
+                if transform["dialect"] == "quoted" and transform not in self.raw["table_transforms"]:
+                    self.raw["table_transforms"].append(transform)
             else:
                 options = {"literal_hyperlinks": True} if Path(path).suffix.lower() == ".xlsx" and role == "gene_annotations" else {}
                 rows, headers = self.reader.table(Path(path), sheet=sheet, **options)
@@ -320,6 +435,8 @@ class SuiteReader:
         # Reader rehashes the exact bytes it parses, enforcing the pin above.
         item = next(x for x in self.raw["sources"] if x["path"] == ref["path"] and x.get("sheet") == sheet)
         item.update(row_count=len(rows), columns=sorted(headers))
+        if Path(path).suffix.lower() == ".tsv":
+            item["table_dialect"] = {k: transform[k] for k in ("dialect", "selection_reason", "row_numbering")}
         return rows, headers, ref
 
     def warn(self, message):
@@ -328,6 +445,7 @@ class SuiteReader:
     def conflict(self, sample, module, code, observed, expected, ref=None):
         action = {"malformed_gene_tsv_fallback": "valid_native_workbook_selected", "unbound_native_candidate": "unbound_record_quarantined",
                   "unbound_eggnog_query": "unbound_record_quarantined", "conflicting_eggnog_query": "all_raw_observations_preserved",
+                  "invalid_native_curation_binding": "raw_curation_quarantined",
                   "saved_dp_flag_score_rule_mismatch": "native_saved_flag_preserved"}.get(code, "selected_live_artifact_preserved")
         c = dict(sample_id=sample, module=module, code=code, severity="warning", observed=observed,
                  expected=expected, action=action, source_ref=ref)
@@ -957,7 +1075,18 @@ class SuiteReader:
                 self.pin(path)
                 sheets = _sheets(path)
                 sheet = "All_Augmented_Evidence" if "All_Augmented_Evidence" in sheets else "RM_Comprehensive"
+            elif "workbook" not in spec.get("modules", {}).get(module, {}):
+                # DNMB also writes an all-evidence companion workbook. Never
+                # substitute its Curated/Other_defense subsets for the pool.
+                companion = directory / "dnmb_module_rebasefinder" / "DNMB_REBASEfinder_augmented_hits.xlsx"
+                if companion.is_file():
+                    sheets = _sheets(companion)
+                    if "All_evidence" in sheets:
+                        path, sheet = companion, "All_evidence"
+                    elif "REBASEfinder_hits" in sheets:
+                        path, sheet = companion, "REBASEfinder_hits"
         rows, headers, ref = self.table(path, sample, module, "saved_candidates", sheet=sheet) if path.is_file() else ([], set(), None)
+        curation_start = len(self.data["curation_records"])
         detail = self.coverage(sample, module, spec, metadata, ref is not None, len(rows), ref)
         reference_coverage = next(c for c in self.data["coverage"]
                                   if c["sample_id"] == sample and c["caller"] == "REBASE" and c["endpoint"] == "reference_matches")
@@ -970,6 +1099,12 @@ class SuiteReader:
         for number, row in enumerate(rows, 2):
             value = row.get("query", row.get("locus_tag", row.get("gene_id")))
             rr = {**ref, "row": number}
+            curation = native_curation_record(sample, value, row, rr, self.genes.get((sample, value)))
+            if curation is not None:
+                self.data["curation_records"].append(curation)
+                if curation["validation_issues"]:
+                    self.conflict(sample, module, "invalid_native_curation_binding",
+                                  curation["validation_issues"], "source-bound consistent curation observation", rr)
             # Establish the reference endpoint before checking candidate binding.
             # A no-hit candidate can be unresolved without losing a reference hit.
             pair = _reference_pair(row, f"{path}:{number}")
@@ -1081,6 +1216,26 @@ class SuiteReader:
             native_candidates=ref is not None, candidate_count=len(rows), candidate_binding_status=binding_status,
             unbound_candidate_row_count=unbound_count, reference_scope="exported_candidates",
             retained_row_count=retained_count if "curation_keep" in headers else None))
+        curation_rows = self.data["curation_records"][curation_start:]
+        curation_bound = sum(row["usable_for_attribution"] for row in curation_rows)
+        curation_conflicting = sum(row["binding_status"] == "conflicting" for row in curation_rows)
+        curation_unassessed = sum(row["binding_status"] == "unassessed" for row in curation_rows)
+        all_evidence_export = ref is not None and (
+            (sheet is None and path.name == "DNMB_REBASEfinder_augmented_hits.tsv")
+            or sheet in {"All_Augmented_Evidence", "All_evidence"})
+        curation_status = ("missing" if ref is None else
+                           "empty_export" if not rows and headers.intersection(CURATION_MARKERS) else
+                           "not_exported" if not curation_rows else
+                           "partial" if curation_bound != len(rows) else "available")
+        self.raw["capabilities"].append(dict(sample_id=sample, source_ref=ref,
+            native_curation_status=curation_status,
+            native_curation_artifact_read_complete=ref is not None,
+            native_curation_artifact_scope="all_evidence_export" if all_evidence_export else "unspecified_candidate_export",
+            native_curation_scope_basis="native_export_contract; not proof of exhaustive biological assessment",
+            native_curation_source_rows=len(rows), native_curation_observed_rows=len(curation_rows),
+            native_curation_bound_rows=curation_bound, native_curation_missing_rows=len(rows)-len(curation_rows),
+            native_curation_conflicting_rows=curation_conflicting, native_curation_unassessed_rows=curation_unassessed,
+            native_curation_review_exhaustive=None, downstream_policy_reevaluated=False))
         for name, destination in (("DNMB_REBASEfinder_motif_hits.tsv", "motifs"), ("DNMB_REBASEfinder_motif_hits_raw.tsv", "motifs"),
             ("DNMB_REBASEfinder_structure_coverage.tsv", "structures"), ("DNMB_REBASEfinder_motif_geometry.tsv", "structures"),
             ("DNMB_REBASEfinder_homology_templates.tsv", "structures"), ("foldseek_results.tsv", "structures")):
@@ -1215,7 +1370,8 @@ def _attach_interpro_file(raw, genes, sample, scope, path, ref, *, strict=False)
         raise ValueError(f"{path}: InterPro source changed from its pinned hash")
     fields = INTERPRO_FIELDS[path.name]
     profiles, quarantine, conflicts = [], [], []
-    parsed = excluded = bound = sequence_unassessed = 0
+    parsed = excluded = bound = sequence_unassessed = legacy_rows = 0
+    column_counts = defaultdict(int)
     scoped_genes = set()
     with path.open(encoding="utf-8-sig", newline="") as stream:
         for number, row in enumerate(csv.reader(stream, delimiter="\t"), 1):
@@ -1223,6 +1379,14 @@ def _attach_interpro_file(raw, genes, sample, scope, path, ref, *, strict=False)
                 continue
             parsed += 1
             rr = {**ref, "row": number}
+            native_columns = len(row)
+            column_counts[str(native_columns)] += 1
+            legacy = path.name == "interproscan_results.tsv" and native_columns == 13
+            if legacy:
+                # The first 13 native fields are complete. Only the optional
+                # GO/pathway columns are absent in this older export form.
+                row = row + ["", ""]
+                legacy_rows += 1
             if len(row) != len(fields):
                 raise ValueError(f"{path}:{number}: unsupported InterPro column count {len(row)}")
             native = dict(zip(fields, row))
@@ -1256,6 +1420,8 @@ def _attach_interpro_file(raw, genes, sample, scope, path, ref, *, strict=False)
                             state = "verified"
             observation = dict(sample_id=sample, gene_id=row[0], namespace="InterProScan", source_ref=rr,
                 native_fields=native, evidence_type="site_annotation" if path.name.endswith(".sites") else "domain_hit")
+            if legacy:
+                observation.update(native_column_count=13, absent_optional_fields=list(fields[13:]))
             if gene and gene.get("protein_sha256"):
                 observation["protein_sha256"] = gene["protein_sha256"]
             if reason:
@@ -1292,8 +1458,16 @@ def _attach_interpro_file(raw, genes, sample, scope, path, ref, *, strict=False)
         raw_interpro_retained_rows=len(profiles), raw_interpro_retained_genes=len(scoped_genes),
         raw_interpro_excluded_scope_rows=excluded, raw_interpro_excluded_reason="outside_declared_observed_identity_scope",
         raw_interpro_quarantined_rows=len(quarantine), raw_interpro_sequence_unassessed_rows=sequence_unassessed)
+    capability.update(raw_interpro_input_column_counts=dict(column_counts), raw_interpro_legacy13_rows=legacy_rows)
     assert parsed == len(profiles) + excluded + len(quarantine)
     raw["capabilities"] = [c for c in raw.get("capabilities", []) if not ("raw_interpro_scope" in c and same_source(c))] + [capability]
+    transform_rule = "interpro_legacy13_optional_columns_v1"
+    raw["table_transforms"] = [t for t in raw.get("table_transforms", [])
+                               if not (t.get("rule") == transform_rule and same_source(t))]
+    if legacy_rows:
+        raw["table_transforms"].append(dict(sample_id=sample, source_ref=ref, rule=transform_rule,
+            affected_rows=legacy_rows, padded_fields=list(fields[13:]), fill_value="",
+            original_core_fields_unchanged=True))
     warning_prefix = f"{sample}/interproscan [{ref['path']}]: "
     raw["warnings"] = [w for w in raw.get("warnings", []) if not str(w).startswith(warning_prefix)]
     if quarantine:
@@ -1301,7 +1475,8 @@ def _attach_interpro_file(raw, genes, sample, scope, path, ref, *, strict=False)
     for source in raw.get("sources", []):
         if source.get("sample_id") == sample and source.get("path") == ref["path"] and source.get("sha256") == ref["sha256"]:
             source.update(row_count=parsed, columns=list(fields), evidence_schema="InterProScan native TSV",
-                          retained_row_count=len(profiles), excluded_scope_row_count=excluded, quarantined_row_count=len(quarantine))
+                          retained_row_count=len(profiles), excluded_scope_row_count=excluded, quarantined_row_count=len(quarantine),
+                          native_column_counts=dict(column_counts), legacy13_rows=legacy_rows)
 
 
 def attach_system_review_annotations(data, root, *, strict_inputs=False):

@@ -1,8 +1,8 @@
 {
   "description": "Reviewed 52-genome DNMB benchmark figures",
-  "snapshot": "revision050; R-M flow wording revision008",
-  "figure_kind": "reviewed manuscript exports",
-  "data_kind": "curated annotations, including supplied context reviews",
+  "snapshot": "Current DNMBsuite project workflow; accepted revision050 scientific oracle",
+  "figure_kind": "current pipeline outputs from preserved source evidence",
+  "data_kind": "saved numerical evidence and source-bound reviewed annotations; generic family-scope projection",
   "primary_genomes": 52,
   "external_case_table": "B. coagulans DSM 1; excluded from 52-genome totals",
   "new_engine_execution": false,
@@ -17,33 +17,41 @@
   "files": [
     {
       "file": "atlas.png",
-      "sha256": "772367c838b9f2c0f9ba96a41798af1c6c5bd7b5e4f9174bcd9e83ba57cc0c0c",
-      "bytes": 1159985
+      "sha256": "e72e1302ed723532726e7ce59abded6b5e275bd54bd573459487fa5a3eba63d8",
+      "bytes": 697519
     },
     {
       "file": "atlas.svg",
-      "sha256": "f8f085c6e6bea28435fb048294f31ff1fbcf955f44432778e868cc3831004836",
-      "bytes": 1087058
+      "sha256": "b32b520f4318a3db5741f31fe822057c897ad01fc18b96f120fac9ccea8e50f8",
+      "bytes": 3237141
     },
     {
       "file": "comparison.png",
-      "sha256": "338d6b4bc7bd3bb259cb74995ce7fa50b082903e6fbcadb85b9d00f267b4dd2c",
-      "bytes": 638773
+      "sha256": "33a9e0b64d92ec61a77b58fe3a227e3de46b6b290d50f95f8c072a07d7ba8368",
+      "bytes": 400385
     },
     {
       "file": "comparison.svg",
-      "sha256": "d5cedc51bb7b949dec76164d899dc79e05b33b2154b8bd6c3adda12a9df91b0b",
-      "bytes": 234734
+      "sha256": "78124f9ad5540948a3c006325eac82b019baff7d23247b31941f10690aaeec44",
+      "bytes": 260314
     },
     {
       "file": "publication.pdf",
-      "sha256": "1fd902a0bd7e9aa41cc23c99b20d4ab1ce6362ac29b1a012b882669e38310eaf",
-      "bytes": 260349
+      "sha256": "317dc19835d729ba600ed2339c02eeaf85e16048745b524f1f05e202edc76b3a",
+      "bytes": 572402
     },
     {
       "file": "rm-assignments.svg",
       "sha256": "e117479c4138bfab24fb8617a2618dd116370a1a615e07f15a368cc1dfa6f2bc",
       "bytes": 12512
     }
-  ]
+  ],
+  "reproduction": {
+    "scientific_comparisons": 56353,
+    "scientific_differences": 0,
+    "geometry_checks": 21726,
+    "geometry_errors": 0,
+    "pages": 2,
+    "external_case_scope": "separate analyzed project; not in primary52 aggregates"
+  }
 }

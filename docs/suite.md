@@ -28,6 +28,8 @@ read-only, and the output directory must be new. `inspect-suite` validates and
 reports available endpoints without generating figures; it is not a required
 preprocessing step for `from-suite`.
 
+A [portable project file](suite-projects.md) can store these options for repeated single-command runs, including separately analyzed external type cases and combined Letter pages.
+
 The full command automatically writes the classified workbook, retained R-M and
 priority annotation lists, and the atlas, type tables and comparison figures.
 PDF, editable SVG and PNG previews are generated together without a separate

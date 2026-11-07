@@ -53,9 +53,19 @@ defenseviz from-suite /path/to/DNMBsuite_outputs \
 
 The input can be one genome's result folder or a parent containing nested per-genome folders. DefenseViz discovers the samples, reads available assembly and strain metadata, evaluates the evidence and writes the tables and figures. Use a new output directory for each run.
 
+For repeatable runs, save the input paths and settings in `defenseviz_project.json` inside a project folder, then run:
+
+```sh
+defenseviz from-suite /path/to/project --out results
+```
+
+The [project format](docs/suite-projects.md) supports saved evidence, reviewed annotations, Letter page composition and independently analyzed case tables. Paths are relative to the project file; no intermediate conversion or plotting command is required.
+
 Full mode runs DNMB R–M HMM and REBASE searches with the configured tools and databases. DefenseFinder, PADLOC and DefensePredictor calls are imported from the existing results. Use `--evaluation stored` to replay saved DNMB decisions. The default `auto` mode uses a configured engine when available and otherwise evaluates stored evidence.
 
 Automatic evaluation also reviews Type IV component architecture using bound InterProScan domains and qualifying reference or native-system evidence. Supported components enter the assigned R–M list; the numerical retention decisions remain available separately. An auxiliary component receives no nuclease-effector credit from this review.
+
+DNMB curation is imported with its original source rows. Complete, supported BREX III, DISARM II and Hma component contexts can resolve an otherwise unproven R–M methylase assignment. Conflicting R–M evidence keeps the assignment unresolved or shared. Original tool calls and scores remain in the audit outputs.
 
 The full workflow requires Python, R and native search tools. Docker provides a shared runtime; a native installation is also supported. Databases are prepared separately under their distribution terms. See [resource preparation](docs/resource-preparation.md) for a new installation.
 

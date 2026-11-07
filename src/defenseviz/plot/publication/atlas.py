@@ -91,6 +91,8 @@ def atlas_pages(result,fonts,config,page_factory):
     families=ordered_families(visible_rows(result.get("inventory_rows",{}).get("families",[])),config)
     samples=result.get("samples",[])
     samplemap={s["sample_id"]:s for s in result.get("sample_summary",[])}
+    from .display_scope import fraction_projection
+    scoped_fractions=fraction_projection(result,config.get("rm_fraction_scope","assigned_I_IV"))
     cellmap={(r["sample_id"],r.get("family_id",r.get("id"))):r for r in result.get("cells",[])}
     types={(r["sample_id"],r["rm_type"]):r for r in result.get("type_tables",[])}
     componentmap={(r["sample_id"],r["rm_type"],r["role"]):r for r in result.get("rm_components",[])}
@@ -235,7 +237,11 @@ def atlas_pages(result,fonts,config,page_factory):
                             statusfield=field.replace("counts","count_status")
                             state=summary.get(statusfield,summary.get("source_count_status",{})).get(d["source"])
                         elif field=="retained_R_fraction":
-                            if "assigned_RM_CDS" in summary or "assigned_R_CDS" in summary:
+                            if scoped_fractions is not None:
+                                scoped=scoped_fractions[sample["sample_id"]]
+                                numerator=scoped["R_CDS"];denominator=scoped["total_CDS"];state=scoped["status"]
+                                numerator_state=scoped["R_status"];denominator_state=scoped["total_status"]
+                            elif "assigned_RM_CDS" in summary or "assigned_R_CDS" in summary:
                                 numerator=summary.get("assigned_R_CDS");denominator=summary.get("assigned_RM_CDS")
                                 state=summary.get("assigned_counts_status");numerator_state=denominator_state=state
                             else:
@@ -294,7 +300,7 @@ def _type_display(r,field):
     return display,value,state,subset
 
 
-def _type_case_label_layout(fonts, width, sample):
+def _type_case_label_layout(fonts, width, sample, pt=9):
     """Wrap explicitly styled runs at their measured width without changing text."""
     display=sample.get("display",{})
     runs=display.get("label_runs")
@@ -310,7 +316,7 @@ def _type_case_label_layout(fonts, width, sample):
     from matplotlib.font_manager import FontProperties, findfont
     from .manuscript_text import MM_PER_POINT, _literal_path
     renderer=RendererAgg(1,1,150)
-    gap=max(1.2,fonts.width(" ",9,True)+.35)
+    gap=max(1.2,fonts.width(" ",pt,True)+.35)
     cache={}
     def segments(chars):
         chunks=[]
@@ -323,10 +329,10 @@ def _type_case_label_layout(fonts, width, sample):
             if not text:continue
             key=text,chunk["italic"]
             if key not in cache:
-                prop=FontProperties(family=fonts.pick(text,True),size=9,weight="bold",
+                prop=FontProperties(family=fonts.pick(text,True),size=pt,weight="bold",
                     style="italic" if chunk["italic"] else "normal")
                 path=_literal_path(findfont(prop,fallback_to_default=False),text)
-                factor=9*MM_PER_POINT/100
+                factor=pt*MM_PER_POINT/100
                 advance=renderer.get_text_width_height_descent(text,prop,False)[0]*25.4/150
                 box=path.get_extents() if path is not None else None
                 left=min(0.,box.x0*factor) if box is not None else 0.
@@ -349,25 +355,25 @@ def _type_case_label_layout(fonts, width, sample):
                 lines.append(segments(line));line=[char]
         else:line.append(char)
     if line:lines.append(segments(line))
-    line_height=max(fonts.height(" ".join(r["text"] for r in parts),9,True) for parts,_ in lines)
+    line_height=max(fonts.height(" ".join(r["text"] for r in parts),pt,True) for parts,_ in lines)
     return dict(lines=lines,gap=gap,line_step=line_height*1.12,height=len(lines)*line_height*1.12+2)
 
 
-def _type_case_label(c, x, y, width, height, sample, wrapped, styled=None):
+def _type_case_label(c, x, y, width, height, sample, wrapped, styled=None, pt=9):
     """Honor explicit taxon/strain typography without guessing from a name."""
-    styled=_type_case_label_layout(c.fonts,width,sample) if styled is None else styled
+    styled=_type_case_label_layout(c.fonts,width,sample,pt) if styled is None else styled
     if styled is not None and styled["height"]<=height:
         from .manuscript_text import draw_manuscript_text
         first=y+height/2-(len(styled["lines"])-1)*styled["line_step"]/2
         for i,(runs,total) in enumerate(styled["lines"]):
             cursor=x+(width-total)/2
             for run in runs:
-                draw_manuscript_text(c,cursor-run["bearing"],first+i*styled["line_step"],run["text"],9,
+                draw_manuscript_text(c,cursor-run["bearing"],first+i*styled["line_step"],run["text"],pt,
                     bold=True,italic=run["italic"],owner=[x,y,width,height],role="type_sample_label",
                     ref={"sample_id":sample["sample_id"],"line":i})
                 cursor+=run["width"]+styled["gap"]
         return
-    c.text(x+width/2,y+height/2,wrapped,9,bold=True,ha="center",owner=[x,y,width,height])
+    c.text(x+width/2,y+height/2,wrapped,pt,bold=True,ha="center",owner=[x,y,width,height])
 
 
 def type_pages(result,fonts,config,page_factory):

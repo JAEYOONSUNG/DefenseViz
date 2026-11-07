@@ -625,6 +625,10 @@ def manuscript_atlas_pages(result,fonts,config,page_factory):
     from .manuscript_model import build_manuscript_atlas_model
     from .manuscript_workflow import draw_manuscript_workflow
     model=build_manuscript_atlas_model(result)
+    from .display_scope import fraction_projection
+    scoped=fraction_projection(result,config.get("rm_fraction_scope","assigned_I_IV"))
+    if scoped is not None:
+        for row in model["rows"]:row["retained"]=scoped[row["sample_id"]]
     sources=list(model.get("source_order",[]))
     desired=config.get("atlas_source_order",["PADLOC","DefenseFinder","DefensePredictor"])
     sources=[s for s in desired if s in sources]+[s for s in sources if s not in desired]
@@ -663,9 +667,12 @@ def manuscript_atlas_pages(result,fonts,config,page_factory):
         fonts.width("Assigned",9.24,True)+fonts.width("IV",8.8,True)-2*CELL-2*GAP+.8)
     family_pages=[];block=[]
     maxwidth=config["atlas_page_size"][0]
+    labelwidth=max((sum(fonts.width(part,NUM,bool(r.get("highlight"))) for part in _strain_parts(r))+2 for r in allrows),default=58.)
     for f in families:
         trial=block+[f]
-        if block and (_layout(trial,sources,refs,config,fractions)[-1]>maxwidth or len(trial)>config["max_families_per_page"]):
+        trial_layout=_layout(trial,sources,refs,config,fractions)
+        required_width=max(trial_layout[-1],trial_layout[-2]+labelwidth+8)
+        if block and (required_width>maxwidth or len(trial)>config["max_families_per_page"]):
             family_pages.append(block);block=[]
         block.append(f)
     family_pages.append(block)
@@ -674,8 +681,7 @@ def manuscript_atlas_pages(result,fonts,config,page_factory):
         panels,groups,fpos,masks,sampleleft,width=_layout(fs,sources,refs,config,fractions)
         heading_plan=_header_plan(fonts,width,panels,groups,fpos,sources,refs,config)
         dy=heading_plan["body_offset_mm"]
-        labelwidth=max((sum(fonts.width(part,NUM,bool(r.get("highlight"))) for part in _strain_parts(r))+2 for r in allrows),default=58.)
-        width=max(width,min(maxwidth,sampleleft+labelwidth+8))
+        width=max(width,sampleleft+labelwidth+8)
         maxrows=max(1,min(config["max_rows_per_page"],int((config["atlas_page_size"][1]-BODY_TOP-dy-55)/ROW)))
         chunks=[];cursor=0
         # Budget the legend for each page's taxa, not the entire cohort. A
@@ -698,6 +704,8 @@ def manuscript_atlas_pages(result,fonts,config,page_factory):
                 raise ValueError("Manuscript labels/evidence columns exceed atlas_page_size; increase the page limit or provide shorter display labels")
             c=page_factory(width,height,"atlas")
             c.ledger["atlas_style"]="manuscript"
+            c.ledger["rm_fraction_scope"]=config.get("rm_fraction_scope","assigned_I_IV")
+            c.ledger["rm_fraction_records"]=[dict(sample_id=row["sample_id"],**row["retained"]) for row in rows]
             c.ledger["panel_bounds"]={k:dict(v,top=top,bottom=bottom) for k,v in panels.items()}
             c.ledger["fraction_layout"]=fractions
             c.ledger["model_provenance"]=model.get("provenance",{})

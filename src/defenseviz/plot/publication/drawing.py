@@ -210,8 +210,15 @@ class Canvas:
         result = []
         for artist, meta in self.text_artists:
             bbox = artist.get_window_extent(renderer)
-            x1, y1 = self.ax.transData.inverted().transform((bbox.x0, bbox.y1))
-            x2, y2 = self.ax.transData.inverted().transform((bbox.x1, bbox.y0))
+            if getattr(self, "physical_export", False):
+                # Composite pages keep source coordinates on the axes. Audit
+                # actual visible ink in the final page's physical units.
+                pw, ph = self.fig.bbox.width, self.fig.bbox.height
+                x1, y1 = bbox.x0 / pw * self.width, (ph-bbox.y1) / ph * self.height
+                x2, y2 = bbox.x1 / pw * self.width, (ph-bbox.y0) / ph * self.height
+            else:
+                x1, y1 = self.ax.transData.inverted().transform((bbox.x0, bbox.y1))
+                x2, y2 = self.ax.transData.inverted().transform((bbox.x1, bbox.y0))
             result.append(dict(meta, font_family=artist.get_fontfamily()[0],
                                bounds_mm=[float(x1), float(y1), float(x2-x1), float(y2-y1)]))
         self.ledger["texts"] = result

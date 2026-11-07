@@ -87,6 +87,8 @@ def prepare_suite(root, *, manifest=None, supplement=None, rm_evidence=None, rsc
     from .io.suite import load_suite
     if evaluation not in {"auto", "stored", "full"}:
         raise ValueError("evaluation must be auto, stored or full")
+    if evaluation == 'stored' and any(x is not None for x in (rm_evidence, reference_cache, engine_config)):
+        raise ValueError('Stored replay cannot use rm_evidence, reference_cache or engine_config; use auto/full to evaluate evidence')
     from .native_pipeline import engine_config_path, read_engine_config
     configured = engine_config_path(engine_config) if evaluation != "stored" else None
     full_run = evaluation == "full" or (evaluation == "auto" and configured is not None and rm_evidence is None)
@@ -151,12 +153,16 @@ def prepare_suite(root, *, manifest=None, supplement=None, rm_evidence=None, rsc
         from .automatic_typeiv import apply_typeiv_component_review
         data = attach_system_review_annotations(data, root, strict_inputs=strict_inputs)
         data = apply_typeiv_component_review(data)
+    if evaluation != 'stored':
+        from .analysis.attribution import project_family_attribution
+        data = project_family_attribution(data)
     data["evaluation_execution"] = {
         "requested_mode": evaluation,
         "rm_mode": "full_native_execution" if full_run else "explicit_complete_evidence" if rm_evidence is not None else "automatic" if evaluation == "auto" else "stored_replay",
         "automatic_system_review": "enabled" if data.get("automatic_evaluation") else "skipped_explicit_review_path" if rm_evidence is not None else "skipped_stored_replay",
         "explicit_reviewed_outputs_preserved": rm_evidence is not None,
         "fresh_full_execution": full_run,
+        "family_scope_review": 'source_bound_native_curation_and_component_context' if evaluation != 'stored' else 'skipped_stored_replay',
     }
     data["_native_import_bundle"] = original_import
     return data
@@ -171,12 +177,16 @@ def analyze_suite(data):
         data, result = apply_system_review(data, result)
     if data.get("automatic_typeiv_review") is not None:
         result["automatic_typeiv_review"] = deepcopy(data["automatic_typeiv_review"])
+    if data.get('family_attribution') is not None:
+        result['family_attribution'] = deepcopy(data['family_attribution'])
+        result['family_attribution_summary'] = deepcopy(data.get('family_attribution_summary', {}))
     return data, result
 
 
 def run_suite(root, output_dir, *, manifest=None, supplement=None, rm_evidence=None, rscript=None,
               strict_inputs=False, title="DNMB integrated defense comparison", layout=None, argv=None,
-              system_review_rules=None, system_review_evidence=None, evaluation="auto", reference_cache=None, engine_config=None):
+              system_review_rules=None, system_review_evidence=None, evaluation="auto", reference_cache=None, engine_config=None,
+              project_refs=None, external_type_projects=None):
     """Import native exports, aggregate saved evidence, publish a fresh directory."""
     from .analysis.saved import analyze_saved
     from .plot.publication import render_publication
@@ -199,6 +209,25 @@ def run_suite(root, output_dir, *, manifest=None, supplement=None, rm_evidence=N
                              evaluation=evaluation, reference_cache=reference_cache, engine_config=engine_config,
                              evidence_workspace=stage / "evidence" / "reference")
         original_import = data.pop("_native_import_bundle", None) or dict(data)
+        from .suite_project import bind_project_inputs
+        bind_project_inputs(data, project_refs or [])
+        external_cases, external_execution = [], []
+        if external_type_projects:
+            from .suite_external import prepare_external_type_cases
+            external_cases, external_execution, external_inputs, external_derived = prepare_external_type_cases(
+                external_type_projects, {s['sample_id'] for s in data['samples']}, stage / 'evidence/external_type_cases')
+            for path, expected in external_inputs.items():
+                previous = data.setdefault('input_sha256', {}).get(path)
+                if previous is not None and previous != expected:
+                    raise ValueError('Primary/external source hash conflict')
+                data['input_sha256'][path] = expected
+                if path not in {str(p) for p in data.setdefault('inputs', [])}:
+                    data['inputs'].append(Path(path))
+            for path, expected in external_derived.items():
+                previous = data.setdefault('derived_artifact_sha256', {}).get(path)
+                if previous is not None and previous != expected:
+                    raise ValueError('Primary/external derived evidence hash conflict')
+                data['derived_artifact_sha256'][path] = expected
         import_seconds = time.monotonic() - started
         layout_options = {"preview_png": True}
         if layout is not None:
@@ -209,6 +238,8 @@ def run_suite(root, output_dir, *, manifest=None, supplement=None, rm_evidence=N
                 raise ValueError("Layout configuration must be an object")
             if "title" in supplied_layout:
                 raise ValueError("Set the figure title with --title, not the layout file")
+            if 'external_type_cases' in supplied_layout:
+                raise ValueError('Use source-bound external_type_projects, not embedded counts in layout')
             layout_options.update(supplied_layout)
             data.setdefault("inputs", []).extend(reader.inputs)
             data.setdefault("input_sha256", {}).update(reader.hashes)
@@ -247,6 +278,22 @@ def run_suite(root, output_dir, *, manifest=None, supplement=None, rm_evidence=N
         native_export = _portable(_serializable(data), path_map)
         imported_export = _portable(_serializable(original_import), path_map)
         analysis_export = _portable(_serializable(result), path_map)
+        external_export = []
+        if external_cases:
+            from .plot.publication.display_scope import model_digest
+        for index, case in enumerate(external_cases):
+            external_result = _portable(_serializable(case['result']), path_map)
+            relative = f'evidence/external_type_cases/case{index + 1:03d}/analysis.json'
+            artifact = stage / relative
+            artifact.parent.mkdir(parents=True, exist_ok=True)
+            write_json(artifact, external_result)
+            content_hash = model_digest(external_result)
+            result_ref = {'path': relative, 'sha256': digest(artifact), 'role': 'independently_evaluated_type_case'}
+            external_export.append({'result': external_result, 'sample_ids': case['sample_ids'],
+                                    'source_refs': [result_ref], 'result_sha256': content_hash})
+            external_execution[index].update(rendered_result_sha256=content_hash, result_artifact=result_ref)
+        if external_export:
+            write_json(stage / 'external_type_cases.json', external_export)
         required = {*RESULT_TABLES, "inventory_rows", "availability", "global_summary", "warnings"}
         if not required <= set(result):
             raise ValueError(f"Analysis is missing required outputs: {sorted(required - set(result))}")
@@ -262,8 +309,16 @@ def run_suite(root, output_dir, *, manifest=None, supplement=None, rm_evidence=N
             write_json(stage / "typeiv_component_review.json", typeiv_review)
         if "rm_evaluation" in native_export:
             write_json(stage / "rm_evaluation.json", native_export["rm_evaluation"])
+        if native_export.get('family_attribution'):
+            write_json(stage / 'family_attribution.json', {
+                'records': native_export['family_attribution'],
+                'summary': native_export.get('family_attribution_summary', {}),
+                'projection': native_export.get('family_attribution_projection', {})})
         table_dir = stage / "tables"
         table_dir.mkdir()
+        if native_export.get('family_attribution'):
+            _write_table(table_dir / 'family_attribution.tsv', native_export['family_attribution'],
+                         ('sample_id', 'gene_id', 'action', 'target_family'))
         if "automatic_typeiv_review" in analysis_export:
             _write_table(table_dir / "typeiv_component_review.tsv", typeiv_review["records"],
                          ("sample_id", "gene_id", "status"))
@@ -327,10 +382,10 @@ def run_suite(root, output_dir, *, manifest=None, supplement=None, rm_evidence=N
                      [{"endpoint": key, "state": value} for key, value in analysis_export["availability"].items()],
                      ("endpoint", "state"))
         write_json(table_dir / "availability.json", analysis_export["availability"])
-        for name in ("calls", "coverage", "saved_decisions", "annotations", "effector_evidence", "groups", "complexes"):
+        for name in ("calls", "coverage", "saved_decisions", "annotations", "effector_evidence", "groups", "complexes", "curation_records"):
             _write_table(table_dir / f"imported_{name}.tsv", _table_rows(imported_export.get(name, []), name),
                          ("sample_id", "caller", "status") if name == "coverage" else ("sample_id", "gene_id"))
-        for name in ("saved_decisions", "annotations", "effector_evidence", "groups", "complexes", "coverage"):
+        for name in ("saved_decisions", "annotations", "effector_evidence", "groups", "complexes", "coverage", "curation_records"):
             export_rows = _table_rows(native_export.get(name, []), name)
             if name == "saved_decisions" and native_export.get("automatic_evaluation"):
                 scopes = {(r["sample_id"],r["gene_id"]):r.get("source_scope",[])
@@ -347,7 +402,8 @@ def run_suite(root, output_dir, *, manifest=None, supplement=None, rm_evidence=N
         # rendering input and must not change the publication model identity.
         figure_model = {key: value for key, value in analysis_export.items()
                         if key != 'system_information'}
-        figures = render_publication(figure_model, figure_dir, title=title, **layout_options)
+        external_render = {'external_type_cases': external_export} if external_export else {}
+        figures = render_publication(figure_model, figure_dir, title=title, **layout_options, **external_render)
         render_seconds = time.monotonic() - tick
         resolved_figures = [Path(p).resolve() for p in figures]
         if not resolved_figures or len(set(resolved_figures)) != len(resolved_figures):
@@ -373,7 +429,8 @@ def run_suite(root, output_dir, *, manifest=None, supplement=None, rm_evidence=N
         ref_seconds = ref_meta.get("elapsed_seconds", 0)
         full_seconds = full_meta.get("elapsed_seconds", 0)
         policy_decisions = rm_meta.get("policy_decisions",rm_meta.get("policy_evaluations",rm_meta.get("scoring_runs",0)))
-        stages = [{"name": "native_import_and_context_preparation", "elapsed_seconds": max(0, import_seconds-rm_seconds-ref_seconds-full_seconds)}]
+        external_seconds = sum(e['elapsed_seconds'] for e in external_execution)
+        stages = [{"name": "native_import_and_context_preparation", "elapsed_seconds": max(0, import_seconds-rm_seconds-ref_seconds-full_seconds-external_seconds)}]
         if full_meta:
             stages.append({"name": "fresh_DNMB_HMM_BLAST_context_and_feature_execution", "elapsed_seconds": full_seconds,
                            "hmm_search_runs": full_meta["hmm_search_runs"], "homology_search_runs": full_meta["homology_search_runs"]})
@@ -387,27 +444,40 @@ def run_suite(root, output_dir, *, manifest=None, supplement=None, rm_evidence=N
                            "preserved_decisions": rm_meta.get("preserved_decisions",0)})
         stages += [{"name": "system_review_and_aggregation", "elapsed_seconds": analysis_seconds},
                    {"name": "publication_render", "elapsed_seconds": render_seconds}]
+        for case in external_execution:
+            stages.append({'name': 'independent_external_type_case_analysis',
+                           'sample_ids': case['analyzed_sample_ids'],
+                           'elapsed_seconds': case['elapsed_seconds'],
+                           'evaluation_execution': case['evaluation_execution']})
+        external_fresh = any(e['hmm_search_runs'] or e['homology_search_runs']
+                             or e['evaluation_execution'].get('fresh_full_execution') for e in external_execution)
+        external_evaluated = any(e['policy_evaluations'] or e['scoring_runs'] for e in external_execution)
         receipt = {
             "schema_version": 1, "tool": "DefenseViz", "version": __version__,
             "created_at": datetime.now(timezone.utc).isoformat(),
-            "operation": ("full_DNMB_RM_execution_and_publication" if data.get("evaluation_execution",{}).get("fresh_full_execution") else
+            "operation": ("primary_suite_and_independent_external_engine_evaluation_and_publication" if external_fresh else
+                          "primary_suite_and_independent_external_evidence_evaluation_and_publication" if external_evaluated else
+                          "full_DNMB_RM_execution_and_publication" if data.get("evaluation_execution",{}).get("fresh_full_execution") else
                           "saved_suite_with_fresh_reference_evaluation_and_render" if data.get("suite", {}).get("automatic_reference", {}).get("homology_search_runs") else
                           "saved_suite_evidence_reevaluation_aggregation_and_render" if policy_decisions
                           else "saved_suite_unresolved_evidence_bounds_and_replay_render" if rm_meta.get("policy_evaluations")
                           else "saved_suite_result_import_aggregation_and_render"),
-            "scoring_runs": data.get("rm_evaluation", {}).get("scoring_runs", 0),
-            "detector_runs": sum(full_meta.get("detector_runs",{}).values()), "structure_prediction_runs": 0, "threshold_fitting": False,
+            "scoring_runs": data.get("rm_evaluation", {}).get("scoring_runs", 0) + sum(e['scoring_runs'] for e in external_execution),
+            "detector_runs": sum(full_meta.get("detector_runs",{}).values()) + sum(e['detector_runs'] for e in external_execution), "structure_prediction_runs": 0, "threshold_fitting": False,
             "original_defense_tool_runs": 0,
-            "hmm_search_runs": full_meta.get("hmm_search_runs",0),
-            "homology_search_runs": full_meta.get("homology_search_runs",0) + ref_meta.get("homology_search_runs",0),
+            "hmm_search_runs": full_meta.get("hmm_search_runs",0) + sum(e['hmm_search_runs'] for e in external_execution),
+            "homology_search_runs": full_meta.get("homology_search_runs",0) + ref_meta.get("homology_search_runs",0) + sum(e['homology_search_runs'] for e in external_execution),
+            "external_type_case_execution": _portable(_serializable(external_execution), path_map),
             "full_execution": _portable(_serializable(full_meta),path_map),
-            "sequence_feature_evaluations": data.get("rm_evaluation", {}).get("compiler", {}).get("motif_scans", 0),
+            "sequence_feature_evaluations": data.get("rm_evaluation", {}).get("compiler", {}).get("motif_scans", 0) + sum(e['sequence_feature_evaluations'] for e in external_execution),
             "argv": argv if argv is not None else sys.argv, "exit_code": 0,
             "elapsed_seconds": time.monotonic() - started,
             "stages": stages,
             "evaluation_execution": data.get("evaluation_execution", {}),
+            "evaluation_execution_scope": "primary cohort; independent type examples are recorded in external_type_case_execution",
             "policy_evaluations": rm_meta.get("policy_evaluations",0),
             "policy_decisions": policy_decisions,
+            "policy_counts_scope": "primary cohort; external policy counts are separate in external_type_case_execution",
             "stored_vs_auto_summary": native_export.get("rm_evaluation",{}).get("stored_vs_auto_summary"),
             "preserved_native_decisions": rm_meta.get("preserved_decisions",0),
             "output_bundles": {"native_bundle.json":"original imported channels", "analysis_bundle.json":"current source-bound derived analysis input"},
@@ -433,6 +503,10 @@ def run_suite(root, output_dir, *, manifest=None, supplement=None, rm_evidence=N
             "scientific_scope": ("Fresh DNMB R-M HMM search of all translated CDSs, full configured reference search of native annotation/HMM nominees, context and fixed-policy evaluation. Original DF/PAD/DP calls preserved; biological activity and independent performance are not inferred." if full_meta else "Saved calls plus automatic stored/sequence evidence evaluation; optional explicitly configured fresh homology search. Missing measurements remain explicit; neither activity nor independent performance is inferred."),
             "outputs": {p.relative_to(stage).as_posix(): digest(p) for p in sorted(stage.rglob("*")) if p.is_file()},
         }
+        if external_execution:
+            receipt['scientific_scope'] += (' Independent external type-table examples are analyzed separately '
+                'and excluded from all primary-cohort aggregates. Their engines, decisions and exact commands '
+                'are recorded in external_type_case_execution; top-level search/scoring run counts include them.')
         write_json(stage / "receipt.json", receipt)
         if out.exists() or out.is_symlink():
             raise FileExistsError(f"Output appeared during execution: {out}")
@@ -446,8 +520,8 @@ def run_suite(root, output_dir, *, manifest=None, supplement=None, rm_evidence=N
         stage.rename(out)
         return response
     except BaseException as exc:
-        full_work = stage / "evidence" / "reference" / "full_pipeline"
-        if full_work.exists():
+        full_work = list((stage / 'evidence').rglob('full_pipeline'))
+        if full_work:
             write_json(stage / "failure.json", {"error": str(exc), "published": False,
                        "reason": "Full execution logs preserved; no successful publication claimed"})
             failed = stage.with_name(stage.name.replace(".staging-", ".failed-", 1))
