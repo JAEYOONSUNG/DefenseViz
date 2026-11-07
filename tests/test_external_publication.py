@@ -12,7 +12,7 @@ from tests.plot.test_publication import fixture
 
 
 def _pages(path):
-    return json.loads((path / 'publication_layout.json').read_text())['pages']
+    return json.loads((path / 'publication_layout.json').read_text(encoding='utf-8'))['pages']
 
 
 def test_long_taxon_and_strain_have_visible_gap_at_original_size(tmp_path):
