@@ -4,7 +4,7 @@ from __future__ import annotations
 import math
 from itertools import product
 
-from .drawing import TEAL, PURPLE, GRID, alias, category_color, source_color, number, status_kind, display_label
+from .drawing import INK, TEAL, PURPLE, GRID, alias, category_color, source_color, number, status_kind, display_label
 from .comparison import source_order, metric_state, visible_rows, ordered_families
 
 
@@ -91,6 +91,8 @@ def atlas_pages(result,fonts,config,page_factory):
     families=ordered_families(visible_rows(result.get("inventory_rows",{}).get("families",[])),config)
     samples=result.get("samples",[])
     samplemap={s["sample_id"]:s for s in result.get("sample_summary",[])}
+    from .display_scope import fraction_projection
+    scoped_fractions=fraction_projection(result,config.get("rm_fraction_scope","assigned_I_IV"))
     cellmap={(r["sample_id"],r.get("family_id",r.get("id"))):r for r in result.get("cells",[])}
     types={(r["sample_id"],r["rm_type"]):r for r in result.get("type_tables",[])}
     componentmap={(r["sample_id"],r["rm_type"],r["role"]):r for r in result.get("rm_components",[])}
@@ -235,7 +237,11 @@ def atlas_pages(result,fonts,config,page_factory):
                             statusfield=field.replace("counts","count_status")
                             state=summary.get(statusfield,summary.get("source_count_status",{})).get(d["source"])
                         elif field=="retained_R_fraction":
-                            if "assigned_RM_CDS" in summary or "assigned_R_CDS" in summary:
+                            if scoped_fractions is not None:
+                                scoped=scoped_fractions[sample["sample_id"]]
+                                numerator=scoped["R_CDS"];denominator=scoped["total_CDS"];state=scoped["status"]
+                                numerator_state=scoped["R_status"];denominator_state=scoped["total_status"]
+                            elif "assigned_RM_CDS" in summary or "assigned_R_CDS" in summary:
                                 numerator=summary.get("assigned_R_CDS");denominator=summary.get("assigned_RM_CDS")
                                 state=summary.get("assigned_counts_status");numerator_state=denominator_state=state
                             else:
@@ -273,28 +279,86 @@ def atlas_pages(result,fonts,config,page_factory):
                 pages.append(c)
     return pages
 
-def _type_display(r,field):
-    subset=None
-    if field=="Type":return str(r["rm_type"]),r["rm_type"],"complete",None
+NOT_ASSESSED_SUBSET = " (—)"
+# Legend items shared by the separate and Letter-composite type tables.
+TYPE_LEGEND = ("R(n): incomplete context", "M/S(n): included orphans",
+               "(—): not assessed", "—: unavailable or not applicable")
+EXTERNAL_CASE_FILL = "#F3EFE4"
+PRIMARY_CASE_FILL = "#F8E9EF"
+
+
+def _type_subset(r,field):
+    """Return the documented R-context or M/S-orphan subset and its assessment.
+
+    ``assessed`` means the subset count was recorded (complete or partial
+    review). ``not_assessed`` keeps an unrecorded status distinct from zero.
+    ``not_applicable`` covers structurally inapplicable subsets, including the
+    Type IV R context, which is outside the Type I–III context rule.
+    """
+    if field=="R":
+        if r.get("rm_type") in ("Type IV","IV") or r.get("context_applicability") in ("not_applicable","TypeIV_not_applicable","not_assessed_by_I_III_rule"):
+            return r.get("incomplete_R_context"),None,"not_applicable"
+        subset,state=r.get("incomplete_R_context"),r.get("context_state")
+    elif field in ("M","S"):
+        state=(r.get("orphan_state") or {}).get(field)
+        if status_kind(state)=="not_applicable":
+            return r.get("orphan_"+field),state,"not_applicable"
+        subset=r.get("orphan_"+field)
+    else:
+        return None,None,"not_applicable"
+    if subset is not None and status_kind(state) in ("complete","partial"):
+        return subset,state,"assessed"
+    return subset,state,"not_assessed"
+
+
+def _type_cell(r,field):
+    """Display text plus the explicit subset assessment used for audit ledgers."""
+    if field=="Type":
+        return dict(display=str(r["rm_type"]),value=r["rm_type"],state="complete",subset=None,subset_assessment="not_applicable")
     if field=="Pool":value=r.get("pool_CDS");state=r.get("pool_status")
     elif field=="DNMB":value=r.get("unique_CDS");state=r.get("within_pool_counts_status",r.get("counts_status"))
     elif field in ("R","M","S","A"):value=r.get(field);state=r.get("within_pool_role_states",r.get("role_states",{})).get(field)
     else:value=r.get("source_counts",{}).get(field);state=r.get("source_count_status",{}).get(field)
     display=number(value,state)
-    if field=="R":
-        subset=r.get("incomplete_R_context")
-        assessed=r.get("context_state")
-        applicable=r.get("context_applicability") not in (None,"not_applicable","TypeIV_not_applicable","not_assessed_by_I_III_rule")
-    elif field in ("M","S"):
-        subset=r.get("orphan_"+field);assessed=r.get("orphan_state",{}).get(field);applicable=True
-    else:assessed=None;applicable=False
+    subset,subset_state,assessment=_type_subset(r,field)
     if value and status_kind(state) in ("complete","partial"):
-        if applicable and subset and status_kind(assessed) in ("complete","partial"):
-            display+=" ("+number(subset,assessed)+")"
-    return display,value,state,subset
+        if assessment=="assessed" and subset:
+            display+=" ("+number(subset,subset_state)+")"
+        elif assessment=="not_assessed":
+            display+=NOT_ASSESSED_SUBSET
+    return dict(display=display,value=value,state=state,subset=subset,subset_assessment=assessment)
 
 
-def _type_case_label_layout(fonts, width, sample):
+def _type_display(r,field):
+    cell=_type_cell(r,field)
+    return cell["display"],cell["value"],cell["state"],cell["subset"]
+
+
+def _tool_header(fonts,fields,widths,pt):
+    """Label for the tool-call columns, centered on them within the header band.
+
+    Pool counts under DF/PAD/DP include calls in any defense family, so the
+    full label is preferred whenever the band can hold it; it is shifted only
+    as far as needed to stay inside the band. The shorter label is used only
+    when the full label is wider than the band. Returns (label, center offset
+    from the table's left edge).
+    """
+    band=[f for f in fields if f not in ("R","M","S","A")]
+    tools=[f for f in band if f not in ("Type","Pool","DNMB")]
+    total=sum(widths[f] for f in band)
+    if tools:
+        left=sum(widths[f] for f in band[:band.index(tools[0])])
+        center=left+sum(widths[f] for f in tools)/2
+    else:
+        center=total/2
+    for label in ("Tool calls in pool (any family)","Tool calls in pool"):
+        half=fonts.width(label,pt,True)/2+.5
+        if 2*half<=total:
+            return label,min(max(center,half),total-half)
+    return "Tool calls in pool",total/2
+
+
+def _type_case_label_layout(fonts, width, sample, pt=9):
     """Wrap explicitly styled runs at their measured width without changing text."""
     display=sample.get("display",{})
     runs=display.get("label_runs")
@@ -310,7 +374,7 @@ def _type_case_label_layout(fonts, width, sample):
     from matplotlib.font_manager import FontProperties, findfont
     from .manuscript_text import MM_PER_POINT, _literal_path
     renderer=RendererAgg(1,1,150)
-    gap=max(1.2,fonts.width(" ",9,True)+.35)
+    gap=max(1.2,fonts.width(" ",pt,True)+.35)
     cache={}
     def segments(chars):
         chunks=[]
@@ -323,10 +387,10 @@ def _type_case_label_layout(fonts, width, sample):
             if not text:continue
             key=text,chunk["italic"]
             if key not in cache:
-                prop=FontProperties(family=fonts.pick(text,True),size=9,weight="bold",
+                prop=FontProperties(family=fonts.pick(text,True),size=pt,weight="bold",
                     style="italic" if chunk["italic"] else "normal")
                 path=_literal_path(findfont(prop,fallback_to_default=False),text)
-                factor=9*MM_PER_POINT/100
+                factor=pt*MM_PER_POINT/100
                 advance=renderer.get_text_width_height_descent(text,prop,False)[0]*25.4/150
                 box=path.get_extents() if path is not None else None
                 left=min(0.,box.x0*factor) if box is not None else 0.
@@ -349,25 +413,56 @@ def _type_case_label_layout(fonts, width, sample):
                 lines.append(segments(line));line=[char]
         else:line.append(char)
     if line:lines.append(segments(line))
-    line_height=max(fonts.height(" ".join(r["text"] for r in parts),9,True) for parts,_ in lines)
+    line_height=max(fonts.height(" ".join(r["text"] for r in parts),pt,True) for parts,_ in lines)
     return dict(lines=lines,gap=gap,line_step=line_height*1.12,height=len(lines)*line_height*1.12+2)
 
 
-def _type_case_label(c, x, y, width, height, sample, wrapped, styled=None):
+def _type_case_label(c, x, y, width, height, sample, wrapped, styled=None, pt=9):
     """Honor explicit taxon/strain typography without guessing from a name."""
-    styled=_type_case_label_layout(c.fonts,width,sample) if styled is None else styled
+    styled=_type_case_label_layout(c.fonts,width,sample,pt) if styled is None else styled
     if styled is not None and styled["height"]<=height:
         from .manuscript_text import draw_manuscript_text
         first=y+height/2-(len(styled["lines"])-1)*styled["line_step"]/2
         for i,(runs,total) in enumerate(styled["lines"]):
             cursor=x+(width-total)/2
             for run in runs:
-                draw_manuscript_text(c,cursor-run["bearing"],first+i*styled["line_step"],run["text"],9,
+                draw_manuscript_text(c,cursor-run["bearing"],first+i*styled["line_step"],run["text"],pt,
                     bold=True,italic=run["italic"],owner=[x,y,width,height],role="type_sample_label",
                     ref={"sample_id":sample["sample_id"],"line":i})
                 cursor+=run["width"]+styled["gap"]
         return
-    c.text(x+width/2,y+height/2,wrapped,9,bold=True,ha="center",owner=[x,y,width,height])
+    c.text(x+width/2,y+height/2,wrapped,pt,bold=True,ha="center",owner=[x,y,width,height])
+
+
+def _pack_type_legend(fonts,items,width,pt,sep=" · ",swatch=2.4):
+    """Measured greedy packing of (text, fill) legend items into lines."""
+    lines=[[]];used=0.
+    for text,fill in items:
+        own=fonts.width(text,pt)+(swatch+.8 if fill else 0.)
+        need=own+(fonts.width(sep,pt) if lines[-1] else 0.)
+        if lines[-1] and used+need>width:
+            lines.append([]);used=0.;need=own
+        lines[-1].append((text,fill));used+=need
+    return lines
+
+
+def _draw_type_legend(c,x,y,lines,pt,step,draw,sep=" · ",swatch=2.4):
+    """Draw packed legend lines; a (text, fill) item gets a small swatch."""
+    for i,line in enumerate(lines):
+        cursor=x;yy=y+i*step
+        for j,(text,fill) in enumerate(line):
+            if j:
+                draw(cursor,yy,sep,pt);cursor+=c.fonts.width(sep,pt)
+            if fill:
+                c.rect(cursor,yy-swatch/2,swatch,swatch,fill,"#9C9484",.3);cursor+=swatch+.8
+            draw(cursor,yy,text,pt);cursor+=c.fonts.width(text,pt)
+
+
+def _type_legend_items(cases,samples):
+    items=[(text,None) for text in TYPE_LEGEND]
+    if any(samples[sid].get("cohort") in ("external","external_validation") for sid in cases):
+        items.append(("separately analyzed external case; not in cohort totals",EXTERNAL_CASE_FILL))
+    return items
 
 
 def type_pages(result,fonts,config,page_factory):
@@ -380,12 +475,15 @@ def type_pages(result,fonts,config,page_factory):
         if highlighted:caseids=highlighted
     if not caseids:return []
     sources=source_order(result,config);pages=[]
+    # Columns are sized to the displayed tables, not to unshown samples.
+    shown=[r for r in rows if r["sample_id"] in set(caseids)]
     for source_slice in _chunks(sources,3):
         fields=["Type"]+(["Pool"] if any("pool_CDS" in r for r in rows) else [])+source_slice+["DNMB","R","M","S","A"]
         widths={field:max(13.,fonts.width(alias(field,config),8,True)+3,
-                          max((fonts.width(_type_display(r,field)[0],9.4,True)+3 for r in rows),default=0)) for field in fields}
+                          max((fonts.width(_type_display(r,field)[0],9.4,True)+3 for r in shown),default=0)) for field in fields}
         casew=sum(widths.values());gap=6
         perpage=max(1,min(3,int((config["atlas_page_size"][0]-16.9+gap)/(casew+gap))))
+        tool_label,tool_center=_tool_header(fonts,fields,widths,8)
         for cases in _chunks(caseids,perpage):
             width=max(215.9,len(cases)*casew+(len(cases)-1)*gap+16.9)
             maxrows=max(sum(r["sample_id"]==sid for r in rows) for sid in cases)
@@ -393,36 +491,47 @@ def type_pages(result,fonts,config,page_factory):
             styled={sid:_type_case_label_layout(fonts,casew,samples[sid]) for sid in cases}
             strainh=max(7,max(styled[sid]["height"] if styled[sid] is not None else fonts.height(label,9,True)+2
                               for sid,label in labels.items()))
-            bodytop=23+strainh+4+6
+            items=[("Recorded CDSs",None)]+_type_legend_items(cases,samples)
+            legend=_pack_type_legend(fonts,items,width-16.9,7.8)
+            top=23+(len(legend)-1)*3.1
+            bodytop=top+strainh+4+6
             height=max(85,bodytop+maxrows*6+20)
             c=page_factory(width,height,"type_benchmark")
             c.ledger["sample_ids"]=cases
             c.ledger["sample_selection"]="explicit" if selected is not None else "highlighted_default" if any(samples[sid].get("highlight") for sid in cases) else "all_typed_default"
-            c.text(8.45,9,"c  CDS inclusion by assigned R-M type",11,bold=True)
-            c.text(8.45,16,"Recorded CDSs · R(n): incomplete context; M/S(n): documented orphan · —: unavailable or not applicable",7.8)
+            continued=bool(pages)
+            c.ledger["continued"]=continued
+            c.text(8.45,9,"c  CDS inclusion by assigned R-M type"+(" (continued)" if continued else ""),11,bold=True)
+            from .manuscript_text import draw_manuscript_text
+            # Baseline-anchored runs keep items and separators on one line.
+            _draw_type_legend(c,8.45,16,legend,7.8,3.1,lambda x,y,t,pt:draw_manuscript_text(c,x,y,t,pt,color=INK))
             for ci,sid in enumerate(cases):
                 case=samples[sid];rr=[r for r in rows if r["sample_id"]==sid]
                 x=8.45+ci*(casew+gap)
-                c.rect(x,23,casew,strainh,"#F3EFE4" if case.get("cohort") in ("external","external_validation") else "#F8E9EF")
-                _type_case_label(c,x,23,casew,strainh,case,labels[sid],styled[sid])
-                rolesw=sum(widths[f] for f in ("R","M","S","A"));groupy=23+strainh
+                external=case.get("cohort") in ("external","external_validation")
+                c.rect(x,top,casew,strainh,EXTERNAL_CASE_FILL if external else PRIMARY_CASE_FILL)
+                _type_case_label(c,x,top,casew,strainh,case,labels[sid],styled[sid])
+                rolesw=sum(widths[f] for f in ("R","M","S","A"));groupy=top+strainh
                 c.rect(x,groupy,casew-rolesw,4,"#F1F4F5");c.rect(x+casew-rolesw,groupy,rolesw,4,"#E4E8EB")
-                c.text(x+(casew-rolesw)/2,groupy+2,"Shared-pool CDSs",8,bold=True,ha="center")
-                c.text(x+casew-rolesw/2,groupy+2,"DNMB components",8,bold=True,ha="center")
                 positions=[];cursor=x
                 for field in fields:
-                    cw=widths[field];positions.append((field,cursor,cw));c.rect(cursor,groupy+4,cw,6,"#ECEFF1" if field in ("R","M","S","A") else "#F4F7F6")
-                    c.text(cursor+cw/2,groupy+7,alias(field,config),8,bold=True,ha="center");cursor+=cw
+                    cw=widths[field];positions.append((field,cursor,cw));cursor+=cw
+                c.text(x+tool_center,groupy+2,tool_label,8,bold=True,ha="center")
+                c.text(x+casew-rolesw/2,groupy+2,"DNMB components",8,bold=True,ha="center")
+                for field,left,cw in positions:
+                    c.rect(left,groupy+4,cw,6,"#ECEFF1" if field in ("R","M","S","A") else "#F4F7F6")
+                    c.text(left+cw/2,groupy+7,alias(field,config),8,bold=True,ha="center")
                 for i,r in enumerate(rr):
                     y=bodytop+i*6;is_total=str(r.get("rm_type")).lower() in ("all","total")
                     for field,left,cw in positions:
                         fill="#DFE4E8" if is_total else "#F1F3F4" if field in ("R","M","S","A") else "#FAFBFB" if i%2 else "white"
                         c.rect(left,y,cw,6,fill)
-                        text,value,state,subset=_type_display(r,field)
+                        cell=_type_cell(r,field);text,value,state,subset=cell["display"],cell["value"],cell["state"],cell["subset"]
                         if status_kind(state)=="not_applicable":c.rect(left,y,cw,6,"#CCD3D8")
                         c.text(left+cw/2 if field=="Type" else left+cw-1.8,y+3,text,9.4,bold=is_total,ha="center" if field=="Type" else "right",owner=[left,y,cw,6],role="type_label" if field=="Type" else "type_numeric",ref={"sample_id":sid,"type":r["rm_type"],"field":field,"value":value,"included_subset":subset})
                         c.ledger["cells"].append({"kind":"type_cell","sample_id":sid,"rm_type":r["rm_type"],"field":field,
-                            "value":value,"state":state,"included_subset":subset,"display":text,"bounds_mm":[left,y,cw,6],"numeric_font_pt":9.4})
+                            "value":value,"state":state,"included_subset":subset,"subset_assessment":cell["subset_assessment"],
+                            "display":text,"bounds_mm":[left,y,cw,6],"numeric_font_pt":9.4,"external_case":external})
                     c.line(x,y+6,x+casew,y+6)
             c.text(8.45,height-8,"Unique CDS totals are not sums of role columns. Context annotations do not establish biological activity.",7)
             pages.append(c)

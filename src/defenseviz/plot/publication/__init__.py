@@ -13,7 +13,7 @@ from pathlib import Path
 import matplotlib
 from matplotlib.backends.backend_pdf import PdfPages
 
-from .drawing import Canvas, Fonts, status_kind, alias, source_color
+from .drawing import Canvas, Fonts, STROKE_FLOOR_PT, status_kind, alias, source_color
 from .atlas import atlas_pages, type_pages
 from .manuscript_atlas import manuscript_atlas_pages
 from .comparison import comparison_pages
@@ -33,7 +33,8 @@ DEFAULTS = {"sections": ["atlas", "type_benchmarks", "comparison"],
     "manuscript_workflow": {},
     "highlight_label": None, "sample_marker": None,
     "selection_label": "R subunits + nuclease effectors", "overlap_mode": "auto",
-    "type_samples": None, "preview_png": False}
+    "type_samples": None, "preview_png": False,
+    "page_composition": "separate", "rm_fraction_scope": "assigned_I_IV", "composite_min_scale": .6}
 
 
 def _integer(value, field):
@@ -111,6 +112,11 @@ def _config(title, options):
     unknown=set(options)-set(DEFAULTS)
     if unknown:raise ValueError("Unknown publication layout options: "+", ".join(sorted(unknown)))
     config={**DEFAULTS,**options,"title":title}
+    if config["page_composition"] not in ("separate","letter_composite"):raise ValueError("Unknown page_composition")
+    if config["rm_fraction_scope"] not in ("assigned_I_IV","retained_I_III"):raise ValueError("Unknown rm_fraction_scope")
+    scale=config["composite_min_scale"]
+    if isinstance(scale,bool) or not isinstance(scale,(int,float)) or not math.isfinite(scale) or not 0<scale<=1:raise ValueError("composite_min_scale must be in (0,1]")
+    if config["page_composition"]=="letter_composite" and config["atlas_style"]!="manuscript":raise ValueError("letter_composite requires manuscript atlas_style")
     if not isinstance(config["sections"],(list,tuple)) or set(config["sections"])-{"atlas","type_benchmarks","comparison"}:
         raise ValueError("Unknown publication section")
     if len(set(config["sections"]))!=len(config["sections"]):raise ValueError("Duplicate publication section")
@@ -146,18 +152,34 @@ def _config(title, options):
     return config
 
 
-def render_publication(result:dict, output_dir:Path, *, title="DefenseViz", **layout_options):
+def _size_note(config,physical):
+    """Report measured physical sizes; never claim a print font floor."""
+    def page(m):
+        text=f"page {m['page']} at scale {m['export_scale']:.4f}, smallest text {m['min_text_pt']:.2f} pt" if m["min_text_pt"] is not None else f"page {m['page']} at scale {m['export_scale']:.4f}"
+        return text+(f", thinnest line {m['min_stroke_pt']:.2f} pt" if m["min_stroke_pt"] is not None else "")
+    measured="; ".join(page(m) for m in physical)
+    if config["page_composition"]!="letter_composite":
+        return "Measured physical sizes: "+measured+".\n\n"
+    return ("Letter composition: atlas and type-table pages are scaled uniformly to fit Letter, with exported lines kept at "
+            f"{STROKE_FLOOR_PT} pt or thicker. Measured sizes: "+measured+". Text below about 6 pt is small for print at Letter size; "
+            "the default separate layout keeps native sizes on larger pages.\n\n")
+
+
+def render_publication(result:dict, output_dir:Path, *, title="DefenseViz", external_type_cases=None, **layout_options):
     """Render arbitrary saved-result cohorts; return every generated artifact path.
 
     Every emitted element carries measured physical geometry and its source key.
-    Data-dependent continuation pages preserve counts and do not resize fonts.
+    Data-dependent continuation pages preserve counts. Separate pages keep native
+    fonts; optional Letter composition records its explicit uniform export scale.
     The parent pipeline owns transactionality; existing outputs are refused.
     """
     validate_publication_model(result)
     config=_config(title,layout_options)
     labels=[alias(s["id"],config) for s in result.get("sources",[])]
     if len(set(labels))!=len(labels):raise ValueError("Source aliases collide; supply distinct aliases")
-    if config["type_samples"] is not None and set(config["type_samples"])-{s["sample_id"] for s in result.get("samples",[])}:raise ValueError("type_samples contains unknown sample identities")
+    from .display_scope import type_case_projection
+    type_result,type_selection,external_bindings=type_case_projection(result,external_type_cases,config["type_samples"],validate_publication_model,Path(output_dir).parent)
+    type_config={**config,"type_samples":type_selection}
     model_json=json.dumps(result,sort_keys=True,ensure_ascii=False,allow_nan=False)
     model_hash=hashlib.sha256(model_json.encode("utf-8")).hexdigest()
     output_dir=Path(output_dir)
@@ -169,17 +191,26 @@ def render_publication(result:dict, output_dir:Path, *, title="DefenseViz", **la
         index+=1
         return Canvas(width,height,fonts,section,index)
     pages=[]
-    for section in config["sections"]:
+    if config["page_composition"]=="letter_composite":
+        from .composite import composite_pages
+        pages=composite_pages(result,type_result,fonts,config,type_config,factory)
+    for section in ([] if config["page_composition"]=="letter_composite" else config["sections"]):
         if section=="atlas":pages.extend((manuscript_atlas_pages if config["atlas_style"]=="manuscript" else atlas_pages)(result,fonts,config,factory))
-        elif section=="type_benchmarks":pages.extend(type_pages(result,fonts,config,factory))
+        elif section=="type_benchmarks":pages.extend(type_pages(type_result,fonts,type_config,factory))
         else:pages.extend(comparison_pages(result,fonts,config,factory))
     if not pages:
         c=factory(215.9,279.4,"empty");c.text(8.45,12,title,12,bold=True)
         c.text(8.45,24,"No requested publication endpoints are available.",8);pages=[c]
-    layouts=[]
+    layouts=[];physical=[]
     for i,c in enumerate(pages,1):
         c.ledger["page_id"]=i
         layouts.append(c.validate())
+        c.ledger["physical_metrics"]=c.physical_metrics()
+        physical.append(dict(page=i,section=c.ledger.get("section"),**c.ledger["physical_metrics"]))
+        if c.ledger.get("section") in ("atlas_composite","type_benchmark"):
+            c.ledger["external_type_bindings"]=external_bindings
+    external_labels=[s.get("label",s["sample_id"]) for s in type_result.get("samples",[])
+                     if s.get("cohort")=="external" and any(s["sample_id"] in b["sample_ids"] for b in external_bindings)]
     output_dir.mkdir(parents=True,exist_ok=True)
     pdf=output_dir/"publication.pdf";outputs=[pdf]
     with matplotlib.rc_context({"svg.fonttype":"none","svg.hashsalt":"DefenseVizPublication",
@@ -195,7 +226,8 @@ def render_publication(result:dict, output_dir:Path, *, title="DefenseViz", **la
     ledger=output_dir/"publication_layout.json"
     ledger.write_text(json.dumps({"schema_version":1,"units":"millimeters","bbox_convention":"x,y,width,height",
         "pages":layouts,"page_count":len(layouts),"input_model_sha256":model_hash,"config":config,
-        "font_requested":fonts.preferred,"font_resolved":fonts.base,"font_files":list(fonts.used.values()),
+        "primary_input_model_sha256":model_hash,"external_type_bindings":external_bindings,
+        "rm_fraction_scope":config["rm_fraction_scope"],"font_requested":fonts.preferred,"font_resolved":fonts.base,"font_files":list(fonts.used.values()),
         "source_labels":[{"id":s["id"],"label":s.get("label",s["id"]),"alias":alias(s["id"],config),"color":source_color(s["id"],config)} for s in result.get("sources",[])],
         "activity_inferred":False,"operation":"saved_result_publication_render"},indent=2,ensure_ascii=False)+"\n",encoding="utf-8")
     outputs.append(ledger)
@@ -217,9 +249,13 @@ def render_publication(result:dict, output_dir:Path, *, title="DefenseViz", **la
         "Atlas: category-colored disks encode binned CDS membership. A purple outline marks recorded putative nuclease-associated support; inner purple area is the supported effector/total fraction. An absent support mark does not establish absence of function. Pink rows are explicitly selected sample highlights. "
         "Effector CDSs include individually supported annotations and required cores of complete reviewed complexes; individual catalysis is not assigned to every core.\n\n"
         "R-M role rings mark support for at least one CDS; context rings mean every displayed group has supplied R support. A reference dot is separately curated context evidence. M(S)-only composition does not establish orphanhood. Intersection and assigned fractions retain separate numerator and denominator provenance.\n\n"
-        "Type benchmarks count unique CDSs within each observed assigned-type pool. The atlas input pool includes original R-M source/reference memberships and typed current DNMB candidates. Parentheses identify documented incomplete R contexts or orphan M/S subsets already included in the CDS count. Gray cells are structurally inapplicable.\n\n"
+        "Type tables: Pool counts the CDSs placed in each R-M type by DNMB or, without a DNMB type, by a native R-M call. DF, PAD and DP count pool CDSs that each tool called in any defense family, so they show CDS inclusion rather than agreement on R-M type (for example, PADLOC PDC-S or DMS_other calls are counted). DNMB counts pool CDSs assigned to that type by DNMB. "
+        "R(n) and M/S(n) give R CDSs with incomplete context and included orphan M/S CDSs within the count. (—) after a positive count means context or orphan status was not assessed; a count without parentheses has none recorded among assessed CDSs, and Type IV R context lies outside the Type I–III context rule. A bare em dash marks an unavailable or inapplicable value; gray cells are structurally inapplicable.\n\n"
         "Comparison: original source memberships are restricted to the declared priority set. Venn areas are schematic; intersection tables preserve exact memberships when Venn labels cannot fit. "
         "Category/family rows overlap. Equal bar tracks use each row union; associated totals and effector counts are separate columns.\n\n"
+        +"Atlas R/total fraction scope: "+("strict retained Type I–III CDSs; reviewed Type IV excluded" if config["rm_fraction_scope"]=="retained_I_III" else "assigned Type I–IV CDSs, including supported reviewed Type IV components")+".\n\n"
+        +(("External type cases (tan headers): "+"; ".join(external_labels)+". They are analyzed as separate projects and are not included in the atlas, overlap, family or workbook totals.\n\n") if external_bindings else "")
+        +_size_note(config,physical)
         +"Priority definition: "+str(result.get("endpoint_definitions",{}).get("priority","declared analysis priority set; activity untested")).replace("unassessed","not evaluated")+".\n\n"
         +"\n\n".join(coverage)+"\n\n"
         +"Source labels: "+"; ".join(alias(s["id"],config)+": "+s.get("label",s["id"]) for s in result.get("sources",[]))+".\n",encoding="utf-8")
@@ -228,6 +264,8 @@ def render_publication(result:dict, output_dir:Path, *, title="DefenseViz", **la
     manifest.write_text(json.dumps({"schema_version":1,"input_model_sha256":model_hash,"page_count":len(layouts),
         "outputs":[{"path":p.name,"sha256":hashlib.sha256(p.read_bytes()).hexdigest()} for p in outputs],
         "resolved_font":fonts.base,"font_fallback":fonts.base!=fonts.preferred,"matplotlib_version":matplotlib.__version__,
+        "external_type_bindings":external_bindings,"page_composition":config["page_composition"],"rm_fraction_scope":config["rm_fraction_scope"],
+        "physical_metrics":physical,"letter_export_stroke_floor_pt":STROKE_FLOOR_PT if config["page_composition"]=="letter_composite" else None,
         "no_biological_inference":True},indent=2)+"\n",encoding="utf-8")
     outputs.append(manifest)
     return outputs

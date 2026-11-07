@@ -53,9 +53,19 @@ defenseviz from-suite /path/to/DNMBsuite_outputs \
 
 The input can be one genome's result folder or a parent containing nested per-genome folders. DefenseViz discovers the samples, reads available assembly and strain metadata, evaluates the evidence and writes the tables and figures. Use a new output directory for each run.
 
+For repeatable runs, save the input paths and settings in `defenseviz_project.json` inside a project folder, then run:
+
+```sh
+defenseviz from-suite /path/to/project --out results
+```
+
+The [project format](docs/suite-projects.md) supports saved evidence, reviewed annotations, Letter page composition and independently analyzed case tables. Paths are relative to the project file; no intermediate conversion or plotting command is required.
+
 Full mode runs DNMB R–M HMM and REBASE searches with the configured tools and databases. DefenseFinder, PADLOC and DefensePredictor calls are imported from the existing results. Use `--evaluation stored` to replay saved DNMB decisions. The default `auto` mode uses a configured engine when available and otherwise evaluates stored evidence.
 
 Automatic evaluation also reviews Type IV component architecture using bound InterProScan domains and qualifying reference or native-system evidence. Supported components enter the assigned R–M list; the numerical retention decisions remain available separately. An auxiliary component receives no nuclease-effector credit from this review.
+
+DNMB curation is imported with its original source rows. Three rules based on PADLOC system definitions (BREX type III, DISARM type II and Hma) can move a retained R–M methylase into one of those systems when DNMB curation marks its R–M association as unproven and the complete system is present. The rules were written to reproduce four reviewed corrections in the 52-genome benchmark, so their agreement with that benchmark is not independent validation. They contain no sample- or locus-specific branches, do not cover other methylase-containing systems, and make no change when an export lacks the DNMB curation columns. Conflicting R–M evidence keeps the original assignment and records the conflict. Original tool calls and scores remain in the audit outputs.
 
 The full workflow requires Python, R and native search tools. Docker provides a shared runtime; a native installation is also supported. Databases are prepared separately under their distribution terms. See [resource preparation](docs/resource-preparation.md) for a new installation.
 

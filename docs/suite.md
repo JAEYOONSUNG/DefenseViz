@@ -28,6 +28,8 @@ read-only, and the output directory must be new. `inspect-suite` validates and
 reports available endpoints without generating figures; it is not a required
 preprocessing step for `from-suite`.
 
+A [portable project file](suite-projects.md) can store these options for repeated single-command runs, including separately analyzed external type cases and combined Letter pages.
+
 The full command automatically writes the classified workbook, retained R-M and
 priority annotation lists, and the atlas, type tables and comparison figures.
 PDF, editable SVG and PNG previews are generated together without a separate
@@ -54,7 +56,7 @@ Full mode searches all translated CDSs with the configured native R-M HMM librar
 
 Reference type and component metadata are projected from explicit descriptions and numbered component prefixes. Repairs, search commands, exit codes, proteins, databases and outputs are hash-bound in the output evidence directory. Actual loaded R packages/DLLs and the frozen native source modules are verified. Previous candidate identities retain no inherited role, type or score credit. The original cache remains unchanged. Missing optional structure earns no support points; this is not a claim of biological inactivity. Retained annotations and component support are computational assessments.
 
-Completed context inventories yield numeric MS/RMS/MR counts, including zero. An unavailable measurement is shown with an em dash. Qualified retained R component evidence is also propagated to putative effector counts and current-context support markers. Completed reviews report observed qualified annotation counts separately from unresolved biological functions; an observed zero does not establish biological absence. Included orphans retain the compact `(n)` notation. Detailed coverage and source records remain in the tables and JSON; repeated uncertainty suffixes are not printed on the figure.
+Completed context inventories yield numeric MS/RMS/MR counts, including zero. An unavailable measurement is shown with an em dash. Qualified retained R component evidence is also propagated to putative effector counts and current-context support markers. Completed reviews report observed qualified annotation counts separately from unresolved biological functions; an observed zero does not establish biological absence. Included orphans and incomplete R contexts retain the compact `(n)` notation. When orphan or context status was not assessed, a positive count shows `(—)` instead, so it is not read as an assessed zero; Type IV R context is outside the Type I–III context rule and stays unmarked. Detailed coverage and source records remain in the tables and JSON; other uncertainty suffixes are not printed on the figure.
 
 A failed full run preserves its logs in a separate `.failed-…` directory and produces no successful publication receipt. Each successful invocation requires a new output directory.
 
@@ -334,6 +336,12 @@ Rings on R-M groups describe supplied support, independently of effector glyphs.
 The separate reference column counts original reference hits, including untyped
 subjects; it does not assign them an R-M type. The intersection excludes the
 reference channel and never gains later DNMB-only additions. Unavailable original-context evidence uses an em dash.
+
+In the R-M type tables, **Pool** counts CDSs placed in each type by DNMB or, without a
+DNMB type, by a native R-M call. Under **Tool calls in pool (any family)**, DF, PAD and
+DP count pool CDSs that each tool called in any defense family: this is CDS inclusion,
+not agreement on the R-M type (PADLOC PDC-S or DMS_other calls, for example, are
+counted). **DNMB** counts pool CDSs assigned to that type.
 
 Category colors, purple evidence glyphs and optional pink sample highlights match
 the manuscript grammar. Comparative tables separate putative nuclease-associated

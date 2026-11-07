@@ -224,6 +224,12 @@ def _native_root(path):
     return any(p.name.startswith("dnmb_module_") and p.is_dir() for p in path.iterdir())
 
 
+def _project_root(path):
+    # Its presence declares a separate project even if its JSON is malformed.
+    # Discovery must not silently consume that project's samples as primary.
+    return (path / "defenseviz_project.json").is_file()
+
+
 def _generated_root(path):
     """Names such as output/reviews alone never prove that a tree is disposable."""
     if not (path / "analysis.json").is_file() or not (path / "receipt.json").is_file():
@@ -237,7 +243,16 @@ def _generated_root(path):
 
 def _symlink_boundary(path, root):
     target = path.resolve()
-    if target == root or not target.is_relative_to(root):
+    if target == root:
+        return None
+    # A link to a project's descendant must not bypass its declared boundary,
+    # including when the linked project lives outside the discovery root.
+    for parent in (target, *target.parents):
+        if parent == root:
+            break
+        if _project_root(parent):
+            return "nested_project" if parent == target else "nested_project_descendant"
+    if not target.is_relative_to(root):
         return None
     relative = target.relative_to(root)
     if any(part.startswith(".") for part in relative.parts):
@@ -257,7 +272,8 @@ def discover_suite(root):
 
     Symbolic links to the same directory are deduplicated, cycles are skipped,
     and different native directories yielding the same sample ID are rejected.
-    Hidden trees and identified DefenseViz output roots are excluded. Ordinary
+    Hidden trees, nested projects and identified DefenseViz output roots are
+    excluded. A project at the discovery root remains eligible. Ordinary
     folder names, including output/outputs/reviews, remain discoverable.
     Directory names remain valid identities when no assembly metadata exists.
     No cohort/target/transformability label is invented.
@@ -275,6 +291,9 @@ def discover_suite(root):
             skipped.append(dict(path=str(directory), reason="duplicate_or_cycle"))
             continue
         seen.add(identity)
+        if directory.resolve() != root and _project_root(directory):
+            skipped.append(dict(path=str(directory), reason="nested_project"))
+            continue
         children = sorted(directory.iterdir(), key=lambda p: (p.name.casefold(), p.name))
         subdirs = [p for p in children if p.is_dir()]
         if any(p.name.startswith("dnmb_module_") for p in subdirs):

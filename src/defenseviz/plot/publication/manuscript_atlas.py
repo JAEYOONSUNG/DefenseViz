@@ -53,6 +53,11 @@ def _text(c,x,y,label,pt=NUM,**kw):
     return draw_manuscript_text(c,x,y,label,pt,**kw)
 
 
+def fraction_scope_label(config):
+    """Second heading line of the R/total column; values are unchanged."""
+    return "I–III CDSs" if config.get("rm_fraction_scope")=="retained_I_III" else "I–IV CDSs"
+
+
 def _category(f):
     cat=f.get("display_group",f.get("category","Unresolved"))
     return {"CRISPR-Cas":"Cas","Other":"Other mechanisms","Former R-M residual":"Unresolved"}.get(cat,cat)
@@ -418,7 +423,7 @@ def _headers(c,panels,groups,fpos,sources,refs,config,dy=0,plan=None,record=True
                 if typ!="IV":text(x+width/2,79.5,"CDS" if kind=="role" else "Groups",7.3,ha="center")
                 x+=width
     pp=p["Retained_summary"]
-    for yy,label,bold,size in ((76.4,"Assigned",True,9.24),(80.6,"CDS",True,9.24),(84.9,"(R/total)",False,9.6)):
+    for yy,label,bold,size in ((76.4,"Assigned",True,9.24),(80.6,fraction_scope_label(config),True,9.24),(84.9,"(R/total)",False,9.6)):
         text((pp["left"]+pp["right"])/2,yy,label,size,bold=bold,ha="center")
     pp=p["NonRM_callers"]
     text((pp["left"]+pp["right"])/2,76,"Non-canonical",9.24,bold=True,ha="center")
@@ -625,6 +630,10 @@ def manuscript_atlas_pages(result,fonts,config,page_factory):
     from .manuscript_model import build_manuscript_atlas_model
     from .manuscript_workflow import draw_manuscript_workflow
     model=build_manuscript_atlas_model(result)
+    from .display_scope import fraction_projection
+    scoped=fraction_projection(result,config.get("rm_fraction_scope","assigned_I_IV"))
+    if scoped is not None:
+        for row in model["rows"]:row["retained"]=scoped[row["sample_id"]]
     sources=list(model.get("source_order",[]))
     desired=config.get("atlas_source_order",["PADLOC","DefenseFinder","DefensePredictor"])
     sources=[s for s in desired if s in sources]+[s for s in sources if s not in desired]
@@ -661,11 +670,20 @@ def manuscript_atlas_pages(result,fonts,config,page_factory):
     fractions["retained"]["width_mm"] = max(
         fractions["retained"]["width_mm"],
         fonts.width("Assigned",9.24,True)+fonts.width("IV",8.8,True)-2*CELL-2*GAP+.8)
+    # The scope line shares a baseline band with the centered non-canonical
+    # heading to its right; reserve their measured half widths plus a gap.
+    fractions["retained"]["width_mm"] = max(
+        fractions["retained"]["width_mm"],
+        fonts.width(fraction_scope_label(config),9.24,True)+fonts.width("Annotated CDSs",9.24,True)
+        -len(sources)*7.56-2*MAJOR+1.2)
     family_pages=[];block=[]
     maxwidth=config["atlas_page_size"][0]
+    labelwidth=max((sum(fonts.width(part,NUM,bool(r.get("highlight"))) for part in _strain_parts(r))+2 for r in allrows),default=58.)
     for f in families:
         trial=block+[f]
-        if block and (_layout(trial,sources,refs,config,fractions)[-1]>maxwidth or len(trial)>config["max_families_per_page"]):
+        trial_layout=_layout(trial,sources,refs,config,fractions)
+        required_width=max(trial_layout[-1],trial_layout[-2]+labelwidth+8)
+        if block and (required_width>maxwidth or len(trial)>config["max_families_per_page"]):
             family_pages.append(block);block=[]
         block.append(f)
     family_pages.append(block)
@@ -674,8 +692,7 @@ def manuscript_atlas_pages(result,fonts,config,page_factory):
         panels,groups,fpos,masks,sampleleft,width=_layout(fs,sources,refs,config,fractions)
         heading_plan=_header_plan(fonts,width,panels,groups,fpos,sources,refs,config)
         dy=heading_plan["body_offset_mm"]
-        labelwidth=max((sum(fonts.width(part,NUM,bool(r.get("highlight"))) for part in _strain_parts(r))+2 for r in allrows),default=58.)
-        width=max(width,min(maxwidth,sampleleft+labelwidth+8))
+        width=max(width,sampleleft+labelwidth+8)
         maxrows=max(1,min(config["max_rows_per_page"],int((config["atlas_page_size"][1]-BODY_TOP-dy-55)/ROW)))
         chunks=[];cursor=0
         # Budget the legend for each page's taxa, not the entire cohort. A
@@ -698,6 +715,8 @@ def manuscript_atlas_pages(result,fonts,config,page_factory):
                 raise ValueError("Manuscript labels/evidence columns exceed atlas_page_size; increase the page limit or provide shorter display labels")
             c=page_factory(width,height,"atlas")
             c.ledger["atlas_style"]="manuscript"
+            c.ledger["rm_fraction_scope"]=config.get("rm_fraction_scope","assigned_I_IV")
+            c.ledger["rm_fraction_records"]=[dict(sample_id=row["sample_id"],**row["retained"]) for row in rows]
             c.ledger["panel_bounds"]={k:dict(v,top=top,bottom=bottom) for k,v in panels.items()}
             c.ledger["fraction_layout"]=fractions
             c.ledger["model_provenance"]=model.get("provenance",{})

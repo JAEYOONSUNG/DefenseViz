@@ -11,7 +11,7 @@ def test_explicit_case_order_and_supplied_taxon_typography(tmp_path):
     for sample in data['samples']:
         sample['display']={'taxon_label':'Synthetic species','strain_label':sample['label'].split()[-2]+' '+sample['label'].split()[-1]}
     render_publication(data,tmp_path,sections=['type_benchmarks'],type_samples=['sample/1','sample/0'])
-    page=json.loads((tmp_path/'publication_layout.json').read_text())['pages'][0]
+    page=json.loads((tmp_path/'publication_layout.json').read_text(encoding='utf-8'))['pages'][0]
     assert page['sample_ids']==['sample/1','sample/0']
     taxa=[t for t in page['texts'] if t['text']=='Synthetic species']
     assert len(taxa)==2 and all(t['italic'] and t['bold'] and t['font_pt']==9 for t in taxa)

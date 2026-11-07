@@ -26,6 +26,27 @@ CATEGORY_COLORS = {"R-M": TEAL, "Modification": "#B09AC9", "Nuclease": "#DE8497"
 SOURCE_COLORS = {"DefenseFinder": "#8C2F50", "PADLOC": "#244A70",
                  "DefensePredictor": "#585D66", "REBASE": "#66713C"}
 ALIASES = {"DefenseFinder": "DF", "PADLOC": "PAD", "DefensePredictor": "DP", "REBASE": "REB"}
+# Physical minimum for strokes in uniformly reduced (Letter) exports.
+STROKE_FLOOR_PT = .25
+
+
+def stroke_artists(ax):
+    """Yield every visibly stroked artist with its line width in points.
+
+    Fill-only patches (no visible edge) are excluded; their nominal width is
+    never drawn. Annotation arrows are included with their arrow patch.
+    """
+    from matplotlib.colors import to_rgba
+    from matplotlib.patches import Patch
+    candidates = list(ax.patches) + list(ax.lines) + [getattr(t, "arrow_patch", None) for t in ax.texts]
+    for artist in candidates:
+        if artist is None or not artist.get_visible():
+            continue
+        width = float(artist.get_linewidth() or 0.)
+        color = artist.get_edgecolor() if isinstance(artist, Patch) else artist.get_color()
+        if width <= 0 or to_rgba(color)[3] == 0:
+            continue
+        yield artist, width
 
 
 def stable_color(name):
@@ -210,12 +231,33 @@ class Canvas:
         result = []
         for artist, meta in self.text_artists:
             bbox = artist.get_window_extent(renderer)
-            x1, y1 = self.ax.transData.inverted().transform((bbox.x0, bbox.y1))
-            x2, y2 = self.ax.transData.inverted().transform((bbox.x1, bbox.y0))
+            if getattr(self, "physical_export", False):
+                # Composite pages keep source coordinates on the axes. Audit
+                # actual visible ink in the final page's physical units.
+                pw, ph = self.fig.bbox.width, self.fig.bbox.height
+                x1, y1 = bbox.x0 / pw * self.width, (ph-bbox.y1) / ph * self.height
+                x2, y2 = bbox.x1 / pw * self.width, (ph-bbox.y0) / ph * self.height
+            else:
+                x1, y1 = self.ax.transData.inverted().transform((bbox.x0, bbox.y1))
+                x2, y2 = self.ax.transData.inverted().transform((bbox.x1, bbox.y0))
             result.append(dict(meta, font_family=artist.get_fontfamily()[0],
                                bounds_mm=[float(x1), float(y1), float(x2-x1), float(y2-y1)]))
         self.ledger["texts"] = result
         return result
+
+    def physical_metrics(self):
+        """Measured smallest emitted text size and visible stroke, in points.
+
+        Page units are physical millimetres for native pages and for Letter
+        exports, so these are the sizes a reader sees at 100% print scale.
+        """
+        sizes = [float(t["font_pt"]) for t in self.ledger.get("texts", [])]
+        strokes = [width for _, width in stroke_artists(self.ax)]
+        transform = self.ledger.get("export_transform") or {}
+        return {"page_size_mm": [float(self.width), float(self.height)],
+                "export_scale": transform.get("scale", 1.0),
+                "text_items": len(sizes), "min_text_pt": min(sizes) if sizes else None,
+                "strokes": len(strokes), "min_stroke_pt": min(strokes) if strokes else None}
 
     def validate(self):
         texts = self.measure()

@@ -61,7 +61,7 @@ def test_fifty_seven_rows_fit_letter_at_unchanged_font_with_descenders_and_obser
     for total,effector in zip(headers[::2],headers[1::2]):
         assert effector['bounds_mm'][0]-(total['bounds_mm'][0]+total['bounds_mm'][2])>=2.5
     assert any('REB: REBASE' in t['text'] and 'DF: DefenseFinder' in t['text'] for t in page['texts'] if t['role']=='source_abbreviations')
-    assert '#eef1f3' in (tmp_path/'publication_page001.svg').read_text()
+    assert '#eef1f3' in (tmp_path/'publication_page001.svg').read_text(encoding='utf-8')
     # All numbers keep independent, common right-aligned column anchors.
     assert all(r['numeric_anchors']==rows[0]['numeric_anchors'] for r in rows)
 
