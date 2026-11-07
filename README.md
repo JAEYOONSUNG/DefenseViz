@@ -67,6 +67,11 @@ Automatic evaluation also reviews Type IV component architecture using bound Int
 
 DNMB curation is imported with its original source rows. Three rules based on PADLOC system definitions (BREX type III, DISARM type II and Hma) can move a retained R–M methylase into one of those systems when DNMB curation marks its R–M association as unproven and the complete system is present. The rules were written to reproduce four reviewed corrections in the 52-genome benchmark, so their agreement with that benchmark is not independent validation. They contain no sample- or locus-specific branches, do not cover other methylase-containing systems, and make no change when an export lacks the DNMB curation columns. Conflicting R–M evidence keeps the original assignment and records the conflict. Original tool calls and scores remain in the audit outputs.
 
+To copy and validate an existing database set in a new location, run
+`defenseviz prepare-resources --engine-config existing-engine.json --out validated-databases`,
+then use `validated-databases/engine.json`. The same command can prepare databases
+from authorized provider files; see [resource preparation](docs/resource-preparation.md).
+
 The full workflow requires Python, R and native search tools. Docker provides a shared runtime; a native installation is also supported. Databases are prepared separately under their distribution terms. See [resource preparation](docs/resource-preparation.md) for a new installation.
 
 ## Output

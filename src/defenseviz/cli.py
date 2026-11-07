@@ -28,6 +28,9 @@ def parser():
     resources = sub.add_parser('check-resources', help='Verify DNMB databases and runtime before a full analysis')
     resources.add_argument('--engine-config', type=Path, required=True)
     resources.add_argument('--out', type=Path, help='Save the resource verification report in a new directory')
+    setup = sub.add_parser('prepare-resources', help='Prepare and verify DNMB databases in a new directory')
+    from .resource_setup import add_arguments
+    add_arguments(setup)
     for name, help_text in [('from-suite', 'Import DNMBsuite result folders and export publication figures'),
                             ('inspect-suite', 'Validate and summarize saved DNMBsuite outputs without writing results')]:
         s = sub.add_parser(name, help=help_text)
@@ -59,6 +62,11 @@ def main(argv=None):
         if args.command == 'check-resources':
             from .resources import verify_resources
             print(json.dumps(verify_resources(args.engine_config, args.out), ensure_ascii=True, allow_nan=False))
+            return 0
+        if args.command == 'prepare-resources':
+            from .resource_setup import from_args
+            print(json.dumps(from_args(args, argv=['defenseviz', *(argv or sys.argv[1:])]),
+                             ensure_ascii=True, allow_nan=False))
             return 0
         if args.command == 'catalog':
             if args.out is not None:

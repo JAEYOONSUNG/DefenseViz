@@ -37,6 +37,9 @@ def main():
         python = bindir/('python.exe' if os.name=='nt' else 'python')
         run([python, '-m', 'pip', 'install', '--disable-pip-version-check', str(wheel) + '[suite]'], work)
         assert f'DefenseViz {version}' == run([python, '-m', 'defenseviz', 'version'], work).strip()
+        setup_help = run([python, '-m', 'defenseviz', 'prepare-resources', '--help'], work)
+        assert '--rebase-source' in setup_help and '--hmm-metadata' in setup_help
+        run([python, '-c', 'from defenseviz.resource_setup import prepare_resources; from defenseviz.hmm_preparation import prepare'], work)
         catalog = json.loads(run([python, '-m', 'defenseviz', 'catalog', 'Wadjet', '--out', work/'catalog'], work))
         assert catalog['row_counts']['wiki_systems'] > 0
         assert catalog['row_counts']['model_definitions'] > 0
