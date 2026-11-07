@@ -51,6 +51,33 @@ def ledger(path):
     return json.loads((path/"publication_layout.json").read_text(encoding="utf-8"))
 
 
+@pytest.mark.parametrize('style',['manuscript','compact'])
+def test_public_assignment_labels_preserve_saved_result_values(tmp_path,style):
+    data=fixture(samples=1,families=1)
+    before=copy.deepcopy(data)
+    render_publication(data,tmp_path,sections=['atlas'],atlas_style=style)
+    assert data==before
+    labels=[t['text'] for p in ledger(tmp_path)['pages'] for t in p['texts']]
+    assert any('assigned' in text.lower() for text in labels)
+    assert all('retained' not in text.lower() for text in labels)
+
+
+@pytest.mark.parametrize('numerator,denominator,status,expected',[
+    (4,9,'complete','4/9'),(0,0,'complete','0/0'),
+    (4,9,'partial','4/9'),(None,9,'unassessed','—')])
+def test_compact_assignment_fraction_prefers_explicit_assigned_scope(tmp_path,numerator,denominator,status,expected):
+    data=fixture(samples=1,families=1)
+    data['sample_summary'][0].update(retained_R_CDS=2,retained_RM_CDS=6,retained_ratio_status='complete',
+        assigned_R_CDS=numerator,assigned_RM_CDS=denominator,assigned_counts_status=status,
+        rm_source_counts=data['sample_summary'][0]['source_counts'])
+    before=copy.deepcopy(data)
+    render_publication(data,tmp_path,sections=['atlas'],atlas_style='compact')
+    assert data==before
+    values=[t['text'] for p in ledger(tmp_path)['pages'] for t in p['texts']
+            if (t.get('source_ref') or {}).get('field')=='retained_R_fraction']
+    assert values==[expected]
+
+
 def test_comparison_right_alignment_split_columns_and_source_order(tmp_path):
     data=fixture();before=copy.deepcopy(data)
     render_publication(data,tmp_path,sections=["comparison"])

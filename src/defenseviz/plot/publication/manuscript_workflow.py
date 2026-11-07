@@ -540,7 +540,7 @@ def draw_manuscript_workflow(c, result, config, bounds):
     text(84, 65, criterion("structure", "Structure evidence +", "/0", "Structure evidence (saved)"), 6.7, just="center")
     arrow([72, 44], [55, 55], name="rm_geometry_to_retention")
     a.funnel(32, 55)
-    text(32, 61, "Retained CDS", 7.5, True, "center")
+    text(32, 61, "Assigned CDS", 7.5, True, "center")
     text(32, 51.3, criterion("retain_cutoff", "Score >=", "", "Score (saved)"), 6.7, just="center")
     a.rect(8, 68, 156, 4, "#F1F3F4", "#A9B2B7", .5)
     text(10, 70, "Type IV candidates", 6.7, True)

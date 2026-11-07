@@ -418,7 +418,7 @@ def _headers(c,panels,groups,fpos,sources,refs,config,dy=0,plan=None,record=True
                 if typ!="IV":text(x+width/2,79.5,"CDS" if kind=="role" else "Groups",7.3,ha="center")
                 x+=width
     pp=p["Retained_summary"]
-    for yy,label,bold,size in ((76.4,"Retained",True,9.24),(80.6,"CDS",True,9.24),(84.9,"(R/total)",False,9.6)):
+    for yy,label,bold,size in ((76.4,"Assigned",True,9.24),(80.6,"CDS",True,9.24),(84.9,"(R/total)",False,9.6)):
         text((pp["left"]+pp["right"])/2,yy,label,size,bold=bold,ha="center")
     pp=p["NonRM_callers"]
     text((pp["left"]+pp["right"])/2,76,"Non-canonical",9.24,bold=True,ha="center")
@@ -657,6 +657,10 @@ def manuscript_atlas_pages(result,fonts,config,page_factory):
         fractions["intersection"]["width_mm"],
         fonts.width("Intersection",9.24,True)-2*GAP+.4,
         fonts.width("(n/R-M pool)",9.6)-2*GAP+.4)
+    # Keep the Assigned heading clear of IV with wider fallback fonts.
+    fractions["retained"]["width_mm"] = max(
+        fractions["retained"]["width_mm"],
+        fonts.width("Assigned",9.24,True)+fonts.width("IV",8.8,True)-2*CELL-2*GAP+.8)
     family_pages=[];block=[]
     maxwidth=config["atlas_page_size"][0]
     for f in families:

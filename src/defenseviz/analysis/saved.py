@@ -62,7 +62,7 @@ def _keys(values):
 
 
 def _role(v):
-    return "Aux" if v == "A" else v
+    return {"A": "Aux", "R_component": "R"}.get(v, v)
 
 
 def _type(v):
@@ -939,6 +939,7 @@ def analyze_saved(data):
         r = dict(sample_id=k[0],gene_id=k[1],protein_sha256=genes[k].get("protein_sha256"),
             native_member=k in native,retained=k in retained,reviewed_annotation_member=k in reviewed,
             final_RM=k in final_rm,restriction_role=k in R,support_qualified_restriction_role=k in support_qualified_R,
+            rm_assignments=[dict(rm_type=typ, role=role) for typ, role in sorted(assignments[k], key=lambda v: (v[0], v[1] or ""))],
             priority_support_qualified=k in support_qualified_P,
             policy_R_component_support=saved.get(k, {}).get("integrated_R_component_support"),individual_effector=k in individual,
             complex_core=k in cores,effector=k in E,motif_site_supported=k in site,motif_grades=site_grades[k],
@@ -1028,6 +1029,11 @@ def analyze_saved(data):
                 not any(role in {"R","M","S","RM","Aux","A","C","F"} for _,role in assignments[k])
                 for k in retained_members & final_rm):
             current_retained_r_state = "partial"
+        assigned_state = current_retained_rm_state
+        if assigned_state == "complete" and any(
+                not any(role in {"R", "M", "S", "RM", "Aux", "A", "C", "F"} for _, role in assignments[k])
+                for k in st & final_rm):
+            assigned_state = "partial"
         # These are original-source R-M endpoints, unlike the native-only
         # inventory/type pool. Reference coverage and saved candidate records
         # both participate, and assessment belongs to this sample alone.
@@ -1054,6 +1060,11 @@ def analyze_saved(data):
             native_rm_coverage.get((sid, source), "missing") for source in native_intersection_sources)
         sample_summary.append(dict(sample_id=sid, integrated_CDS=len(st), native_union_CDS=len(st&native),
             retained_CDS=len(st&retained), reviewed_CDS=len(st&reviewed), rm_CDS=len(st&final_rm),
+            assigned_RM_CDS=len(st&final_rm), assigned_R_CDS=len(st&R&final_rm),
+            assigned_counts_status=assigned_state,
+            assigned_RM_counts_status=current_retained_rm_state,
+            assigned_R_counts_status=assigned_state,
+            assigned_count_scope="current_policy_selected_or_reviewed_RM_components",
             retained_counts_status=retained_state,retained_RM_counts_status=retained_rm_state,
             retained_R_counts_status=retained_r_state,retained_ratio_status=_status([retained_rm_state,retained_r_state]),
             current_retained_counts_status=current_retained_state,

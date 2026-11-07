@@ -94,3 +94,42 @@ def test_type_label_spacing_uses_actual_renderer_advance():
     a,b=[Text.get_window_extent(artist,renderer) for artist,_ in c.text_artists]
     assert (b.x0-a.x1)*25.4/c.fig.dpi>=1.1
     c.fig.clear()
+
+
+@pytest.mark.parametrize('metadata_kind',['taxon_strain','label_runs'])
+def test_wrapped_type_heading_preserves_explicit_styles_and_literal_text(tmp_path,metadata_kind):
+    data=fixture(samples=1,families=1)
+    taxon='Exemplobacterium α-example subsp. synthetica'
+    strain='isolate $literal_{β}$ laboratory collection ' + 'ACCESSION0123456789'*8
+    display=({'taxon_label':taxon,'strain_label':strain} if metadata_kind=='taxon_strain' else
+             {'label_runs':[{'text':taxon,'italic':True},{'text':strain,'italic':False}]})
+    data['samples'][0].update(label=taxon+' '+strain,display=display)
+    before=copy.deepcopy(data)
+    render_publication(data,tmp_path,sections=['type_benchmarks'])
+    assert data==before
+    page=_pages(tmp_path)[0]
+    parts=[t for t in page['texts'] if t['role']=='type_sample_label']
+    assert len({t['source_ref']['line'] for t in parts})>1
+    literal=lambda text:''.join(text.split())
+    assert literal(''.join(t['text'] for t in parts if t['italic']))==literal(taxon)
+    assert literal(''.join(t['text'] for t in parts if not t['italic']))==literal(strain)
+    assert all(t['font_pt']==9 and t['bold'] for t in parts)
+    assert not page['validation']['errors']
+    # Source values and numeric type rows are independent of label wrapping.
+    observed=[(c['rm_type'],c['field'],c['value']) for c in page['cells'] if c['kind']=='type_cell']
+    expected=[(r['rm_type'],field,r['source_counts'][field] if field in r['source_counts'] else
+               r['unique_CDS'] if field=='DNMB' else r['rm_type'] if field=='Type' else r[field])
+              for r in before['type_tables'] for field in ['Type','DefenseFinder','PADLOC','DefensePredictor','DNMB','R','M','S','A']]
+    assert observed==expected
+
+
+def test_mismatched_type_display_metadata_does_not_relabel_or_infer_styles(tmp_path):
+    data=fixture(samples=1,families=1)
+    label='Literal recorded organism with a long independent strain designation '*3
+    data['samples'][0].update(label=label.strip(),display={'taxon_label':'Unrelated species','strain_label':'Different isolate'})
+    render_publication(data,tmp_path,sections=['type_benchmarks'])
+    page=_pages(tmp_path)[0]
+    assert not [t for t in page['texts'] if t['role']=='type_sample_label']
+    matched=[t for t in page['texts'] if ''.join(t['text'].split())==''.join(label.split())]
+    assert len(matched)==1 and not matched[0]['italic'] and matched[0]['font_pt']==9
+    assert not page['validation']['errors']

@@ -234,6 +234,14 @@ def _fallback(result):
             retained_total_status = s.get("current_retained_RM_counts_status",s.get("retained_RM_counts_status",s.get("retained_ratio_status","unassessed")))
         if retained_total is None:
             retained_total_status = "unassessed"
+        assigned = "assigned_RM_CDS" in s
+        if assigned:
+            retained_total = s["assigned_RM_CDS"]
+            retained_scope = s.get("assigned_count_scope", "current_RM_assignments")
+            retained_total_status = s.get("assigned_RM_counts_status", s.get("assigned_counts_status", "unassessed"))
+        displayed_r = s.get("assigned_R_CDS") if assigned else s.get("retained_R_CDS")
+        displayed_r_status = (s.get("assigned_R_counts_status", s.get("assigned_counts_status", "unassessed")) if assigned else
+            s.get("current_retained_R_counts_status",s.get("retained_R_counts_status",s.get("retained_ratio_status","unassessed"))))
         native_export_sources = s.get("rm_native_intersection_sources")
         compatible_native = (not mixed and isinstance(native_export_sources, list)
                              and len(native_export_sources) == len(source_order)
@@ -253,11 +261,11 @@ def _fallback(result):
                 intersection_count_status=numerator_status, intersection_status=fraction_status, intersection_sources=source_order),
             rm_roles={}, compositions={name:dict(count=0,status="unassessed",R_support_all=None,R_support_status="unassessed",
                 reference_any=None,reference_status="unassessed",group_ids=[],member_keys=[]) for name in _CLASSES},
-            retained=dict(R_CDS=s.get("retained_R_CDS"),total_CDS=retained_total,total_scope=retained_scope,
-                R_status=s.get("current_retained_R_counts_status",s.get("retained_R_counts_status",s.get("retained_ratio_status","unassessed"))) if s.get("retained_R_CDS") is not None else "unassessed",
+            retained=dict(R_CDS=displayed_r,total_CDS=retained_total,total_scope=retained_scope,
+                R_status=displayed_r_status if displayed_r is not None else "unassessed",
                 total_status=retained_total_status,
-                status=s.get("current_retained_ratio_status",s.get("retained_ratio_status","unassessed")) if retained_total is not None and s.get("retained_R_CDS") is not None else "unassessed",
-                scope=s.get("current_retention_scope",retained_scope)),
+                status=_state([displayed_r_status,retained_total_status]) if retained_total is not None and displayed_r is not None else "unassessed",
+                scope=retained_scope if assigned else s.get("current_retention_scope",retained_scope)),
             noncanonical=dict(source_counts={p:None if p in mixed else s.get("noncanonical_source_counts",{}).get(p) for p in source_order},
                 source_status={p:"unassessed" if p in mixed else s.get("noncanonical_source_count_status",{}).get(p,"unassessed") for p in source_order},
                 pool_CDS=s.get("noncanonical_CDS",0),pool_status="unassessed",masks=[],intersection_CDS=None,intersection_status="unassessed"),
@@ -534,14 +542,14 @@ def enrich_manuscript_model(bundle, result):
             typ="Type "+code; table=type_rows.get((sid,typ),{})
             for name in names:
                 role="Aux" if name=="A" else name
-                ks={k for k,aa in assignments.items() if k[0]==sid and (code=="IV" or k in retained) and any(t==typ and (v==role or v=="RM" and role in {"R","M"}) for t,v in aa)}
+                ks={k for k,aa in assignments.items() if k[0]==sid and any(t==typ and (v==role or v=="RM" and role in {"R","M"}) for t,v in aa)}
                 status=(table.get("role_states",{}).get(name,"unassessed") if code=="IV" else
-                        _retained_role_status(sid,typ,retained,assignments,saved_status))
+                        _retained_role_status(sid,typ,retained | {k for k,aa in assignments.items() if aa},assignments,saved_status))
                 states=[role_evidence.get(k,"unassessed") for k in ks]
                 evidence_status=_badge(states,"all")[1] if name=="R" and code!="IV" else "not_applicable"
                 if name=="R" and code!="IV" and not ks and status=="complete":evidence_status="complete"
                 rm_roles[code+"_"+name]=dict(count=len(ks),status=status,member_keys=_keys(ks),support_count=sum(x=="supported" for x in states),support_status=evidence_status,
-                    status_scope="saved_retained_or_reviewed_TypeIV_roles" if code=="IV" else "saved_retained_roles")
+                    status_scope="saved_retained_or_reviewed_roles")
         comps={}
         for cls in _CLASSES:
             gs=[g for g in group_rows if g["sample_id"]==sid and g["composition_class"]==cls and g["current_composition"]]
@@ -583,11 +591,11 @@ def enrich_manuscript_model(bundle, result):
         display["absence_family_ids"]=[f for f in absence_families if f in cells[sid] and cells[sid][f]["N"]==0 and cells[sid][f].get("counts_status")=="complete"]
         display["absence_label"]=config.get("absence_label","Observed absence")
         rows.append(dict(sample,display=display,rm_original=rm_original,rm_roles=rm_roles,compositions=comps,
-            retained=dict(R_CDS=summary["retained_R_CDS"],total_CDS=summary["retained_CDS"],
-                R_status=summary.get("current_retained_R_counts_status",summary.get("retained_R_counts_status","unassessed")),
-                total_status=summary.get("current_retained_counts_status",summary.get("retained_counts_status","unassessed")),
-                status=summary.get("current_retained_ratio_status",summary.get("retained_ratio_status","unassessed")),
-                scope=summary.get("current_retention_scope","native saved candidate assessment")),
+            retained=dict(R_CDS=summary.get("assigned_R_CDS",summary["retained_R_CDS"]),total_CDS=summary.get("assigned_RM_CDS",summary["retained_CDS"]),
+                R_status=summary.get("assigned_R_counts_status",summary.get("assigned_counts_status",summary.get("current_retained_R_counts_status",summary.get("retained_R_counts_status","unassessed")))),
+                total_status=summary.get("assigned_RM_counts_status",summary.get("assigned_counts_status",summary.get("current_retained_counts_status",summary.get("retained_counts_status","unassessed")))),
+                status=summary.get("assigned_counts_status",summary.get("current_retained_ratio_status",summary.get("retained_ratio_status","unassessed"))),
+                scope=summary.get("assigned_count_scope",summary.get("current_retention_scope","native saved candidate assessment"))),
             noncanonical=noncanonical_row,cells=cells[sid]))
     families=[deepcopy(f)for f in result.get("inventory_rows",{}).get("families",[])if f.get("category")!="R-M" and (f.get("N",0)>0 or f.get("counts_status")!="complete")]
     model=dict(schema_version="manuscript-atlas-v1",samples=samples,taxonomy_legend=_taxonomy(samples,config),absence_label=config.get("absence_label","saved family"),source_order=list(order),reference_sources=reference_order,

@@ -145,6 +145,12 @@ def prepare_suite(root, *, manifest=None, supplement=None, rm_evidence=None, rsc
         from .automatic import refresh_decision_audit
         data = refresh_decision_audit(data)
         data["automatic_evaluation"] = True
+    if data.get("automatic_evaluation"):
+        # Fresh HMM nominations can extend the initial imported domain scope.
+        from .io.suite import attach_system_review_annotations
+        from .automatic_typeiv import apply_typeiv_component_review
+        data = attach_system_review_annotations(data, root, strict_inputs=strict_inputs)
+        data = apply_typeiv_component_review(data)
     data["evaluation_execution"] = {
         "requested_mode": evaluation,
         "rm_mode": "full_native_execution" if full_run else "explicit_complete_evidence" if rm_evidence is not None else "automatic" if evaluation == "auto" else "stored_replay",
@@ -163,6 +169,8 @@ def analyze_suite(data):
     if data.get("automatic_evaluation"):
         from .automatic_systems_output import apply_system_review
         data, result = apply_system_review(data, result)
+    if data.get("automatic_typeiv_review") is not None:
+        result["automatic_typeiv_review"] = deepcopy(data["automatic_typeiv_review"])
     return data, result
 
 
@@ -249,10 +257,16 @@ def run_suite(root, output_dir, *, manifest=None, supplement=None, rm_evidence=N
         write_json(stage / "analysis.json", analysis_export)
         review = analysis_export["system_review"]
         write_json(stage / "system_review.json", review)
+        if "automatic_typeiv_review" in analysis_export:
+            typeiv_review = analysis_export["automatic_typeiv_review"]
+            write_json(stage / "typeiv_component_review.json", typeiv_review)
         if "rm_evaluation" in native_export:
             write_json(stage / "rm_evaluation.json", native_export["rm_evaluation"])
         table_dir = stage / "tables"
         table_dir.mkdir()
+        if "automatic_typeiv_review" in analysis_export:
+            _write_table(table_dir / "typeiv_component_review.tsv", typeiv_review["records"],
+                         ("sample_id", "gene_id", "status"))
         if "automatic_system_review" in analysis_export:
             automatic_review = analysis_export["automatic_system_review"]
             write_json(stage / "automatic_system_review.json", automatic_review)

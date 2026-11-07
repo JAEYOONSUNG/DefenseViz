@@ -55,6 +55,8 @@ The input can be one genome's result folder or a parent containing nested per-ge
 
 Full mode runs DNMB R–M HMM and REBASE searches with the configured tools and databases. DefenseFinder, PADLOC and DefensePredictor calls are imported from the existing results. Use `--evaluation stored` to replay saved DNMB decisions. The default `auto` mode uses a configured engine when available and otherwise evaluates stored evidence.
 
+Automatic evaluation also reviews Type IV component architecture using bound InterProScan domains and qualifying reference or native-system evidence. Supported components enter the assigned R–M list; the numerical retention decisions remain available separately. An auxiliary component receives no nuclease-effector credit from this review.
+
 The full workflow requires Python, R and native search tools. Docker provides a shared runtime; a native installation is also supported. Databases are prepared separately under their distribution terms. See [resource preparation](docs/resource-preparation.md) for a new installation.
 
 ## Output
@@ -65,11 +67,13 @@ Paths below are relative to the output directory.
 |---|---|
 | `tables/defense_annotations.xlsx` | Classified CDSs, R–M assignments, priorities and summaries |
 | `tables/classified_CDSs.tsv` | Integrated annotation list |
+| `tables/assigned_RM_annotations.tsv` | Policy-selected and reviewed R–M components used in assignment figures |
 | `tables/retained_RM_annotations.tsv` | R–M CDSs selected by the evidence policy |
 | `tables/prioritized_annotations.tsv` | Prioritized restriction-role and effector annotations |
 | `figures/publication.pdf` | Combined figure set |
 | `figures/publication_page*.svg` / `*.png` | Editable pages and previews |
 | `analysis.json`, `system_review.json`, `receipt.json` | Counts, evidence review and execution provenance |
+| `typeiv_component_review.json` | Automatic Type IV component decisions and their source evidence |
 
 Figures summarize CDS annotations. An assignment does not establish an active or complete defense system. Missing evidence remains distinct from a completed zero result. See [figure semantics](docs/figures.md) and the [saved-result contract](docs/SUITE_CONTRACT.md).
 

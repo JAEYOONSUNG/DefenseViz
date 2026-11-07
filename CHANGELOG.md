@@ -3,6 +3,9 @@
 ## 1.0.0
 
 - Set the Python package, CLI and execution receipt version to 1.0.0.
+- Connect Type IV component review to automatic DNMBsuite evaluation using sequence-bound domain architectures and corroborating reference or native-system evidence; retain the existing numerical policy decisions.
+- Export assigned R–M components separately from policy-retained CDSs and use the assigned counts in figure summaries.
+- Preserve taxon italics and strain typography in wrapped headings, and prevent heading collisions with wider fallback fonts.
 - Preserve the earlier development records below under their original version numbers.
 
 ## Previous development snapshots

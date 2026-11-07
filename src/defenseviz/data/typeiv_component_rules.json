@@ -1,0 +1,125 @@
+{
+  "rules": [
+    {
+      "id": "McrB_architecture",
+      "all_pfams": [
+        "PF12102",
+        "PF07728"
+      ],
+      "ordered": true,
+      "role": "Aux",
+      "annotation": "McrB-like recognition/GTPase component",
+      "required_partner": "McrC",
+      "source_urls": [
+        "https://pmc.ncbi.nlm.nih.gov/articles/PMC6624300/"
+      ],
+      "family": "McrB"
+    },
+    {
+      "id": "McrC_domain",
+      "all_pfams": [
+        "PF10117"
+      ],
+      "ordered": false,
+      "role": "R_component",
+      "annotation": "McrC-like nuclease component",
+      "required_partner": "McrB",
+      "source_urls": [
+        "https://pmc.ncbi.nlm.nih.gov/articles/PMC6624300/",
+        "https://www.rcsb.org/annotations/6HZ5"
+      ],
+      "family": "McrC"
+    },
+    {
+      "id": "Mrr_domain",
+      "all_pfams": [
+        "PF04471"
+      ],
+      "ordered": false,
+      "role": "R_component",
+      "annotation": "Mrr-family nuclease-domain annotation",
+      "required_partner": null,
+      "source_urls": [
+        "https://academic.oup.com/nar/article/42/6/3908/2437427",
+        "https://www.uniprot.org/uniprotkb/P24202/entry"
+      ],
+      "family": "Mrr"
+    },
+    {
+      "id": "GmrSD_fused_architecture",
+      "all_pfams": [
+        "PF03235",
+        "PF07510"
+      ],
+      "ordered": true,
+      "role": "R_component",
+      "annotation": "Fused GmrSD-like nuclease-containing architecture",
+      "required_partner": "GmrS and GmrD domains in same protein; tested activity not inferred",
+      "source_urls": [
+        "https://pmc.ncbi.nlm.nih.gov/articles/PMC4619093/",
+        "https://pubmed.ncbi.nlm.nih.gov/17188297/"
+      ],
+      "family": "GmrSD"
+    },
+    {
+      "id": "McrC_like_DUF2357_PDDEXK",
+      "all_pfams": [
+        "PF09823",
+        "PF04411"
+      ],
+      "ordered": true,
+      "role": "R_component",
+      "family": "McrC",
+      "source_urls": [
+        "https://elifesciences.org/articles/94800"
+      ]
+    },
+    {
+      "id": "McrB_family_motor_variable_recognition_domain",
+      "all_pfams": [
+        "PF07728"
+      ],
+      "panther_family": "PTHR37291",
+      "ordered": false,
+      "role": "Aux",
+      "family": "McrB",
+      "requires_full_reference": true,
+      "source_urls": [
+        "https://elifesciences.org/articles/94800",
+        "https://doi.org/10.1038/s41467-020-19735-4"
+      ]
+    },
+    {
+      "id": "PLD_SF2_TypeIV_associated_architecture",
+      "all_pfams": [
+        "PF13091",
+        "PF04851",
+        "PF00271"
+      ],
+      "ordered": true,
+      "role": "R_component",
+      "family": "PLD_SF2",
+      "requires_full_reference": true,
+      "source_urls": [
+        "https://pmc.ncbi.nlm.nih.gov/articles/PMC7913695/"
+      ]
+    },
+    {
+      "id": "HNH_native_TypeIV_associated_component",
+      "all_pfams": [
+        "PF01844"
+      ],
+      "ordered": false,
+      "role": "R_component",
+      "family": "HNH_TypeIV",
+      "requires_native_TypeIV": true,
+      "source_urls": [
+        "https://pmc.ncbi.nlm.nih.gov/articles/PMC6182155/",
+        "https://pmc.ncbi.nlm.nih.gov/articles/PMC6212794/"
+      ],
+      "requires_native_domain_span": true
+    }
+  ],
+  "scope": "Component annotation only; no activity, intact complex or substrate inference",
+  "threshold_fitted_to_cohort": false
+}

@@ -16,7 +16,7 @@ def workflow(c, result, config, y=19):
     c.text(8.45,y,"a  Saved evidence and DNMB prioritization",10,bold=True)
     availability=result.get("availability",{})
     stages=[("Source annotations","Original final calls and reference matches", "Saved outputs"),
-            ("Saved DNMB decisions","Retained annotations and explicit reviewed components",availability.get("saved_decisions","unassessed")),
+            ("Saved DNMB decisions","Assigned annotations and explicit reviewed components",availability.get("saved_decisions","unassessed")),
             ("Effector evidence","Individual effectors and reviewed complex cores",availability.get("effector","unassessed")),
             ("Review priorities","R annotations + effector CDSs; activity untested", "Annotation-based")]
     gap=5.;w=(c.width-16.9-3*gap)/4
@@ -113,7 +113,7 @@ def atlas_pages(result,fonts,config,page_factory):
         descriptors += [{"key":"rm_source_counts","source":source,"label":alias(source,config),"group":"Original R-M","width":8.} for source in allsources]
         descriptors += [{"key":"rm_pool_CDS","label":"Pool","group":"R-M evidence","width":10.},
                         {"key":"rm_intersection_CDS","label":"Shared","group":"R-M evidence","width":11.},
-                        {"key":"retained_R_fraction","label":"R / total","group":"DNMB retained","width":14.}]
+                        {"key":"retained_R_fraction","label":"R / total","group":"DNMB assigned","width":14.}]
         if any("complete_saved_contexts" in r for r in samplemap.values()):
             descriptors.append({"key":"complete_saved_contexts","label":"Complete","group":"Saved contexts","width":14.})
     else:
@@ -235,10 +235,15 @@ def atlas_pages(result,fonts,config,page_factory):
                             statusfield=field.replace("counts","count_status")
                             state=summary.get(statusfield,summary.get("source_count_status",{})).get(d["source"])
                         elif field=="retained_R_fraction":
-                            numerator=summary.get("retained_R_CDS");denominator=summary.get("retained_RM_CDS")
-                            state=summary.get("retained_ratio_status")
-                            value=(number(numerator,summary.get("retained_R_counts_status",state))+"/"+
-                                   number(denominator,summary.get("retained_RM_counts_status",state))) if numerator is not None and denominator is not None and status_kind(state)!="unassessed" else "—"
+                            if "assigned_RM_CDS" in summary or "assigned_R_CDS" in summary:
+                                numerator=summary.get("assigned_R_CDS");denominator=summary.get("assigned_RM_CDS")
+                                state=summary.get("assigned_counts_status");numerator_state=denominator_state=state
+                            else:
+                                numerator=summary.get("retained_R_CDS");denominator=summary.get("retained_RM_CDS")
+                                state=summary.get("retained_ratio_status")
+                                numerator_state=summary.get("retained_R_counts_status",state)
+                                denominator_state=summary.get("retained_RM_counts_status",state)
+                            value=(number(numerator,numerator_state)+"/"+number(denominator,denominator_state)) if numerator is not None and denominator is not None and status_kind(state)!="unassessed" else "—"
                         elif field in ("rm_pool_CDS","rm_intersection_CDS"):
                             value=summary.get(field)
                             state=summary.get("rm_pool_status" if field=="rm_pool_CDS" else "rm_intersection_status")
@@ -289,42 +294,79 @@ def _type_display(r,field):
     return display,value,state,subset
 
 
-def _type_case_label(c, x, y, width, height, sample, wrapped):
-    """Honor explicit taxon/strain typography without guessing from a name."""
+def _type_case_label_layout(fonts, width, sample):
+    """Wrap explicitly styled runs at their measured width without changing text."""
     display=sample.get("display",{})
     runs=display.get("label_runs")
     if runs is None and display.get("taxon_label"):
         runs=[{"text":display["taxon_label"],"italic":True}]
         if display.get("strain_label"):runs.append({"text":display["strain_label"],"italic":False})
-    if (isinstance(runs,list) and runs and "\n" not in wrapped
-            and all(isinstance(r,dict) and isinstance(r.get("text"),str) for r in runs)
-            and " ".join(r["text"] for r in runs)==wrapped):
-        from matplotlib.font_manager import FontProperties, findfont
-        from .manuscript_text import MM_PER_POINT, _literal_path, draw_manuscript_text
-        # Reserve a visible word gap between independently drawn font faces.
-        # Include italic overhang and the actual raster renderer's advances:
-        # at small sizes, hinted Arial text can be wider than unhinted paths.
-        spans=[]
-        renderer=c.fig.canvas.get_renderer()
-        for r in runs:
-            prop=FontProperties(family=c.fonts.pick(r["text"],True),size=9,
-                weight="bold",style="italic" if r.get("italic") else "normal")
-            path=_literal_path(findfont(prop,fallback_to_default=False),r["text"])
-            if path is None:break
-            box=path.get_extents();factor=9*MM_PER_POINT/100
-            advance=renderer.get_text_width_height_descent(r["text"],prop,False)[0]*25.4/c.fig.dpi
-            left=min(0.,box.x0*factor);right=max(box.x1*factor,advance)
-            spans.append((left,right-left))
-        gap=max(1.2,c.fonts.width(" ",9,True)+.35)
-        total=sum(w for _,w in spans)+gap*(len(runs)-1)
-        if len(spans)==len(runs) and total<=width-4:
+    if not (isinstance(runs,list) and runs
+            and all(isinstance(r,dict) and isinstance(r.get("text"),str) and r["text"].strip()
+                    and "\n" not in r["text"] and "\r" not in r["text"] for r in runs)
+            and " ".join(r["text"] for r in runs)==sample.get("label",sample["sample_id"])):
+        return None
+    from matplotlib.backends.backend_agg import RendererAgg
+    from matplotlib.font_manager import FontProperties, findfont
+    from .manuscript_text import MM_PER_POINT, _literal_path
+    renderer=RendererAgg(1,1,150)
+    gap=max(1.2,fonts.width(" ",9,True)+.35)
+    cache={}
+    def segments(chars):
+        chunks=[]
+        for char,italic in chars:
+            if chunks and chunks[-1]["italic"]==italic:chunks[-1]["text"]+=char
+            else:chunks.append({"text":char,"italic":italic})
+        measured=[]
+        for chunk in chunks:
+            text=chunk["text"].strip()
+            if not text:continue
+            key=text,chunk["italic"]
+            if key not in cache:
+                prop=FontProperties(family=fonts.pick(text,True),size=9,weight="bold",
+                    style="italic" if chunk["italic"] else "normal")
+                path=_literal_path(findfont(prop,fallback_to_default=False),text)
+                factor=9*MM_PER_POINT/100
+                advance=renderer.get_text_width_height_descent(text,prop,False)[0]*25.4/150
+                box=path.get_extents() if path is not None else None
+                left=min(0.,box.x0*factor) if box is not None else 0.
+                right=max(box.x1*factor,advance) if box is not None else advance
+                cache[key]=(left,right-left)
+            bearing,span=cache[key]
+            measured.append(dict(text=text,italic=chunk["italic"],bearing=bearing,width=span))
+        return measured,sum(r["width"] for r in measured)+gap*max(0,len(measured)-1)
+    chars=[]
+    for i,run in enumerate(runs):
+        if i:chars.append((" ",bool(runs[i-1].get("italic"))))
+        chars.extend((char,bool(run.get("italic"))) for char in run["text"])
+    lines=[];line=[]
+    for char in chars:
+        if line and segments(line+[char])[1]>width-4:
+            cut=next((i for i in range(len(line)-1,0,-1) if line[i][0].isspace()),-1)
+            if cut>0:
+                lines.append(segments(line[:cut]));line=line[cut+1:]+[char]
+            else:
+                lines.append(segments(line));line=[char]
+        else:line.append(char)
+    if line:lines.append(segments(line))
+    line_height=max(fonts.height(" ".join(r["text"] for r in parts),9,True) for parts,_ in lines)
+    return dict(lines=lines,gap=gap,line_step=line_height*1.12,height=len(lines)*line_height*1.12+2)
+
+
+def _type_case_label(c, x, y, width, height, sample, wrapped, styled=None):
+    """Honor explicit taxon/strain typography without guessing from a name."""
+    styled=_type_case_label_layout(c.fonts,width,sample) if styled is None else styled
+    if styled is not None and styled["height"]<=height:
+        from .manuscript_text import draw_manuscript_text
+        first=y+height/2-(len(styled["lines"])-1)*styled["line_step"]/2
+        for i,(runs,total) in enumerate(styled["lines"]):
             cursor=x+(width-total)/2
-            for r,(bearing,w) in zip(runs,spans):
-                draw_manuscript_text(c,cursor-bearing,y+height/2,r["text"],9,bold=True,
-                    italic=bool(r.get("italic")),owner=[x,y,width,height],
-                    role="type_sample_label",ref={"sample_id":sample["sample_id"]})
-                cursor+=w+gap
-            return
+            for run in runs:
+                draw_manuscript_text(c,cursor-run["bearing"],first+i*styled["line_step"],run["text"],9,
+                    bold=True,italic=run["italic"],owner=[x,y,width,height],role="type_sample_label",
+                    ref={"sample_id":sample["sample_id"],"line":i})
+                cursor+=run["width"]+styled["gap"]
+        return
     c.text(x+width/2,y+height/2,wrapped,9,bold=True,ha="center",owner=[x,y,width,height])
 
 
@@ -348,7 +390,9 @@ def type_pages(result,fonts,config,page_factory):
             width=max(215.9,len(cases)*casew+(len(cases)-1)*gap+16.9)
             maxrows=max(sum(r["sample_id"]==sid for r in rows) for sid in cases)
             labels={sid:fonts.wrap(samples[sid].get("label",sid),casew-4,9,True) for sid in cases}
-            strainh=max(7,max(fonts.height(label,9,True)+2 for label in labels.values()))
+            styled={sid:_type_case_label_layout(fonts,casew,samples[sid]) for sid in cases}
+            strainh=max(7,max(styled[sid]["height"] if styled[sid] is not None else fonts.height(label,9,True)+2
+                              for sid,label in labels.items()))
             bodytop=23+strainh+4+6
             height=max(85,bodytop+maxrows*6+20)
             c=page_factory(width,height,"type_benchmark")
@@ -360,7 +404,7 @@ def type_pages(result,fonts,config,page_factory):
                 case=samples[sid];rr=[r for r in rows if r["sample_id"]==sid]
                 x=8.45+ci*(casew+gap)
                 c.rect(x,23,casew,strainh,"#F3EFE4" if case.get("cohort") in ("external","external_validation") else "#F8E9EF")
-                _type_case_label(c,x,23,casew,strainh,case,labels[sid])
+                _type_case_label(c,x,23,casew,strainh,case,labels[sid],styled[sid])
                 rolesw=sum(widths[f] for f in ("R","M","S","A"));groupy=23+strainh
                 c.rect(x,groupy,casew-rolesw,4,"#F1F4F5");c.rect(x+casew-rolesw,groupy,rolesw,4,"#E4E8EB")
                 c.text(x+(casew-rolesw)/2,groupy+2,"Shared-pool CDSs",8,bold=True,ha="center")

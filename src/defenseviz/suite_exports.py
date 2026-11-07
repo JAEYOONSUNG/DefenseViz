@@ -12,7 +12,8 @@ CDS_COLUMNS = (
     "sample_id", "sample_label", "gene_id", "gene_symbol", "protein_id", "product",
     "annotation_description", "domain_annotations", "contig", "start", "end", "strand",
     "protein_length", "family_ids", "categories", "selected_sources", "native_types",
-    "native_roles", "rm_type", "rm_role", "retention_state", "rm_score", "rm_score_min",
+    "native_roles", "assigned_RM", "assigned_rm_type", "assigned_rm_role",
+    "rm_type", "rm_role", "retention_state", "rm_score", "rm_score_min",
     "rm_score_max", "rm_decision_reason", "integrated_CDS", "retained_RM", "R_subunit",
     "effector_CDS", "associated_CDS", "priority_CDS", "priority_support_qualified",
     "policy_R_component_support", "effector_status", "associated_status", "motif_status",
@@ -98,6 +99,38 @@ def _make_cds_rows(data, result):
         for key in row.get("member_keys", []):
             categories[tuple(key)].append(row.get("label", row["id"]))
     retained = {k for k, row in saved.items() if row.get("state") == "retained"}
+    assignments = defaultdict(set)
+    if all("rm_assignments" in row for row in ledger.values()):
+        for key, record in ledger.items():
+            for assignment in record["rm_assignments"]:
+                if assignment.get("rm_type") in {"Type I", "Type II", "Type III", "Type IV"}:
+                    assignments[key].add((assignment["rm_type"], assignment.get("role")))
+    elif "rm_components" in result:
+        for component in result["rm_components"]:
+            if component.get("rm_type") not in {"Type I", "Type II", "Type III", "Type IV"}:
+                continue
+            for member in component.get("member_keys", []):
+                assignments[tuple(member)].add((component["rm_type"], component["role"]))
+    else:
+        # Older normalized exports lack the component ledger. Use only their
+        # explicit selected or reviewed assignments, never native family names.
+        from .analysis.saved import SUPPORTED, _type, _role
+        for key in retained:
+            record = saved[key]
+            typ = _type(record.get("rm_type") or record.get("family"))
+            if typ != "Unresolved":
+                assignments[key].add((typ, _role(record.get("role"))))
+        for record in data.get("annotations", []):
+            if record.get("status") in SUPPORTED and record.get("assignment_kind") == "reviewed_RM_component":
+                key = _key(record)
+                typ = _type(record.get("rm_type") or record.get("family"))
+                if (key in ledger and typ != "Unresolved" and record.get("source_refs")
+                        and record.get("protein_sha256") == genes.get(key, {}).get("protein_sha256")
+                        and record.get("protein_sha256")):
+                    assignments[key].add((typ, "R" if record.get("role") == "R_component" else _role(record.get("role"))))
+    assigned = set(assignments)
+    if not assigned <= ledger.keys():
+        raise ValueError("Assigned R-M identities are absent from the integrated CDS ledger")
     needed = set(ledger) | set(saved) | set(priorities)
     missing = needed - genes.keys()
     if missing:
@@ -109,6 +142,8 @@ def _make_cds_rows(data, result):
             raise ValueError(f"Retained decision and CDS ledger disagree: {key!r}")
         if "priority" in row and bool(row["priority"]) != (key in priorities):
             raise ValueError(f"Priority list and CDS ledger disagree: {key!r}")
+        if "final_RM" in row and bool(row["final_RM"]) != (key in assigned):
+            raise ValueError(f"Assigned R-M component and CDS ledgers disagree: {key!r}")
     made = {}
     for key in sorted(needed):
         gene, decision, entry = genes[key], saved.get(key, {}), ledger.get(key, {})
@@ -134,6 +169,9 @@ def _make_cds_rows(data, result):
             "selected_sources": _text([n for n, included in membership.items() if included]),
             "native_types": _text(f"{c.get('caller', 'source')}: {c.get('rm_type')}" for c in selected if c.get("rm_type")),
             "native_roles": _text(f"{c.get('caller', 'source')}: {c.get('role')}" for c in selected if c.get("role")),
+            "assigned_RM": key in assigned,
+            "assigned_rm_type": _text(sorted({typ for typ, role in assignments[key]})),
+            "assigned_rm_role": _text(sorted({role for typ, role in assignments[key] if role is not None})),
             "rm_type": decision.get("rm_type"), "rm_role": decision.get("role"), "retention_state": decision.get("state"),
             "rm_score": _number(decision.get("score_total")), "rm_score_min": _number(decision.get("score_min")),
             "rm_score_max": _number(decision.get("score_max")), "rm_decision_reason": decision.get("decision_reason"),
@@ -148,7 +186,7 @@ def _make_cds_rows(data, result):
             "source_ref_count": len(refs), "source_refs": _ref_text(refs),
         }
         made[key] = row
-    return made, set(ledger), retained, set(priorities)
+    return made, set(ledger), retained, set(priorities), assigned
 
 
 def _inventory_rows(rows):
@@ -216,15 +254,17 @@ def export_suite_workbook(data, result, out):
         from openpyxl.utils import get_column_letter
     except ImportError as exc:
         raise RuntimeError("DNMBsuite Excel export requires openpyxl. Install it with: pip install 'defenseviz[suite]'") from exc
-    made, classified_keys, retained_keys, priority_keys = _make_cds_rows(data, result)
+    made, classified_keys, retained_keys, priority_keys, assigned_keys = _make_cds_rows(data, result)
     classified = [made[k] for k in sorted(classified_keys)]
     retained = [made[k] for k in sorted(retained_keys)]
+    assigned = [made[k] for k in sorted(assigned_keys)]
     priorities = [made[k] for k in sorted(priority_keys)]
     evaluation = [made[_key(r)] for r in data.get("saved_decisions", [])]
     overview = [
         {"metric": "Genomes", "value": len(data.get("samples", result.get("samples", []))), "scope": "Input cohort"},
         {"metric": "Classified CDSs", "value": len(classified), "scope": "Observed integrated annotation inventory"},
         {"metric": "R-M retained CDSs", "value": len(retained), "scope": "Current selected-policy retained decisions"},
+        {"metric": "R-M assigned CDSs", "value": len(assigned), "scope": "Policy-selected and reviewed component annotations"},
         {"metric": "Priority CDSs", "value": len(priorities), "scope": "Current R-subunit or qualified-effector union"},
         {"metric": "Effector CDSs", "value": sum(r["effector_CDS"] is True for r in classified), "scope": "Qualified annotations; biological activity is not inferred"},
         {"metric": "R-M evaluated CDSs", "value": len(evaluation), "scope": "Current saved decision inventory"},
@@ -237,6 +277,7 @@ def export_suite_workbook(data, result, out):
     tabs = [
         ("Overview", overview, ("metric", "value", "scope")),
         ("Classified CDSs", classified, CDS_COLUMNS[:-1]),
+        ("R-M assigned", assigned, CDS_COLUMNS[:-1]),
         ("R-M retained", retained, CDS_COLUMNS[:-1]),
         ("Priority CDSs", priorities, CDS_COLUMNS[:-1]),
         ("R-M evaluation", evaluation, CDS_COLUMNS[:-1]),
@@ -247,6 +288,7 @@ def export_suite_workbook(data, result, out):
     ]
     tables = Path(out) / "tables"
     paths = {"workbook": tables / "defense_annotations.xlsx", "classified": tables / "classified_CDSs.tsv",
+             "assigned": tables / "assigned_RM_annotations.tsv",
              "retained": tables / "retained_RM_annotations.tsv", "priority": tables / "prioritized_annotations.tsv"}
     if any(p.exists() for p in paths.values()):
         raise FileExistsError("Annotation exports already exist; use a fresh output directory")
@@ -262,7 +304,7 @@ def export_suite_workbook(data, result, out):
     for name, rows, default in tabs:
         ws = wb.create_sheet(name)
         columns = [c for c in _columns(rows, default) if c != "source_refs"]
-        ws.freeze_panes = "D2" if name in {"Classified CDSs", "R-M retained", "Priority CDSs", "R-M evaluation"} else "A2"
+        ws.freeze_panes = "D2" if name in {"Classified CDSs", "R-M assigned", "R-M retained", "Priority CDSs", "R-M evaluation"} else "A2"
         ws.sheet_view.showGridLines = False
         ws.auto_filter.ref = f"A1:{get_column_letter(len(columns))}{len(rows)+1}"
         ws.row_dimensions[1].height = 31
@@ -296,6 +338,6 @@ def export_suite_workbook(data, result, out):
                 cells.append(cell)
             ws.append(cells)
     wb.save(paths["workbook"])
-    for name, rows in [("classified", classified), ("retained", retained), ("priority", priorities)]:
+    for name, rows in [("classified", classified), ("assigned", assigned), ("retained", retained), ("priority", priorities)]:
         _tsv(paths[name], rows, CDS_COLUMNS)
     return paths

@@ -53,7 +53,7 @@ def sheet_records(ws):
 def test_exact_gene_keys_and_separate_selection_scopes(tmp_path):
     data, result = fixture()
     paths = export_suite_workbook(data, result, tmp_path)
-    assert set(paths) == {"workbook", "classified", "retained", "priority"}
+    assert set(paths) == {"workbook", "classified", "assigned", "retained", "priority"}
     classified = tsv(paths["classified"])
     assert len(classified) == 4
     assert {(r["sample_id"], r["gene_id"]) for r in tsv(paths["retained"])} == {("A", "same"), ("B", "same")}
@@ -76,7 +76,7 @@ def test_workbook_is_readable_numeric_and_preserves_literal_annotation(tmp_path)
     data, result = fixture()
     paths = export_suite_workbook(data, result, tmp_path)
     wb = load_workbook(paths["workbook"])
-    assert wb.sheetnames == ["Overview", "Classified CDSs", "R-M retained", "Priority CDSs", "R-M evaluation", "Systems", "Families", "Categories", "Type summary"]
+    assert wb.sheetnames == ["Overview", "Classified CDSs", "R-M assigned", "R-M retained", "Priority CDSs", "R-M evaluation", "Systems", "Families", "Categories", "Type summary"]
     assert wb["Classified CDSs"].freeze_panes == "D2"
     assert wb["Classified CDSs"].auto_filter.ref.endswith("5")
     assert wb["R-M evaluation"].max_row == 4  # Includes rejected nominee outside integrated CDSs.

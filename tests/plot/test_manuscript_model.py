@@ -53,8 +53,10 @@ def test_original_sources_and_three_source_intersection_are_not_reference_inters
     assert row["rm_original"]["input_pool_CDS"]==4
     assert row["rm_original"]["intersection_CDS"]==3
     assert result["sample_summary"][0]["rm_intersection_CDS"]==1
-    assert row["retained"]==dict(R_CDS=1,total_CDS=3,status="complete",R_status="complete",total_status="complete",
-                                 scope="native saved candidate assessment")
+    assert row["retained"]==dict(R_CDS=2,total_CDS=4,status="complete",R_status="complete",total_status="complete",
+                                 scope="current_policy_selected_or_reviewed_RM_components")
+    assert result["sample_summary"][0]["retained_R_CDS"]==1
+    assert result["sample_summary"][0]["retained_RM_CDS"]==3
     assert row["rm_roles"]["IV_R"]["count"]==1
 
 
@@ -212,6 +214,10 @@ def test_result_only_preserves_declared_reference_column_and_never_invents_count
 
 def test_result_only_retained_total_preserves_scope_and_prefers_explicit_total():
     result=analyze_saved(fixture());s=result['sample_summary'][0]
+    assigned=build_manuscript_atlas_model(result)['rows'][0]['retained']
+    assert assigned['R_CDS']==2 and assigned['total_CDS']==4
+    for field in list(s):
+        if field.startswith('assigned_'):s.pop(field)
     s['retained_RM_CDS']=2
     retained=build_manuscript_atlas_model(result)['rows'][0]['retained']
     assert retained['total_CDS']==3 and retained['total_scope']=='all_saved_retained'
@@ -336,7 +342,7 @@ def test_retained_role_status_is_not_poisoned_by_unassessed_native_pool_members(
     assert next(x for x in r['type_tables']if x['rm_type']=='Type I')['role_states']['R']=='partial'
     row=enrich_manuscript_model(d,r)['manuscript_atlas']['rows'][0]
     assert all(row['rm_roles']['I_'+role]['status']=='complete'for role in ['R','M','S'])
-    assert row['rm_roles']['I_R']['status_scope']=='saved_retained_roles'
+    assert row['rm_roles']['I_R']['status_scope']=='saved_retained_or_reviewed_roles'
     d['coverage'].append(dict(sample_id='sample',caller='DNMB',endpoint='saved_retention',status='partial'))
     assert model(d)['rows'][0]['rm_roles']['I_R']['status']=='partial'
 

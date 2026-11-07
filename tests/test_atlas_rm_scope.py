@@ -77,7 +77,7 @@ def test_unknown_within_current_retention_is_not_promoted(defect):
     assert row["retained"]["R_status"] == "partial"
     assert row["rm_roles"]["I_R"]["status"] == "partial"
     assert row["rm_original"]["pool_status"] == "complete"  # the source union itself is bound
-    if defect in {"unknown_role", "unknown_type"}:
+    if defect == "unknown_role":
         assert row["retained"]["total_status"] == "complete"
     else:
         assert row["retained"]["total_status"] == "partial"
@@ -171,7 +171,8 @@ def test_retained_display_scope_explicitly_includes_preserved_positive_decisions
     assert current["status"] == ("unassessed" if selected == ["historical"] else "complete")
     assert row["retained"]["total_CDS"] == 3
     assert row["retained"]["total_status"] == ("partial" if selected == ["historical"] else "complete")
-    assert "plus explicitly retained active decisions outside" in row["retained"]["scope"]
+    assert row["retained"]["scope"] == "current_policy_selected_or_reviewed_RM_components"
+    assert "plus explicitly retained active decisions outside" in summary["current_retention_scope"]
     assert set(map(tuple, summary["current_retention_assessment_member_keys"])) == {
         ("sample", g) for g in set(selected) | {"r", "m", "s"}}
     assert set(map(tuple, summary["current_retained_outside_candidate_member_keys"])) == {
