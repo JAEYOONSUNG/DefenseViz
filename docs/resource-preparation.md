@@ -2,7 +2,8 @@
 
 A source checkout and DNMBsuite result folders do not include the analysis
 databases. Use an existing validated [resource bundle](runtime-bundle.md), or
-prepare a new resource set from authorized provider files below. Keep the
+use the installed `defenseviz prepare-resources` command with authorized provider
+files as described below. Keep the
 provider files, versions, licenses and hashes beside the prepared resources.
 Preparation is a separate, one-time step; analysis then accepts one result
 parent directory and produces the tables and figures in one command.
@@ -84,91 +85,78 @@ for subsequent analysis.
 
 ## REBASE metadata, FASTA and index
 
-If the original DNMBsuite run prepared REBASE, its cache normally resides at
+A DNMBsuite shared cache normally resides at
 `$DNMB_CACHE_ROOT/db_modules/rebasefinder/cache`. In the standard suite container,
-`DNMB_CACHE_ROOT` defaults to `/opt/dnmb-cache`; find the corresponding host cache
-mount. The per-genome result folder is not this shared reference cache.
+`DNMB_CACHE_ROOT` defaults to `/opt/dnmb-cache`; use its corresponding host mount.
+The per-genome result folder is not this shared reference cache.
 
-Preserve a complete existing set together:
+The installed `defenseviz prepare-resources` command prepares both databases and
+an engine configuration together. It needs the native runtime described in
+[runtime-install.md](runtime-install.md), including the pinned R helper namespace,
+BLAST and HMMER. The HMMER installation must provide `hmmstat` beside the
+configured `hmmsearch`; setup uses it to parse every complete model without
+query sequences. A Python installation alone does not supply that runtime.
 
-```sh
-REBASE_CACHE=/absolute/path/to/suite-cache/db_modules/rebasefinder/cache
-mkdir -p "$RESOURCES"
-mkdir "$RESOURCES/rebase"
-cp -p "$REBASE_CACHE/rebase_data.rds" "$RESOURCES/rebase/"
-cp -p "$REBASE_CACHE"/rebase_db.fasta* "$RESOURCES/rebase/"
-```
-
-Also preserve `REBASE_protein_seqs.txt` and `rebase_reference_state.rds` when
-available. Do not combine metadata from one snapshot with another FASTA/index.
-The full pipeline checks encoded reference IDs and exact protein sequences;
-`check-resources` verifies the BLAST index against its FASTA.
-
-If no complete cache exists, obtain an authorized REBASE `protein_seqs.txt`
-snapshot and prepare a new directory. The pinned legacy R helper namespace
-installed by [runtime-install.md](runtime-install.md) exports
-`parse_rebase_sequences(rebase_file)` and
-`write_fasta_for_blast(data, output_file, id_col, seq_col)`. The following is a
-source-compatible preparation script; save it as `prepare_rebase.R`:
-
-```r
-a <- commandArgs(TRUE)
-stopifnot(length(a) == 2L)
-raw <- normalizePath(a[1], mustWork = TRUE)
-out <- a[2]
-stopifnot(!file.exists(out), !dir.exists(out))
-stopifnot(requireNamespace("DefenseViz", quietly = TRUE))
-suppressPackageStartupMessages(library(dplyr))
-makeblastdb <- Sys.which("makeblastdb")
-stopifnot(nzchar(makeblastdb))
-reference <- DefenseViz::parse_rebase_sequences(raw)
-required <- c("enzyme_name", "sequence", "enz_type", "rm_type", "subunit",
-              "seq_length", "rec_seq", "is_gold_standard")
-stopifnot(nrow(reference) > 0L, all(required %in% names(reference)))
-dir.create(out, recursive = TRUE)
-saveRDS(reference, file.path(out, "rebase_data.rds"))
-fasta <- file.path(out, "rebase_db.fasta")
-DefenseViz::write_fasta_for_blast(reference, fasta,
-                                id_col = "enzyme_name", seq_col = "sequence")
-status <- system2(makeblastdb, c("-in", shQuote(fasta), "-dbtype", "prot",
-                               "-out", shQuote(fasta), "-title", "REBASE"))
-stopifnot(status == 0L)
-```
-
-With the configured R dependency libraries available, execute:
+To preserve the exact databases from an existing engine configuration:
 
 ```sh
-Rscript --vanilla prepare_rebase.R /absolute/path/to/protein_seqs.txt \
-  "$RESOURCES/rebase"
+defenseviz prepare-resources --engine-config existing-engine.json \
+  --out /project/validated-databases
 ```
 
-Set `R_LIBS` to the installed helper/dependency library paths if they are outside
-R's default libraries. The historical R namespace name is preserved here because
-it is the actual dependency API. These helpers retain the native FASTA filtering
-and identifier encoding; do not substitute a generic FASTA writer. Record the
-raw file hash, provider date/version, helper source pin, R/BLAST versions and
-command output with the new set. A newly downloaded reference does not reproduce
-an earlier unversioned snapshot. The setup script does not search genome queries
-or change the analysis policy.
+The destination must be new. The command copies the complete REBASE metadata,
+FASTA and index set, preserves available raw/reference-state files, and copies
+the paired HMM and role metadata. It verifies reference metadata against the
+FASTA, the BLAST index against the FASTA, and HMM names, lengths and library hash
+against the role table. HMMER must also successfully parse every model body;
+valid headers alone are insufficient. Existing source resources remain unchanged. It writes
+`engine.json`, `preparation.json` and validation logs in the new directory. Runtime
+paths are resolved from the original configuration, so moving the new config
+does not reinterpret its relative source paths.
 
-For the DNMBsuite image, mount the raw-file/script directory read-only at
-`/source` and the new resource parent writable at `/resources`. Select the
-actual R executable through `--entrypoint /usr/bin/env` with arguments
-`-u R_HOME /opt/biotools/bin/Rscript --vanilla /source/prepare_rebase.R
-/source/protein_seqs.txt /resources/rebase`, and set
-`--env R_LIBS=/opt/defenseviz/native-r/library:/opt/biotools/lib/R/library`.
-Clearing inherited `R_HOME` avoids mixing the base image's two R installations.
+For a new resource set, obtain an authorized REBASE `protein_seqs.txt` snapshot
+and the matching HMM provider files described above. Use a runtime configuration
+with the native tool and R library paths; its database paths will be replaced:
+
+```sh
+defenseviz prepare-resources --engine-config runtime-engine.json \
+  --rebase-source /source/REBASE_protein_seqs.txt \
+  --hmm /source/HMMs/RM_HMMs.hmm \
+  --hmm-metadata /source/restriction_metadata.csv \
+  --off-target /source/HMMs/off_target.txt \
+  --source-label 'Provider snapshots and dates recorded in the accompanying provenance' \
+  --out /project/validated-databases
+```
+
+Use `--makeblastdb /path/to/makeblastdb` if it is not available beside the
+configured `blastp` executable. `--reference-cache` selects a complete existing REBASE cache;
+`--hmm` together with `--profile-metadata` selects an already paired HMM set.
+The default uses the database paths in the source engine configuration. Do not
+mix REBASE metadata and FASTA from different snapshots.
+
+Raw REBASE preparation uses the pinned legacy R helper's native parser and FASTA
+writer. The historical R namespace is an actual dependency API, not another
+analysis product. The command records input/output hashes, source label, commands,
+versions, exit status and elapsed time. It does not download references or run
+searches against genome queries. An unspecified provider release stays unknown;
+file modification times are not evidence of a provider release date. A newly
+acquired snapshot does not reproduce an older unversioned reference.
+
+For the DNMBsuite container, mount provider files read-only, mount a new resource
+parent writable, and invoke `/opt/defenseviz/venv/bin/defenseviz prepare-resources`
+with `/opt/defenseviz/container/engine.json` and the corresponding mounted paths.
+The generated config references the container runtime. Mount the prepared
+resource directory read-only for subsequent analysis.
 
 ## Validate, then analyze
 
-Set the engine's `reference_cache`, `hmm_database` and `profile_metadata` to these
-prepared paths; keep its tool and R library settings from the runtime setup.
-The [container engine](../docker/dnmbsuite/engine.json) already expects the layout
-above at `/resources`. Validate the assembled resources using
-`defenseviz check-resources --engine-config engine.json --out resource-check001`.
+Use the generated `/project/validated-databases/engine.json` for analysis.
+Preparation already validates the assembled resources. To check them again later,
+use `defenseviz check-resources --engine-config /project/validated-databases/engine.json
+--out resource-check001`.
 Preserve its report and input hashes. Then run
-`defenseviz from-suite /path/to/suite-parent --engine-config engine.json
---evaluation full --out results/run001`, or use the complete
+`defenseviz from-suite /path/to/suite-parent
+--engine-config /project/validated-databases/engine.json --evaluation full --out results/run001`, or use the complete
 [Docker command](dnmbsuite-container.md#run-the-full-analysis-with-one-parent-folder).
 
 Each check/analysis destination must be new. A setup or resource-check receipt
