@@ -91,9 +91,11 @@ def test_atlas_retains_counts_and_support_geometry_without_question_or_plus_mark
         page.fig.clear()
 
 
-def test_orphan_parentheses_only_describe_documented_positive_subsets():
+def test_orphan_parentheses_distinguish_unassessed_from_documented_subsets():
     row=publication_fixture(samples=1)["type_tables"][0]
     row.update(orphan_M=None,orphan_state={"M":"unassessed"})
+    assert _type_display(row,"M")[0]=="1 (—)"
+    row.update(orphan_M=0,orphan_state={"M":"complete"})
     assert _type_display(row,"M")[0]=="1"
     row.update(orphan_M=1,orphan_state={"M":"complete"})
     assert _type_display(row,"M")[0]=="1 (1)"

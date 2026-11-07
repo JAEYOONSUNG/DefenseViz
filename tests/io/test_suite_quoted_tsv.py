@@ -53,6 +53,29 @@ def test_declared_quoted_errors_never_fall_back_to_literal(text):
         parse(text)
 
 
+@pytest.mark.parametrize('newline', ['\r', '\n', '\r\n'])
+@pytest.mark.parametrize('bad_row, line, reason', [
+    ('"g:a"\t"text \\"escaped\\""', 4, 'text after closing field quote'),
+    ('"g:a"\tgene"A', 4, 'bare quote'),
+    ('"g:a"\t"first{nl}second"trailing', 5, 'text after closing field quote'),
+    ('"g:a"\t"unterminated', 4, 'unterminated quoted field'),
+    ('"g:a"\t"extra"\t"field"', 4, 'column count'),
+])
+def test_quoted_diagnostics_identify_source_and_physical_line(newline, bad_row, line, reason):
+    path = 'synthetic/조합 input.tsv'
+    text = newline.join(['# provenance', '', '"query"\t"note"', bad_row.format(nl=newline)])
+    with pytest.raises(ValueError) as error:
+        _native_tsv_table(text, path)
+    assert path in str(error.value)
+    assert f'physical line {line}:' in str(error.value)
+    assert reason in str(error.value)
+
+
+def test_duplicate_quoted_header_diagnostic_includes_preamble_offset():
+    with pytest.raises(ValueError, match=r'physical line 3:.*duplicate column header'):
+        parse('# metadata\n\n"query"\t"query"\n')
+
+
 def test_ambiguous_structural_quoting_cannot_create_phantom_genes():
     # Both literal rows and a quoted multiline note have two columns. Choosing
     # the literal parse would invent a gene named '# note'; choosing quoted

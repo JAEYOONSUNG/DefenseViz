@@ -144,13 +144,13 @@ def test_letter_svg_is_live_text_external_rows_scoped_and_long_unicode_styles_pr
     bound = envelope(tmp_path, external)
     render_publication(data, tmp_path/'figures', external_type_cases=[bound], page_composition='letter_composite',
                        sections=['atlas','type_benchmarks'], type_samples=['isolate-000','isolate-002','independent/external'])
-    report = json.loads((tmp_path/'figures/publication_layout.json').read_text())
+    report = json.loads((tmp_path/'figures/publication_layout.json').read_text(encoding='utf-8'))
     assert report['input_model_sha256'] == model_digest(data)
     assert report['external_type_bindings'][0]['included_in_primary_aggregates'] is False
     texts = [t for page in report['pages'] for t in page['texts'] if t['role']=='type_sample_label' and t['source_ref']['sample_id']=='independent/external']
     assert any(t['italic'] for t in texts) and any(not t['italic'] for t in texts)
     assert ' '.join(t['text'] for t in texts) == external['samples'][0]['label']
-    svg = (tmp_path/'figures/publication_page001.svg').read_text()
+    svg = (tmp_path/'figures/publication_page001.svg').read_text(encoding='utf-8')
     assert '<text' in svg and 'data:image' not in svg
     assert all(not p['validation']['errors'] for p in report['pages'])
 

@@ -44,6 +44,104 @@ def one(data):
     return apply_family_attribution(data)["family_attribution"][0]
 
 
+def renamed_contig(data):
+    """Exact native ID-map records as emitted by suite intake."""
+    path, digest = "synthetic-padloc-id-map.tsv", "c" * 64
+    data["input_sha256"][path] = digest
+    maps = data.setdefault("suite", {}).setdefault("identity_maps", [])
+    genes = {g["gene_id"]: g for g in data["genes"]}
+    for number, call in enumerate(data["calls"], 2):
+        gene = genes[call["gene_id"]]
+        source_id = "source_" + gene["gene_id"]
+        call["native_fields"].update(seqid="DNMB_CONTIG_001", **{"target.name": source_id})
+        ref = dict(path=path, sha256=digest, row=number)
+        gene["source_refs"].append(ref)
+        maps.append(dict(sample_id=gene["sample_id"], namespace="padloc", source_id=source_id,
+            gene_id=gene["gene_id"], source_ref=ref,
+            native_fields=dict(query_id=source_id, locus_tag=gene["gene_id"],
+                contig_id="DNMB_CONTIG_001", contig=gene["contig"],
+                start=str(gene["start"]), end=str(gene["end"]), direction=gene["strand"])))
+    return data
+
+
+@pytest.mark.parametrize("rule_index", range(3))
+def test_native_contig_alias_uses_source_bound_exact_gene_map(rule_index):
+    data = renamed_contig(fixture(rule_index)); before = deepcopy(data)
+    row = one(data)
+    assert row["action"] == "assign_noncanonical_scope"
+    assert data == before
+    context = row["native_contexts"][0]
+    assert context["status"] == "supported"
+    assert all(m["contig_binding"]["kind"] == "exact_native_identity_map" for m in context["members"])
+    assert {m["contig_binding"]["source_ref"]["row"] for m in context["members"]} == set(range(2, len(data["calls"]) + 2))
+    projected = project_family_attribution(data)
+    assert projected["calls"] == before["calls"]
+    assert projected["saved_decisions"][0]["score_total"] == before["saved_decisions"][0]["score_total"]
+    assert row["activity"] == "unassessed"
+
+
+@pytest.mark.parametrize("damage", ["no_map", "source_id", "gene_id", "native_source_id", "native_gene_id",
+    "namespace", "sample", "alias", "canonical", "ambiguous_alias", "duplicate_map", "source_hash",
+    "not_gene_source", "row", "map_start", "map_strand", "raw_start"])
+def test_alias_without_exact_bound_map_cannot_reassign_scope(damage):
+    data = renamed_contig(fixture())
+    maps = data["suite"]["identity_maps"]
+    row = maps[0]
+    if damage == "no_map": maps.clear()
+    elif damage == "source_id": row["source_id"] = "unrelated"
+    elif damage == "gene_id": row["gene_id"] = "unrelated"
+    elif damage == "native_source_id": row["native_fields"]["query_id"] = "unrelated"
+    elif damage == "native_gene_id": row["native_fields"]["locus_tag"] = "unrelated"
+    elif damage == "namespace": row["namespace"] = "defensefinder"
+    elif damage == "sample": row["sample_id"] = "another-sample"
+    elif damage == "alias": row["native_fields"]["contig_id"] = "other-alias"
+    elif damage == "canonical": row["native_fields"]["contig"] = "unrelated-contig"
+    elif damage == "ambiguous_alias":
+        extra = deepcopy(row)
+        extra.update(source_id="other-native-gene", gene_id="other-gene")
+        extra["native_fields"]["contig"] = "other-contig"
+        maps.append(extra)
+    elif damage == "duplicate_map": maps.append(deepcopy(row))
+    elif damage == "source_hash": row["source_ref"]["sha256"] = "f" * 64
+    elif damage == "not_gene_source": data["genes"][0]["source_refs"].pop()
+    elif damage == "row": row["source_ref"]["row"] = None
+    elif damage == "map_start": row["native_fields"]["start"] = "999"
+    elif damage == "map_strand": row["native_fields"]["direction"] = "-"
+    elif damage == "raw_start": data["calls"][0]["native_fields"]["start"] = "999"
+    before = deepcopy(data)
+    assert one(data)["action"] == "retain_original_unassessed"
+    assert project_family_attribution(data)["saved_decisions"] == before["saved_decisions"]
+    assert data == before
+
+
+def test_real_suite_alias_import_supports_context_without_mutating_native_calls(tmp_path):
+    from defenseviz.io.suite import load_suite
+    from tests.io.test_suite import write_table
+
+    root = tmp_path / "unseen-native-suite"
+    proteins = ["MAAA", "MCCC", "MDDD"]
+    write_table(root / "dnmb_module_rebasefinder/rebasefinder_input.tsv",
+        ["locus_tag", "contig", "start", "end", "direction", "translation"],
+        [[f"g{i}", "Chromosome description", i*100, i*100+11, "+", proteins[i-1]] for i in range(1, 4)])
+    write_table(root / "dnmb_module_rebasefinder/DNMB_REBASEfinder_augmented_hits.tsv",
+        ["query", "curation_keep", "final_family", "final_role", "curation_tier", "curation_score", "rm_association_class"],
+        [["g2", "TRUE", "Type II", "M", "high", "73", "RM_association_unproven"]])
+    write_table(root / "dnmb_module_padloc/padloc_query_proteins_id_map.tsv",
+        ["query_id", "locus_tag", "contig_id", "contig", "start", "end", "direction"],
+        [[f"p{i}", f"g{i}", "DNMB_CONTIG_001", "Chromosome description", i*100, i*100+11, "+"] for i in range(1, 4)])
+    write_table(root / "dnmb_module_padloc/padloc_query_proteins_padloc.csv",
+        ["system.number", "seqid", "system", "target.name", "hmm.name", "protein.name", "relative.position", "start", "end", "strand"],
+        [[1, "DNMB_CONTIG_001", "hma", f"p{i}", component, component, i, i*100, i*100+11, "+"]
+         for i, component in enumerate(("HmaA", "HmaB", "HmaC"), 1)])
+    data = load_suite(root); before = deepcopy(data)
+    result = apply_family_attribution(data)
+    assert result["family_attribution"][0]["action"] == "assign_noncanonical_scope"
+    assert result["family_attribution"][0]["target_family"] == "Hma"
+    assert data == before and result["calls"] == before["calls"]
+    assert result["saved_decisions"] == before["saved_decisions"]
+    assert result["suite"]["commands"] == []  # no engine or metadata subprocess
+
+
 @pytest.mark.parametrize("rule_index", range(3))
 def test_supported_native_architecture_reassigns_scope_not_score(rule_index):
     data = fixture(rule_index); before = deepcopy(data)

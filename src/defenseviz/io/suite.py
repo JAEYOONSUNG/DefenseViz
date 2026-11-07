@@ -80,9 +80,10 @@ def _quoted_tsv_header(line):
     return bool(fields) and line == "\t".join('"' + value.replace('"', '""') + '"' for value in fields)
 
 
-def _escaped_tsv_structure(content):
+def _escaped_tsv_structure(content, line_offset=0):
     """Validate candidate quoted syntax without interpreting literal TSV text."""
     state, structural, index = "start", False, 0
+    line = line_offset + 1
     while index < len(content):
         char = content[index]
         if state == "quoted":
@@ -95,27 +96,32 @@ def _escaped_tsv_structure(content):
                 structural = True
         elif state == "closed":
             if char not in "\t\r\n":
-                raise ValueError("text after closing field quote")
+                raise ValueError(f"physical line {line}: text after closing field quote")
             state = "start"
         elif char == '"':
             if state != "start":
-                raise ValueError("bare quote inside unquoted field of quoted table")
+                raise ValueError(f"physical line {line}: bare quote inside unquoted field of quoted table")
             state = "quoted"
         elif char in "\t\r\n":
             state = "start"
         else:
             state = "literal"
+        if char == "\r" or char == "\n" and (index == 0 or content[index - 1] != "\r"):
+            line += 1
         index += 1
     if state == "quoted":
-        raise ValueError("unterminated quoted field")
+        raise ValueError(f"physical line {line}: unterminated quoted field")
     return structural
 
 
-def _tsv_records(content, path, quoting):
+def _tsv_records(content, path, quoting, line_offset=0):
     parser = csv.reader(io.StringIO(content, newline=""), delimiter="\t", quoting=quoting, strict=True)
     try:
         headers = next(parser, None)
-        Reader.headers(headers, path)
+        try:
+            Reader.headers(headers, path)
+        except ValueError as exc:
+            raise ValueError(f"{path}: physical line {parser.line_num + line_offset}: {exc}") from exc
         rows, multiline = [], []
         previous = parser.line_num
         structural = False
@@ -124,7 +130,7 @@ def _tsv_records(content, path, quoting):
             if not values:
                 continue
             if len(values) != len(headers):
-                raise _TsvWidthError(f"{path}: row/header column count differs")
+                raise _TsvWidthError(f"{path}: physical line {first + line_offset}: row/header column count differs")
             rows.append(dict(zip(headers, values)))
             if first != parser.line_num:
                 multiline.append(dict(row=len(rows) + 1, first_line=first, last_line=parser.line_num))
@@ -132,7 +138,7 @@ def _tsv_records(content, path, quoting):
                 structural = True
         return rows, set(headers), multiline, structural
     except csv.Error as exc:
-        raise ValueError(f"{path}: malformed quoted TSV: {exc}") from exc
+        raise ValueError(f"{path}: physical line {parser.line_num + line_offset}: malformed quoted TSV: {exc}") from exc
 
 
 def _native_tsv_table(content, path):
@@ -154,16 +160,19 @@ def _native_tsv_table(content, path):
         raise ValueError(f"{path}: empty file lacks a header")
     content = "".join(lines)
     if _quoted_tsv_header(lines[0]):
-        _escaped_tsv_structure(content)
-        rows, headers, multiline, _ = _tsv_records(content, path, csv.QUOTE_MINIMAL)
+        try:
+            _escaped_tsv_structure(content, skipped)
+        except ValueError as exc:
+            raise ValueError(f"{path}: malformed quoted TSV: {exc}") from exc
+        rows, headers, multiline, _ = _tsv_records(content, path, csv.QUOTE_MINIMAL, skipped)
         dialect, reason = "quoted", "uniformly_quoted_header"
     else:
         try:
-            rows, headers, multiline, _ = _tsv_records(content, path, csv.QUOTE_NONE)
+            rows, headers, multiline, _ = _tsv_records(content, path, csv.QUOTE_NONE, skipped)
         except _TsvWidthError as literal_error:
             try:
-                rows, headers, multiline, structural = _tsv_records(content, path, csv.QUOTE_MINIMAL)
-                if not structural or not _escaped_tsv_structure(content):
+                rows, headers, multiline, structural = _tsv_records(content, path, csv.QUOTE_MINIMAL, skipped)
+                if not structural or not _escaped_tsv_structure(content, skipped):
                     raise ValueError("no escaped delimiter or newline explains the row width")
             except ValueError as quoted_error:
                 raise ValueError(f"{literal_error}; quoted TSV invalid: {quoted_error}") from quoted_error
@@ -173,8 +182,8 @@ def _native_tsv_table(content, path):
             # parse in that common case. Never choose a dialect by quote frequency.
             if re.search(r'(?:^|[\t\r\n])"', content):
                 try:
-                    _, _, _, structural = _tsv_records(content, path, csv.QUOTE_MINIMAL)
-                    structural = structural and _escaped_tsv_structure(content)
+                    _, _, _, structural = _tsv_records(content, path, csv.QUOTE_MINIMAL, skipped)
+                    structural = structural and _escaped_tsv_structure(content, skipped)
                 except ValueError:
                     structural = False
                 if structural:

@@ -78,6 +78,13 @@ class _Evidence:
         for row in (data.get("suite") or {}).get("sources", []):
             if row.get("path") and row.get("resolved_path"):
                 self.aliases[(row["path"], row.get("sha256"))].add(row["resolved_path"])
+        self.padloc_maps = defaultdict(list)
+        self.padloc_contigs = defaultdict(set)
+        for row in (data.get("suite") or {}).get("identity_maps", []):
+            if row.get("namespace") == "padloc":
+                self.padloc_maps[(_key(row), row.get("source_id"))].append(row)
+                native = row.get("native_fields") or {}
+                self.padloc_contigs[(row.get("sample_id"), native.get("contig_id"))].add(native.get("contig"))
 
     def refs(self, refs):
         if not refs:
@@ -100,6 +107,43 @@ class _Evidence:
                 and _digest(row.get("protein_sha256"))
                 and row["protein_sha256"] == gene.get("protein_sha256")
                 and self.refs(_refs(row)) and self.refs(_refs(gene)))
+
+    def contig_binding(self, call, gene):
+        """Resolve only the exact imported PADLOC gene's source-bound ID map.
+
+        Shared coordinates, a matching contig elsewhere, or a verified flag
+        alone cannot turn a renamed native seqid into evidence of membership.
+        """
+        native = call.get("native_fields") or {}
+        seqid = native.get("seqid")
+        if seqid == gene.get("contig"):
+            return dict(kind="native_contig")
+        rows = self.padloc_maps.get((_key(call), native.get("target.name")), [])
+        if len(rows) != 1:
+            return None
+        row = rows[0]
+        mapped = row.get("native_fields") or {}
+        ref = row.get("source_ref") or {}
+        source_field = next((key for key in ("source_id", "defensefinder_id", "query_id") if key in mapped), None)
+        gene_field = next((key for key in ("gene_id", "locus_tag") if key in mapped), None)
+        if (not source_field or not gene_field
+                or mapped[source_field] != row.get("source_id")
+                or mapped[gene_field] != gene.get("gene_id")
+                or mapped.get("contig_id") != seqid
+                or mapped.get("contig") != gene.get("contig")
+                or self.padloc_contigs[(call["sample_id"], seqid)] != {gene["contig"]}
+                or type(ref.get("row")) is not int or ref["row"] < 2
+                or ref not in _refs(gene) or not self.refs([ref])):
+            return None
+        for field in ("start", "end"):
+            if mapped.get(field) not in (None, "", "NA") and str(mapped[field]) != str(gene[field]):
+                return None
+        strand = mapped.get("direction", mapped.get("strand"))
+        if strand not in (None, "", "NA") and strand != gene["strand"]:
+            return None
+        return dict(kind="exact_native_identity_map", native_seqid=seqid,
+                    canonical_contig=gene["contig"], source_id=row["source_id"],
+                    gene_id=gene["gene_id"], source_ref=deepcopy(ref))
 
 
 def _coordinates(gene):
@@ -135,7 +179,8 @@ def _context(rule, unit, genes, evidence):
                 or native.get("hmm.name") != call.get("native_model")):
             reasons.append("native_component_metadata_conflict")
             continue
-        if (native.get("seqid") != gene["contig"] or native.get("strand") != gene["strand"]
+        contig_binding = evidence.contig_binding(call, gene)
+        if (contig_binding is None or native.get("strand") != gene["strand"]
                 or str(native.get("start")) != str(gene["start"])
                 or str(native.get("end")) != str(gene["end"])):
             reasons.append("native_coordinate_binding_conflict")
@@ -146,6 +191,8 @@ def _context(rule, unit, genes, evidence):
                             protein_sha256=call["protein_sha256"], component=component,
                             contig=gene["contig"], start=gene["start"], end=gene["end"],
                             source_refs=deepcopy(_refs(call))))
+        if contig_binding["kind"] == "exact_native_identity_map":
+            members[-1]["contig_binding"] = contig_binding
     if not set(rule["required_components"]) <= set(components):
         reasons.append("incomplete_native_component_set")
     if set(rule["prohibited_components"]) & set(components):

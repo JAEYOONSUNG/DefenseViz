@@ -25,8 +25,8 @@ def _external_adapter(tmp_path, monkeypatch, *, fail_engine=False):
         'global_summary': {'integrated_CDS': 1},
     }
 
-    def prepare(entries, primary_ids, workspace):
-        assert entries and 'external-case' not in primary_ids
+    def prepare(entries, primary_data, workspace, **kwargs):
+        assert entries and 'external-case' not in {s['sample_id'] for s in primary_data['samples']}
         full = Path(workspace) / 'case001' / 'full_pipeline'
         full.mkdir(parents=True)
         log = full / 'engine.log'
@@ -39,7 +39,7 @@ def _external_adapter(tmp_path, monkeypatch, *, fail_engine=False):
         execution = {
             'sample_ids': ['external-case'], 'analyzed_sample_ids': ['external-case'],
             'scope': 'independent type-table examples; excluded from primary aggregates',
-            'result_sha256': case['result_sha256'], 'source_refs': [source_ref],
+            'pre_portable_result_sha256': case['result_sha256'], 'source_refs': [source_ref],
             'evaluation_execution': {'requested_mode': 'full', 'fresh_full_execution': True,
                                      'rm_mode': 'full_native_execution'},
             'elapsed_seconds': 0.001, 'scoring_runs': 1, 'hmm_search_runs': 2,
@@ -98,8 +98,8 @@ def test_external_full_failure_logs_survive_saved_primary(tmp_path, monkeypatch,
     failed = list(tmp_path.glob('.publication.failed-*'))
     assert len(failed) == 1
     log = failed[0] / 'evidence/external_type_cases/case001/full_pipeline/engine.log'
-    assert log.read_text() == 'Synthetic external full execution log\n'
-    failure = json.loads((failed[0] / 'failure.json').read_text())
+    assert log.read_text(encoding='utf-8') == 'Synthetic external full execution log\n'
+    failure = json.loads((failed[0] / 'failure.json').read_text(encoding='utf-8'))
     assert failure['published'] is False and 'preserved' in failure['reason']
     assert not (failed[0] / 'receipt.json').exists()
     assert not (failed[0] / 'evidence/reference/full_pipeline').exists()
@@ -116,9 +116,9 @@ def test_saved_primary_external_fresh_receipt_has_scoped_counters(tmp_path, monk
     output = tmp_path / 'publication'
     response = run_suite(root, output, **paths, evaluation='stored',
                          external_type_projects=[{'project': tmp_path / 'external/project.json'}])
-    receipt = json.loads((output / 'receipt.json').read_text())
-    primary = json.loads((output / 'analysis.json').read_text())
-    native = json.loads((output / 'native_bundle.json').read_text())
+    receipt = json.loads((output / 'receipt.json').read_text(encoding='utf-8'))
+    primary = json.loads((output / 'analysis.json').read_text(encoding='utf-8'))
+    native = json.loads((output / 'native_bundle.json').read_text(encoding='utf-8'))
     assert response['samples'] == len(expected['samples'])
     assert primary['global_summary'] == expected['global_summary']
     assert {(r['sample_id'], r['gene_id']) for r in primary['gene_ledger']} == {
@@ -126,6 +126,7 @@ def test_saved_primary_external_fresh_receipt_has_scoped_counters(tmp_path, monk
     assert native['samples'] == original['samples']
     assert observed and observed[0]['global_summary'] == expected['global_summary']
     assert receipt['operation'] == 'primary_suite_and_independent_external_engine_evaluation_and_publication'
+    assert receipt['primary_operation'] == 'saved_suite_result_import_aggregation_and_render'
     assert receipt['evaluation_execution']['requested_mode'] == 'stored'
     assert receipt['evaluation_execution']['fresh_full_execution'] is False
     assert 'primary cohort' in receipt['evaluation_execution_scope']
@@ -148,3 +149,77 @@ def test_saved_primary_external_fresh_receipt_has_scoped_counters(tmp_path, monk
     assert len(bound) == 1 and bound[0]['sha256'] == hashlib.sha256(source.read_bytes()).hexdigest()
     assert all(hashlib.sha256((output / path).read_bytes()).hexdigest() == sha
                for path, sha in receipt['outputs'].items())
+
+
+def test_family_scope_summary_qualifies_missing_and_partial_curation():
+    from defenseviz.suite_pipeline import _family_scope_capability
+    data = {'samples': [{'sample_id': 'a'}, {'sample_id': 'b'}],
+            'suite': {'capabilities': [{'sample_id': 'a', 'native_curation_status': 'not_exported'},
+                                       {'sample_id': 'b', 'native_curation_status': 'not_exported'}]}}
+    status, rows = _family_scope_capability(data, 'auto')
+    assert status == 'unavailable_no_native_curation_export'
+    assert all(r['bound_curation_records'] == 0 for r in rows)
+    data['curation_records'] = [{'sample_id': 'a', 'usable_for_attribution': True}]
+    status, rows = _family_scope_capability(data, 'auto')
+    assert status == 'partially_available_source_bound_native_curation'
+    assert rows[0]['bound_curation_records'] == 1 and rows[1]['bound_curation_records'] == 0
+    assert _family_scope_capability(data, 'stored')[0] == 'skipped_stored_replay'
+
+
+def test_empty_family_attribution_is_exported_with_replay_capability(tmp_path, monkeypatch):
+    paths = write_suite_project(tmp_path / 'primary')
+    def render(model, out, **kwargs):
+        pdf, svg = out / 'page.pdf', out / 'page.svg'
+        pdf.write_bytes(b'%PDF-test'); svg.write_text('<svg/>', encoding='utf-8')
+        return [pdf, svg]
+    monkeypatch.setattr('defenseviz.plot.publication.render_publication', render)
+    monkeypatch.setattr('defenseviz.suite_pipeline.software_state', lambda: {'source_sha256': {'test': 'stable'}})
+    run_suite(paths.pop('root'), tmp_path / 'result', **paths, evaluation='stored')
+    audit = json.loads((tmp_path / 'result/family_attribution.json').read_text(encoding='utf-8'))
+    assert audit['records'] == []
+    assert audit['summary']['review_status'] == 'skipped_stored_replay'
+    assert len(audit['summary']['capabilities']) == 3
+    assert len((tmp_path / 'result/tables/family_attribution.tsv').read_text(encoding='utf-8').splitlines()) == 1
+    receipt = json.loads((tmp_path / 'result/receipt.json').read_text(encoding='utf-8'))
+    assert receipt['primary_operation'] == receipt['operation'] == 'saved_suite_result_import_aggregation_and_render'
+    assert 'Replay of saved' in receipt['scientific_scope']
+    assert 'automatic stored/sequence evidence evaluation' not in receipt['scientific_scope']
+
+
+@pytest.mark.parametrize('flags,expected', [([], {}), (['--no-strict-inputs'], {'strict_inputs': False}),
+    (['--strict-inputs', '--rscript', 'explicit-R'], {'strict_inputs': True, 'rscript': 'explicit-R'})])
+def test_cli_explicit_execution_settings_reach_external_projects(tmp_path, monkeypatch, flags, expected):
+    from defenseviz import cli
+    paths = write_suite_project(tmp_path / 'primary')
+    project = tmp_path / 'primary/defenseviz_project.json'
+    project.write_text(json.dumps({'schema_version': 1, 'root': 'runs', 'manifest': 'cohort.json',
+        'strict_inputs': True, 'rscript': 'project-R'}), encoding='utf-8')
+    observed = []
+    def run(*args, **kwargs):
+        observed.append(kwargs)
+        return {'valid': True}
+    monkeypatch.setattr('defenseviz.suite_pipeline.run_suite', run)
+    assert cli.main(['from-suite', str(project), '--out', str(tmp_path / 'out'), *flags]) == 0
+    assert observed[0]['external_execution_overrides'] == expected
+    assert observed[0]['strict_inputs'] is expected.get('strict_inputs', True)
+    assert observed[0]['rscript'] == expected.get('rscript', 'project-R')
+
+
+@pytest.mark.parametrize('overrides,expected', [(None, ('case-R', True)),
+    ({'rscript': 'explicit-R', 'strict_inputs': False}, ('explicit-R', False))])
+def test_external_projects_keep_own_settings_unless_explicitly_overridden(tmp_path, monkeypatch, overrides, expected):
+    from defenseviz.suite_external import prepare_external_type_cases
+    write_suite_project(tmp_path / 'external')
+    project = tmp_path / 'external/defenseviz_project.json'
+    doc = {'schema_version': 1, 'root': 'runs', 'manifest': 'cohort.json', 'evaluation': 'stored'}
+    doc.update(rscript='case-R', strict_inputs=True); project.write_text(json.dumps(doc), encoding='utf-8')
+    observed = []
+    original = prepare_suite
+    def prepare(*a, **kw):
+        observed.append((kw.get('rscript'), kw.get('strict_inputs')))
+        # CLI propagation is under test; avoid invoking a deliberately fake R.
+        kw['rscript'] = None; kw['strict_inputs'] = False
+        return original(*a, **kw)
+    monkeypatch.setattr('defenseviz.suite_pipeline.prepare_suite', prepare)
+    prepare_external_type_cases([{'project': project}], {'samples': []}, tmp_path / 'work', execution_overrides=overrides)
+    assert observed == [expected]

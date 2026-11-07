@@ -10,6 +10,17 @@ def model_digest(result):
     return hashlib.sha256(json.dumps(result,sort_keys=True,ensure_ascii=False,allow_nan=False).encode('utf-8')).hexdigest()
 
 
+def _assembly_identities(samples):
+    """Explicit assembly accessions from sample metadata (never display labels).
+
+    Reuses the pipeline's specimen-identity rules on the rendered model, which
+    carries sample metadata but no genome files. Samples without explicit
+    assembly metadata stay explicitly unchecked beyond their sample IDs.
+    """
+    from ...suite_external import cohort_identities
+    return cohort_identities({'samples':[{k:v for k,v in s.items() if k not in ('label','display')} for s in samples]})
+
+
 def type_case_projection(result, external, selected, validate, source_root=None):
     """Build only type rows/sample labels; never merge inventory or overlap."""
     if external is None:external=[]
@@ -17,6 +28,9 @@ def type_case_projection(result, external, selected, validate, source_root=None)
     samples=deepcopy(result.get('samples',[]));rows=deepcopy(result.get('type_tables',[]))
     sources=deepcopy(result.get('sources',[]));known={s['sample_id'] for s in samples}
     external_ids=[];bindings=[];source_index={s['id']:s for s in sources}
+    if external:
+        from ...suite_external import reject_cohort_overlap
+        identities=_assembly_identities(samples)
     for envelope in external:
         if not isinstance(envelope,dict) or set(envelope)-{'result','sample_ids','source_refs','result_sha256'}:
             raise ValueError('External type envelope requires result, optional sample_ids and source_refs')
@@ -44,6 +58,14 @@ def type_case_projection(result, external, selected, validate, source_root=None)
         if not isinstance(ids,list) or not ids or any(not isinstance(s,str) for s in ids) or len(set(ids))!=len(ids) or set(ids)-set(available):raise ValueError('Invalid external type sample selection')
         if known&set(ids):raise ValueError('External type sample identity overlaps another primary/external case')
         if any(not any(r['sample_id']==sid for r in independent.get('type_tables',[])) for sid in ids):raise ValueError('External selected sample has no analyzed type rows')
+        incoming=_assembly_identities([available[sid] for sid in ids])
+        reject_cohort_overlap(incoming,identities)
+        unchecked=sorted(r['sample_id'] for r in incoming+identities if not r['assembly_accessions'])
+        identity_check=dict(method='explicit_assembly_accession_metadata',
+            external_assembly_accessions=sorted(a for r in incoming for a in r['assembly_accessions']),
+            status='no_shared_assembly_accession' if not unchecked else 'partly_unchecked_missing_assembly_metadata',
+            samples_without_assembly_metadata=unchecked)
+        identities.extend(incoming)
         known.update(ids);external_ids.extend(ids)
         for sid in ids:
             sample=deepcopy(available[sid]);sample['cohort']='external';samples.append(sample)
@@ -52,7 +74,7 @@ def type_case_projection(result, external, selected, validate, source_root=None)
             old=source_index.get(source['id'])
             if old and old.get('kind')!=source.get('kind'):raise ValueError('External type source endpoint conflicts with primary source')
             if not old:sources.append(deepcopy(source));source_index[source['id']]=source
-        bindings.append(dict(sample_ids=ids,source_refs=deepcopy(refs),result_sha256=model_digest(independent),scope='independently_analyzed_external_type_cases_only',included_in_primary_aggregates=False))
+        bindings.append(dict(sample_ids=ids,source_refs=deepcopy(refs),result_sha256=model_digest(independent),scope='independently_analyzed_external_type_cases_only',included_in_primary_aggregates=False,identity_check=identity_check))
     if selected is not None and (len(set(selected))!=len(selected) or set(selected)-known):raise ValueError('type_samples contains unknown or duplicate sample identities')
     if selected is None and external_ids:
         typed=[s['sample_id'] for s in result.get('samples',[]) if any(r['sample_id']==s['sample_id'] for r in rows)]

@@ -41,8 +41,8 @@ def parser():
         s.add_argument('--rm-evidence', type=Path, help='Source-bound complete R-M evidence for fresh DNMB policy evaluation')
         s.add_argument('--system-review-rules', type=Path, help='Optional exact, versioned rules for reviewing newly observed systems')
         s.add_argument('--system-review-evidence', type=Path, help='Registry and candidate paths for source-bound domain/site review')
-        s.add_argument('--rscript', help='Rscript executable for saved RDS completion metadata')
-        s.add_argument('--strict-inputs', action='store_true', default=None, help='Reject conflicting saved artifact/run metadata')
+        s.add_argument('--rscript', help='Rscript executable; explicit CLI value overrides primary and external project settings')
+        s.add_argument('--strict-inputs', action=argparse.BooleanOptionalAction, default=None, help='Reject conflicting saved artifact/run metadata; explicit CLI choice overrides primary and external project settings')
         if name == 'from-suite':
             s.add_argument('--out', type=Path, required=True)
             s.add_argument('--title', default=None)
@@ -81,11 +81,13 @@ def main(argv=None):
             overrides = {**kwargs, 'title': getattr(args, 'title', None), 'layout': getattr(args, 'layout', None)}
             source_root, settings, project_refs = resolve_suite_project(args.root, overrides)
             kwargs = {k: v for k, v in settings.items() if k in ANALYSIS_OPTIONS}
+            external_overrides = {k: v for k, v in {'rscript': args.rscript, 'strict_inputs': args.strict_inputs}.items() if v is not None}
             if args.command == 'from-suite':
                 response = run_suite(source_root, args.out, **kwargs,
                                      title=settings.get('title', 'DNMB integrated defense comparison'),
                                      layout=settings.get('layout'), project_refs=project_refs,
                                      external_type_projects=settings.get('external_type_projects'),
+                                     external_execution_overrides=external_overrides,
                                      argv=['defenseviz', *(argv or sys.argv[1:])])
             else:
                 from .analysis.saved import analyze_saved
@@ -98,8 +100,8 @@ def main(argv=None):
                     if settings.get('external_type_projects'):
                         from .suite_external import prepare_external_type_cases
                         _, external_execution, _, _ = prepare_external_type_cases(
-                            settings['external_type_projects'], {s['sample_id'] for s in data['samples']},
-                            Path(work) / 'external_type_cases')
+                            settings['external_type_projects'], data,
+                            Path(work) / 'external_type_cases', execution_overrides=external_overrides)
                 from .knowledge import describe_systems
                 information = describe_systems(data, result)
                 response = {'valid': True, 'samples': len(data['samples']),

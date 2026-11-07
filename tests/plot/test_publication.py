@@ -381,8 +381,10 @@ def test_only_documented_positive_context_subsets_get_parentheses(tmp_path):
     row.update(context_state='partial',incomplete_R_context=0,orphan_M=1,orphan_state={'M':'unassessed','S':'complete'})
     render_publication(data,tmp_path,sections=['type_benchmarks'])
     texts=[t for p in ledger(tmp_path)['pages'] for t in p['texts'] if t['role']=='type_numeric' and t['source_ref']['type']=='I']
+    # Assessed with none recorded stays a bare count; an unassessed orphan
+    # status is not shown as a documented subset, nor as an assessed zero.
     assert next(t['text'] for t in texts if t['source_ref']['field']=='R')=='1'
-    assert next(t['text'] for t in texts if t['source_ref']['field']=='M')=='1'
+    assert next(t['text'] for t in texts if t['source_ref']['field']=='M')=='1 (—)'
 
 
 def test_actual_native_partial_rebase_scope_stays_with_its_sample(tmp_path):
@@ -392,8 +394,8 @@ def test_actual_native_partial_rebase_scope_stays_with_its_sample(tmp_path):
     from defenseviz.analysis.saved import analyze_saved
     paths=write_suite_project(tmp_path/'native')
     source=tmp_path/'native/runs/isolate-a/dnmb_module_rebasefinder/DNMB_REBASEfinder_augmented_hits.tsv'
-    with source.open() as stream:fields=next(csv.reader(stream,delimiter='\t'))
-    with source.open('a') as stream:
+    with source.open(encoding='utf-8',newline='') as stream:fields=next(csv.reader(stream,delimiter='\t'))
+    with source.open('a',encoding='utf-8',newline='') as stream:
         writer=csv.DictWriter(stream,fieldnames=fields,delimiter='\t')
         writer.writerow({'query':'unmapped-synthetic-reference','curation_keep':'FALSE',
                          'final_family':'Type I','final_role':'R','blast_match':'Synthetic unmatched candidate'})
