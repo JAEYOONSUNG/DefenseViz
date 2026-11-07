@@ -17,13 +17,13 @@
   "files": [
     {
       "file": "atlas.png",
-      "sha256": "e72e1302ed723532726e7ce59abded6b5e275bd54bd573459487fa5a3eba63d8",
-      "bytes": 697519
+      "sha256": "bba53da642b939ea3c81f43f586668cc5d55bd15b9443ed9cfd1eb9d77aac6b8",
+      "bytes": 703445
     },
     {
       "file": "atlas.svg",
-      "sha256": "b32b520f4318a3db5741f31fe822057c897ad01fc18b96f120fac9ccea8e50f8",
-      "bytes": 3237141
+      "sha256": "aaef8c128ca10772cc79d55526fb58614f14ec8a214d6558d97bc566f2276863",
+      "bytes": 3223196
     },
     {
       "file": "comparison.png",
@@ -37,8 +37,8 @@
     },
     {
       "file": "publication.pdf",
-      "sha256": "317dc19835d729ba600ed2339c02eeaf85e16048745b524f1f05e202edc76b3a",
-      "bytes": 572402
+      "sha256": "4108435165261a279122ef51978dcf3560dc823e33a1189694d8eb6cb2defa2c",
+      "bytes": 577870
     },
     {
       "file": "rm-assignments.svg",
@@ -49,9 +49,42 @@
   "reproduction": {
     "scientific_comparisons": 56353,
     "scientific_differences": 0,
-    "geometry_checks": 21726,
+    "geometry_checks": 21736,
     "geometry_errors": 0,
     "pages": 2,
-    "external_case_scope": "separate analyzed project; not in primary52 aggregates"
-  }
+    "external_case_scope": "separate analyzed project; not in primary52 aggregates",
+    "workbook_cells_checked": 434807,
+    "isolation": "Installed wheel and declared preserved inputs; prior results and source checkout denied"
+  },
+  "source_commit": "4c203001489b68360000e49efad5a910fbcbd6fb",
+  "package_version": "1.0.0",
+  "wheel_sha256": "e4d230e25ef560b63c9ddf87b548e1ba994a231dd4319054c5e1044d157eea12",
+  "physical_metrics": [
+    {
+      "page": 1,
+      "section": "atlas_composite",
+      "page_size_mm": [
+        279.4,
+        215.9
+      ],
+      "export_scale": 0.625055928411633,
+      "text_items": 1622,
+      "min_text_pt": 4.187874720357941,
+      "strokes": 5047,
+      "min_stroke_pt": 0.25
+    },
+    {
+      "page": 2,
+      "section": "comparison",
+      "page_size_mm": [
+        215.9,
+        279.4
+      ],
+      "export_scale": 1.0,
+      "text_items": 528,
+      "min_text_pt": 7.0,
+      "strokes": 78,
+      "min_stroke_pt": 0.3
+    }
+  ]
 }
