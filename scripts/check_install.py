@@ -27,6 +27,8 @@ def main():
         return p.stdout
     with tempfile.TemporaryDirectory(prefix='defenseviz-install-') as temp:
         work = Path(temp)
+        # Synthetic packaging checks must not pick up the user's real databases.
+        env['DEFENSEVIZ_CACHE'] = str(work/'unconfigured-managed-cache')
         run([sys.executable, '-m', 'build', '--wheel', '--outdir', work/'wheels', ROOT], work)
         wheel = next((work/'wheels').glob('*.whl'))
         with zipfile.ZipFile(wheel) as archive:
@@ -37,6 +39,12 @@ def main():
         python = bindir/('python.exe' if os.name=='nt' else 'python')
         run([python, '-m', 'pip', 'install', '--disable-pip-version-check', str(wheel) + '[suite]'], work)
         assert f'DefenseViz {version}' == run([python, '-m', 'defenseviz', 'version'], work).strip()
+        managed_help = run([python, '-m', 'defenseviz', 'setup', '--help'], work)
+        assert '--refresh-databases' in managed_help and '--source' in managed_help
+        run([python, '-c',
+             'import sys; from defenseviz.managed_runtime import source_state; '
+             'from defenseviz.resource_download import fetch_provider_sources; '
+             'assert source_state(sys.argv[1])["files"]', ROOT], work)
         setup_help = run([python, '-m', 'defenseviz', 'prepare-resources', '--help'], work)
         assert '--rebase-source' in setup_help and '--hmm-metadata' in setup_help
         run([python, '-c', 'from defenseviz.resource_setup import prepare_resources; from defenseviz.hmm_preparation import prepare'], work)

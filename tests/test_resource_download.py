@@ -389,3 +389,34 @@ def test_portable_transfer_rejects_integrity_failures(tmp_path, provider, failur
     with pytest.raises(ValueError):
         download._download(download.MICROBEMOD_URL, target, size=len(expected), md5=hashlib.md5(expected).hexdigest())
     assert not target.exists()
+
+
+def test_provider_inline_terminator_and_explicit_empty_record_are_preserved(tmp_path):
+    inline = REBASE.replace(b"M A A A\n<>\n", b"M A A A<>\n")
+    empty = b">REBASE:R.Empty\tEnzType:putative Type II restriction enzyme\tSeqLength:0\n<>\n"
+    data = inline + empty + b"\n\n"
+    path = tmp_path / "protein_seqs.txt"
+    path.write_bytes(data)
+    result = download._validate_rebase(path)
+    assert result == dict(records=2, records_with_sequence=1, explicit_empty_records=1,
+                          inline_terminators=1, standalone_terminators=1, framing_valid=True,
+                          semantic_validation="native prepare-resources required")
+    assert path.read_bytes() == data
+
+
+@pytest.mark.parametrize("data", [
+    REBASE.replace(b"M A A A\n<>\n", b"MA<>AA\n<>\n"),
+    REBASE.replace(b"M A A A\n<>\n", b"MAAA<><>\n"),
+    REBASE.replace(b"M A A A\n<>\n", b"MAAA<\n"),
+    REBASE.replace(b"M A A A\n", b""),  # Empty despite positive length.
+    REBASE.replace(b"\tSeqLength:4", b"").replace(b"M A A A\n", b""),
+    REBASE.replace(b"SeqLength:4", b"SeqLength:0"),  # Contradictory zero length.
+    REBASE.replace(b"SeqLength:4", b"SeqLength:0").replace(b"M A A A\n", b""),  # No sequence anywhere.
+    REBASE.replace(b"SeqLength:4", b"SeqLength:0").replace(b"M A A A\n<>\n", b""),
+    REBASE + b"MAAA\n",  # Content after a terminated record.
+])
+def test_provider_variants_do_not_admit_invalid_or_truncated_records(tmp_path, data):
+    path = tmp_path / "invalid.txt"
+    path.write_bytes(data)
+    with pytest.raises(ValueError):
+        download._validate_rebase(path)

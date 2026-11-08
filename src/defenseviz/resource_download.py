@@ -132,31 +132,49 @@ def _download(url, destination, *, size=None, md5=None, maximum=_MAX_DOWNLOAD, r
 def _validate_rebase(path):
     """Check the provider record framing; downstream native parsing is separate."""
     records, residues, current, ended = 0, 0, False, False
+    inline, standalone, empty = 0, 0, 0
+    declared_zero = False
     with path.open(encoding="utf-8") as stream:
-        for line in stream:
+        for number, line in enumerate(stream, 1):
             line = line.strip()
             if not line:
                 continue
             if not current and not records and line == "REBASE protein sequences":
                 continue
             if line.startswith(">REBASE:"):
-                if current and (not ended or not residues):
-                    raise ValueError("Incomplete REBASE record")
+                if current and not ended:
+                    raise ValueError(f"Incomplete REBASE record before line {number}")
                 if not re.match(r">REBASE:\S+\s+.*EnzType:", line):
-                    raise ValueError("Malformed REBASE record header")
+                    raise ValueError(f"Malformed REBASE record header at line {number}")
+                lengths = re.findall(r"(?:^|\s)SeqLength:([^\s]+)", line)
+                declared_zero = lengths == ["0"]
                 records += 1
                 residues, current, ended = 0, True, False
             elif line == "<>":
-                if not current or ended or not residues:
-                    raise ValueError("Malformed REBASE record terminator")
+                if not current or ended or (not residues and not declared_zero):
+                    raise ValueError(f"Malformed REBASE record terminator at line {number}")
+                empty += not residues
+                standalone += 1
                 ended = True
-            elif current and not ended and re.fullmatch(r"[A-Za-z* .-]+", line):
-                residues += len("".join(line.split()))
+            elif current and not ended:
+                # Official records may attach <> to the final sequence line.
+                # Only a terminal marker is valid; embedded/repeated markers
+                # still fail the sequence grammar. Preserve source bytes.
+                terminal = line.endswith("<>")
+                sequence = line[:-2].rstrip() if terminal else line
+                if declared_zero or not re.fullmatch(r"[A-Za-z* .-]+", sequence):
+                    raise ValueError(f"Unexpected content in REBASE protein collection at line {number}")
+                residues += len("".join(sequence.split()))
+                ended = terminal
+                inline += terminal
             else:
-                raise ValueError("Unexpected content in REBASE protein collection")
-    if not records or not ended:
+                raise ValueError(f"Unexpected content in REBASE protein collection at line {number}")
+    if not records or not ended or records == empty:
         raise ValueError("Empty or truncated REBASE protein collection")
-    return {"records": records, "framing_valid": True, "semantic_validation": "native prepare-resources required"}
+    return {"records": records, "records_with_sequence": records-empty,
+            "explicit_empty_records": empty, "inline_terminators": inline,
+            "standalone_terminators": standalone, "framing_valid": True,
+            "semantic_validation": "native prepare-resources required"}
 
 
 def _extract(archive, out):
