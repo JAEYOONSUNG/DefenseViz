@@ -1,18 +1,21 @@
-# Use saved DNMBsuite results
+# Analyze DNMBsuite result folders
 
-DefenseViz reads saved DNMBsuite outputs and evaluates their evidence automatically.
+DefenseViz reads completed DNMBsuite outputs. After managed setup, the ordinary
+`from-suite` command performs fresh R–M HMM/REBASE searches and exports the results.
 It does not rerun DefenseFinder, PADLOC, DefensePredictor or structure prediction.
-An explicitly configured current REBASE cache enables a fresh homology search
-for the original reference nominees; its provenance remains separate from saved calls.
+Advanced saved-evidence evaluation and replay are described separately below.
 The public analysis pipeline name is **DNMB**; historical source paths and module
 names remain in provenance.
 
 ## Install and run
 
+Complete the [first installation](../README.md#first-installation), including
+`defenseviz setup`, once. In a new terminal, activate the installed environment
+and keep Docker running:
+
 ```sh
-python -m pip install '.[suite]'
-defenseviz inspect-suite /path/to/DNMBsuite_outputs
-defenseviz from-suite /path/to/DNMBsuite_outputs --out defenseviz-results
+. /path/to/DefenseViz/.venv/bin/activate
+defenseviz from-suite /path/to/DNMBsuite_outputs --out /path/to/defenseviz-results
 ```
 
 The input can be one genome's result directory or a parent containing nested
@@ -24,9 +27,14 @@ GenBank assembly metadata supplies stable sample identities, and source organism
 and strain qualifiers supply display labels. Without assembly metadata the folder
 basename remains the identity. Repeated distinct runs of the same identity require
 an explicit manifest instead of silently selecting one. Original files are
-read-only, and the output directory must be new. `inspect-suite` validates and
-reports available endpoints without generating figures; it is not a required
-preprocessing step for `from-suite`.
+read-only, and the output directory must be new and outside the managed input
+directory. From inside the input parent, use
+`defenseviz from-suite . --out ../defenseviz-results` instead.
+
+`inspect-suite` is an optional advanced command that reports endpoints without
+generating figures. It runs in the current environment, does not launch the
+managed Docker runtime, and can execute analysis according to its selected
+native/project settings. It is not a preprocessing step required by `from-suite`.
 
 A [portable project file](suite-projects.md) can store these options for repeated single-command runs, including separately analyzed external type cases and combined Letter pages.
 
@@ -36,12 +44,20 @@ PDF, editable SVG and PNG previews are generated together without a separate
 plotting command. An optional layout file can disable PNG with `preview_png: false`.
 
 R reads saved RDS completion/version metadata and, when requested, current
-reference metadata through fixed packaged helpers. Set `--rscript /path/to/Rscript` when it is not on `PATH`.
+reference metadata through fixed packaged helpers. The managed runtime supplies
+R inside Docker. For an advanced native installation, set
+`--rscript /path/to/Rscript` when it is not on `PATH`; this override bypasses the
+managed runtime.
 Full mode sources the packaged fixed native core against your configured DNMB R installation. Stored evaluation uses fixed import helpers. Missing completion evidence must remain
 explicit; a directory without results is not a successful zero-hit run.
 
 
 ## Full DNMB R-M execution
+
+The ready managed runtime selects full execution automatically. Add
+`--evaluation full` to require it and fail if no ready runtime/native engine is
+available. The following explicit configuration is the alternative for a
+separately installed native engine.
 
 Configure local resources using [engine.example.json](engine.example.json). Paths may be absolute or relative to the configuration file. The R libraries must contain compatible DNMB and legacy DefenseViz runtime dependencies. The reference cache must contain `rebase_data.rds`, `rebase_db.fasta` and its BLAST indexes; profile metadata must describe the configured HMM library. Databases and installed runtime packages are read-only and are not distributed by this repository. BLAST+ must provide both `blastp` and `blastdbcmd` (the latter is found beside `blastp`, on PATH, or through an explicit configuration field). The index is checked against every FASTA entry before analysis.
 
@@ -58,11 +74,15 @@ Reference type and component metadata are projected from explicit descriptions a
 
 Completed context inventories yield numeric MS/RMS/MR counts, including zero. An unavailable measurement is shown with an em dash. Qualified retained R component evidence is also propagated to putative effector counts and current-context support markers. Completed reviews report observed qualified annotation counts separately from unresolved biological functions; an observed zero does not establish biological absence. Included orphans and incomplete R contexts retain the compact `(n)` notation. When orphan or context status was not assessed, a positive count shows `(—)` instead, so it is not read as an assessed zero; Type IV R context is outside the Type I–III context rule and stays unmarked. Detailed coverage and source records remain in the tables and JSON; other uncertainty suffixes are not printed on the figure.
 
-A failed full run preserves its logs in a separate `.failed-…` directory and produces no successful publication receipt. Each successful invocation requires a new output directory.
+A failed native full run preserves its logs in a separate `.failed-…` directory
+and produces no successful publication receipt. Managed Docker logs are in the
+sibling `.RESULTS.defenseviz-*` directory described in [first-install](first-install.md#analysis-and-logs).
+Each successful invocation requires a new output directory.
 
-## Automatic evaluation
+## Automatic saved/sequence-evidence evaluation
 
-The default command collects source-bound candidate annotations, evaluates the
+When `auto` has no configured native engine or ready managed runtime and no
+explicit execution override, it collects source-bound candidate annotations, evaluates the
 original DNMB motif and architecture rules on exact stored proteins, applies the
 unchanged numerical policy, reassesses current retained contexts and reviews all
 observed defense systems. It writes candidate, retained, not-retained, unresolved
@@ -130,7 +150,7 @@ order rows, supply display labels or highlight strains:
 ```
 
 ```sh
-defenseviz from-suite . --manifest cohort.json --out selected-results
+defenseviz from-suite . --manifest cohort.json --out ../selected-results
 ```
 
 Manifest paths are relative to the manifest. Optional `cohort` metadata records
