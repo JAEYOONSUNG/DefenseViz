@@ -7,7 +7,7 @@ LABEL org.opencontainers.image.defenseviz.source="https://github.com/JAEYOONSUNG
       org.opencontainers.image.defenseviz.revision="${DEFENSEVIZ_REVISION}" \
       org.opencontainers.image.defenseviz.base="ghcr.io/jaeyoonsung/dnmbsuite@sha256:2702a0615bfadd6e98b8ac67b38f45d5db6cbe4957aa90a9d371e9ab62d1f47c"
 RUN test "${TARGETARCH}" = amd64 \
- && printf '%s\n' "${DEFENSEVIZ_REVISION}" | grep -Eq '^[0-9a-f]{40}$'
+ && printf '%s\n' "${DEFENSEVIZ_REVISION}" | grep -Eq '^([0-9a-f]{40}|source-[0-9a-f]{64})$'
 COPY pyproject.toml README.md LICENSE /opt/defenseviz/source/
 COPY src /opt/defenseviz/source/src/
 COPY scripts/install_native_runtime.py /opt/defenseviz/source/scripts/install_native_runtime.py

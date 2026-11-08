@@ -618,30 +618,29 @@ class SuiteReader:
         sheet = None
         if selected:
             path = self.reader.path(selected)
-        else:
-            path = directory / "dnmb_module_rebasefinder/rebasefinder_input.tsv"
-            if not path.is_file():
-                choices = sorted(directory.glob("*_total.xlsx"))
-                if len(choices) > 1:
-                    raise ValueError(f"{directory}: multiple total workbooks; specify manifest genes")
-                if not choices:
-                    return
-                path = choices[0]
+            if path.name.lower().endswith("_total.xlsx"):
                 sheet = "1.GenBank_table"
-        try:
-            rows, headers, ref = self.table(path, sample, "suite", "gene_annotations", sheet=sheet)
-        except ValueError as exc:
-            # Historical R quote=FALSE TSVs can contain literal line breaks in
-            # annotation cells. Do not guess where to stitch broken records.
-            choices = sorted(directory.glob("*_total.xlsx")) if not selected else []
-            if "row/header column count differs" not in str(exc) or len(choices) != 1:
-                raise
-            self.conflict(sample, "suite", "malformed_gene_tsv_fallback", str(exc), "valid gene worksheet", self.pin(path))
-            for source in self.raw["sources"]:
-                if source["resolved_path"] == str(path.resolve()):
-                    source.update(selected=False, selection_reason="malformed TSV; using full gene workbook")
-            path, sheet = choices[0], "1.GenBank_table"
-            rows, headers, ref = self.table(path, sample, "suite", "gene_annotations", sheet=sheet)
+            reason = "explicit_manifest_genes"
+        else:
+            # The total workbook carries the complete native annotation join.
+            # REBASE input is an earlier, reduced view and may also contain
+            # unescaped historical cells. It is not a competing selected input.
+            choices = sorted(directory.glob("*_total.xlsx"))
+            if len(choices) > 1:
+                raise ValueError(f"{directory}: multiple total workbooks; specify manifest genes")
+            if choices:
+                path, sheet = choices[0], "1.GenBank_table"
+                reason = "complete_native_workbook"
+            else:
+                path = directory / "dnmb_module_rebasefinder/rebasefinder_input.tsv"
+                if not path.is_file():
+                    return
+                reason = "legacy_rebasefinder_input"
+        # Never fall back from a malformed selected source to a narrower table.
+        rows, headers, ref = self.table(path, sample, "suite", "gene_annotations", sheet=sheet)
+        source = next(item for item in self.raw["sources"]
+                      if item["resolved_path"] == str(path.resolve()) and item.get("sheet") == sheet)
+        source["selection_reason"] = reason
         idcol = "locus_tag" if "locus_tag" in headers else "gene_id"
         if idcol not in headers:
             raise ValueError(f"{path}: gene table needs locus_tag or gene_id")

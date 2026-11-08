@@ -16,3 +16,4 @@ docker/**
 !docker/dnmbsuite/**
 **/__pycache__/**
 **/*.pyc
+**/*.egg-info/**

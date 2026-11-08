@@ -1,5 +1,11 @@
 # DNMBsuite container with DefenseViz
 
+The [managed first-install workflow](first-install.md) automates this build,
+official reference downloads, validation and later Docker invocations. Use
+`defenseviz setup` and then `defenseviz from-suite PARENT --out RESULTS` for the
+standard new-user route. The explicit commands below remain available for custom
+mounts, fonts and native engine configurations.
+
 `Dockerfile.dnmbsuite` adds the complete DefenseViz analysis and export stage to a pinned DNMBsuite image. It includes Python, the native R helper packages, BLAST, HMMER and CATH. Databases, inputs and optional licensed fonts are supplied separately. The original DNMBsuite entrypoint and tools remain available in the same image.
 
 This recipe targets **Linux amd64**. Use `--platform linux/amd64` on Apple Silicon; execution then uses emulation. A native installation is also supported; Docker is optional. The smaller default `Dockerfile` is a Python-only package image and does not provide this full native engine.
