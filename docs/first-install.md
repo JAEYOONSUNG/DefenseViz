@@ -1,6 +1,6 @@
 # Install once, analyze result parents
 
-Run the commands in the [README](../README.md#first-install) from a new source
+Run the commands in the [README](../README.md#first-installation) from a new source
 checkout. `defenseviz setup` is an installation/resource operation; it does not
 analyze genomes. `defenseviz from-suite PARENT --out RESULTS` performs the full
 R–M analysis and all exports once setup has completed.
