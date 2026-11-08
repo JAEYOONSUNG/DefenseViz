@@ -4,6 +4,8 @@ Analyze DNMBsuite results and export classified annotations, Excel summaries and
 
 DefenseViz combines DNMB R–M evidence with saved defense annotations. It produces a defense landscape, R–M type tables, source-overlap plots and family comparisons, together with the CDS lists behind each figure.
 
+[First installation](#first-installation) · [Analyze result folders](#analyze-dnmbsuite-results) · [Update an installation](#update-an-installation)
+
 ## Example results
 
 Reviewed 52-genome Geobacillus benchmark, including supplied context-review annotations. Sample highlights belong to this study; new runs use their own sample labels and annotations.
@@ -23,9 +25,13 @@ Reviewed 52-genome Geobacillus benchmark, including supplied context-review anno
 
 The recommended full-analysis installation needs Python 3.10+, Git and a running
 Linux Docker engine: Docker Desktop on macOS, Docker Engine on Linux, or Docker
-inside Windows WSL. Allow about 40 GB of free disk space for the shared tool image
+Desktop with WSL integration (or Docker Engine inside WSL) on Windows. Run the
+commands below inside WSL on Windows. Allow about 40 GB of free disk space for the shared tool image
 and references, and at least 8 GB of Docker memory. Apple Silicon runs the pinned
 Linux amd64 tools through emulation.
+
+For the synthetic demo only, skip the final `defenseviz setup` line and run
+`defenseviz demo --suite --out suite-demo` after installing the package.
 
 ```sh
 git clone https://github.com/JAEYOONSUNG/DefenseViz.git
@@ -51,7 +57,7 @@ reference snapshot; previous snapshots are preserved. The public REBASE provider
 uses anonymous FTP; hashes record the acquired snapshot, not a historical release
 or authenticated transport. See [first-install details](docs/first-install.md).
 
-Try the synthetic example without installing databases or the native analysis tools:
+The synthetic demo needs no databases or native analysis tools:
 
 ```sh
 defenseviz demo --suite --out suite-demo
@@ -62,10 +68,20 @@ Open `suite-demo/results/figures/publication.pdf`. The demo uses synthetic data;
 ## Analyze DNMBsuite results
 
 After setup, give DefenseViz a completed DNMBsuite result folder or the parent
-containing several per-genome folders:
+containing several per-genome folders. DNMB must have produced those outputs
+first; DefenseViz setup does not run the upstream annotation modules.
+In each new terminal, activate the installed environment and keep Docker running:
 
 ```sh
-defenseviz from-suite /path/to/DNMBsuite_outputs --out results
+. /path/to/DefenseViz/.venv/bin/activate
+defenseviz from-suite /path/to/DNMBsuite_outputs --out /path/to/defenseviz-results
+```
+
+Or run from the parent containing the per-genome folders:
+
+```sh
+cd /path/to/DNMBsuite_outputs
+defenseviz from-suite . --out ../defenseviz-results
 ```
 
 That one command uses the saved runtime and cached databases, discovers the
@@ -74,7 +90,9 @@ PDF/SVG/PNG figures. No conversion or separate plotting command is needed.
 The complete native `*_total.xlsx` workbook supplies annotations automatically;
 explicit input manifests remain available for selecting a different source.
 Keep the result directory outside the input parent and use a new output name
-for each run. Open `results/figures/publication.pdf`.
+for each run. The two commands above are alternatives; each output directory
+must not already exist. Open `defenseviz-results/figures/publication.pdf` in the
+chosen output location.
 
 An existing explicit engine configuration takes precedence over the managed
 runtime. Advanced native installations and projects with external execution
@@ -83,18 +101,29 @@ settings can use the [native runtime](docs/runtime-install.md) or direct
 
 ```sh
 defenseviz from-suite /path/to/DNMBsuite_outputs \
-  --engine-config engine.json --evaluation full --out results
+  --engine-config engine.json --evaluation full --out /path/to/defenseviz-results
 ```
 
 For repeatable runs, save the input paths and settings in `defenseviz_project.json` inside a project folder, then run:
 
 ```sh
-defenseviz from-suite /path/to/project --out results
+defenseviz from-suite /path/to/project --out /path/to/project-results
 ```
 
 The [project format](docs/suite-projects.md) supports saved evidence, reviewed annotations, Letter page composition and independently analyzed case tables. Paths are relative to the project file; no intermediate conversion or plotting command is required.
 
-Full mode runs DNMB R–M HMM and REBASE searches with the configured tools and databases. DefenseFinder, PADLOC and DefensePredictor calls are imported from the existing results. Use `--evaluation stored` to replay saved DNMB decisions. The default `auto` mode uses a configured engine when available and otherwise evaluates stored evidence.
+DefenseFinder, PADLOC and DefensePredictor calls are imported from the existing
+results. For ordinary inputs without execution overrides:
+
+| Mode | Behavior |
+|---|---|
+| `auto` (default) | Uses an explicit native engine or the ready managed runtime for fresh R–M HMM and REBASE searches. With neither available, evaluates saved/sequence evidence without the full engine searches. |
+| `full` | Requires a ready managed runtime or explicit native engine; fails if neither is available. |
+| `stored` | Replays saved DNMB decisions without fresh searches or automatic evidence evaluation. |
+
+Use `--evaluation full` when fresh engine searches must be required. Project
+settings and explicit evidence/native options can select another route; see
+[project modes and external cases](docs/suite-projects.md).
 
 Automatic evaluation also reviews Type IV component architecture using bound InterProScan domains and qualifying reference or native-system evidence. Supported components enter the assigned R–M list; the numerical retention decisions remain available separately. An auxiliary component receives no nuclease-effector credit from this review.
 
@@ -105,7 +134,30 @@ To copy and validate an existing database set in a new location, run
 then use `validated-databases/engine.json`. The same command can prepare databases
 from authorized provider files; see [resource preparation](docs/resource-preparation.md).
 
-The full workflow requires Python, R and native search tools. Docker provides a shared runtime; a native installation is also supported. Databases are prepared separately under their distribution terms. See [resource preparation](docs/resource-preparation.md) for a new installation.
+For the recommended installation, `defenseviz setup` supplies R and the native
+search tools inside Docker and prepares the databases under their distribution
+terms. Manual [resource preparation](docs/resource-preparation.md) is the advanced
+route for existing provider files or a separately configured native runtime.
+
+## Update an installation
+
+From the existing checkout, activate its environment, update the source,
+reinstall the package, and refresh the matching runtime:
+
+```sh
+cd /path/to/DefenseViz
+. .venv/bin/activate
+git pull --ff-only
+python -m pip install '.[suite]'
+defenseviz setup
+```
+
+Updating the checkout alone does not update the installed Python package. An
+updated package also needs its matching managed runtime before analysis. Setup
+reuses the cached provider snapshot and may rebuild the runtime and prepared
+indexes when the source changes. Keep the same `DEFENSEVIZ_CACHE` if one was set.
+`--refresh-databases` is only for intentionally downloading a new reference
+snapshot; it is not required for a software update.
 
 ## Output
 

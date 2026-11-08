@@ -1,30 +1,43 @@
 # Repeatable DNMBsuite projects
 
-Put a `defenseviz_project.json` file beside the inputs and settings for a comparison:
+After [managed setup](first-install.md), put a `defenseviz_project.json` file
+beside the inputs for a comparison:
 
 ```json
 {
   "schema_version": 1,
   "root": "DNMBsuite_outputs",
-  "engine_config": "engine.json",
-  "evaluation": "full",
-  "layout": "layout.json"
+  "evaluation": "full"
 }
 ```
 
 Run from any working directory:
 
 ```sh
-defenseviz from-suite /path/to/project --out results
+defenseviz from-suite /path/to/project --out /path/to/project-results
 ```
 
 The project may also be supplied as an explicit JSON path. Its paths resolve against that file. An option given on the command line overrides the corresponding project setting; `--strict-inputs` and `--no-strict-inputs` turn strict checking on or off whatever the project says. A folder without `defenseviz_project.json` uses ordinary recursive suite discovery.
+
+Keep the new output directory outside the project/input directory. The minimal
+project above uses the ready managed runtime. A separately installed native
+engine can be selected with `"engine_config": "engine.json"`; add
+`"layout": "layout.json"` when using the optional layout file described below.
 
 Supported fields are `root`, `manifest`, `supplement`, `rm_evidence`, `layout`, `engine_config`, `reference_cache`, `system_review_rules`, `system_review_evidence`, `evaluation`, `strict_inputs`, `rscript`, `title`, `external_type_projects` and an optional `description`. Unknown fields are rejected. The project file and all consumed inputs are hashed in the receipt.
 
 ## Saved evidence
 
-For DNMB outputs with sufficient saved evidence, use `evaluation: "auto"` without an engine configuration. A source-bound `rm_evidence` file requests policy evaluation of supplied measurements; a `supplement` supplies reviewed annotations. Those files contain CDS identities and evidence, not expected aggregate counts. Their use is recorded in the receipt.
+`evaluation: "auto"` is not a saved-evidence-only guarantee: an explicit native
+engine, an environment/user-config engine, or a ready managed runtime selects
+fresh full R–M execution. With no engine/runtime or explicit execution override,
+`auto` evaluates the available saved/sequence evidence without full HMM/REBASE
+searches. A `supplement` adds reviewed annotations but does not disable the engine.
+
+A source-bound `rm_evidence` file explicitly requests policy evaluation of supplied
+measurements and bypasses the managed runtime; use it with `evaluation: "auto"`.
+Those files contain CDS identities and evidence, not expected aggregate counts.
+Their use is recorded in the receipt. Use `stored` for replay-only work.
 
 `stored` replays saved decisions and skips new family-scope inference. It cannot be combined with `rm_evidence`, `reference_cache` or `engine_config`. To switch an existing project to replay, remove incompatible settings or create a separate replay project. Each external project is analyzed with the settings in its own project file. An explicit `--rscript`, `--strict-inputs` or `--no-strict-inputs` on the command line applies to the main project and to every external project; other command-line options, such as `--evaluation`, apply only to the main project.
 
@@ -53,19 +66,27 @@ The default `page_composition: "separate"` keeps the atlas, type tables and comp
 
 ## Independent case tables
 
-An external example can be displayed beside primary cases without entering cohort totals:
+An external example can be displayed beside primary cases without entering cohort
+totals. This is an advanced native/direct-container workflow: the managed runtime
+does not support `external_type_projects`. For fresh execution, configure an
+explicit native engine in the primary project and each external project:
 
 ```json
 {
   "schema_version": 1,
   "root": "primary_outputs",
-  "evaluation": "auto",
+  "engine_config": "engine.json",
+  "evaluation": "full",
   "layout": "layout.json",
   "external_type_projects": [
     {"project": "external/defenseviz_project.json", "sample_ids": ["external-case"]}
   ]
 }
 ```
+
+For replay-only case tables, use `evaluation: "stored"` and remove incompatible
+engine/evidence options in both the primary and external project files. Setting
+replay on the primary project alone does not change the external project's mode.
 
 Each external project goes through the same input validation and analysis. All its analyzed samples must differ from the primary cohort and other external projects by sample ID and by recorded assembly accession, specimen-file identity or the complete imported protein multiset. The analysis receipt records when assembly and sequence evidence are unavailable. Direct rendering of already analyzed models can check only their sample IDs and recorded assembly metadata; the figure ledger identifies cases without an assembly check. Nested external projects are rejected. External cases affect only the type tables: primary source sets, Venn counts, family counts and workbook totals stay within the primary cohort. External tables have a tan header, the type-table legend notes that they are not in cohort totals, and the caption names them.
 

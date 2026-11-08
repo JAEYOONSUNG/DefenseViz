@@ -12,7 +12,8 @@ CATH runtime. Its DNMBsuite base image is pinned by digest. The setup receipt
 records the actual source files, Git commit and working-tree state, final image
 ID, commands, elapsed times and exit codes. A changed source checkout does not
 silently reuse an image built from different bytes. Reinstall the Python package
-from the same checkout before setting up an updated runtime.
+from the same checkout before setting up an updated runtime; follow the
+[complete update sequence](../README.md#update-an-installation).
 
 Only the downstream references needed by DefenseViz are downloaded:
 
@@ -50,10 +51,13 @@ provider integrity, database parsing, indexes and native runtime checks pass.
 Incomplete downloads and failed setup logs remain separate from ready snapshots.
 Interrupted setup can be retried; it does not activate a partial database.
 
-Repeated setup with the same source validates cached references and the image
+Repeated setup with the same source and CPU setting validates cached references and the image
 without provider requests or rebuilding indexes. Analysis mounts databases and
 inputs read-only and has no container network access. It runs new searches for
 the requested samples; cached databases do not mean cached sample results.
+
+The default is `--cpu 4`. If setup used another value, repeat that value to keep
+the same configuration; changing it enters the resource-preparation path.
 
 An explicit `--refresh-databases` downloads new provider snapshots and prepares a
 new resource directory. A failed refresh leaves the previous ready profile
@@ -61,13 +65,20 @@ available. Existing snapshots are not silently overwritten or removed.
 
 ## Analysis and logs
 
+In a new terminal, activate `/path/to/DefenseViz/.venv` with
+`. /path/to/DefenseViz/.venv/bin/activate` and ensure Docker is running. Keep the
+same cache environment variables used during setup.
+
 ```text
 completed-DNMB-parent/
   genome-one/ ...native DNMB outputs...
   genome-two/ ...native DNMB outputs...
 ```
 
-Use `defenseviz from-suite completed-DNMB-parent --out new-results`. Folder names
+From the directory above that parent, use
+`defenseviz from-suite completed-DNMB-parent --out new-results`.
+From inside the parent, use `defenseviz from-suite . --out ../new-results`.
+These are alternatives; choose a new output name for each run. Folder names
 are arbitrary; normal native artifacts and assembly metadata identify samples.
 When a native total workbook exists it supplies the complete gene annotations,
 including optional modules; the smaller REBASE input table is used only when no
