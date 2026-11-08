@@ -31,6 +31,11 @@ def parser():
     setup = sub.add_parser('prepare-resources', help='Prepare and verify DNMB databases in a new directory')
     from .resource_setup import add_arguments
     add_arguments(setup)
+    managed = sub.add_parser('setup', help='Build the public Docker runtime and download/prepare reusable reference databases')
+    managed.add_argument('--source', type=Path, default=Path('.'), help='DefenseViz source checkout (default: current directory)')
+    managed.add_argument('--cache', type=Path, help='Persistent cache; default DEFENSEVIZ_CACHE or ~/.cache/defenseviz')
+    managed.add_argument('--refresh-databases', action='store_true', help='Acquire new provider snapshots in a separate directory; keep earlier snapshots')
+    managed.add_argument('--cpu', type=int, default=4, help='CPUs for the managed analysis engine (default: 4)')
     for name, help_text in [('from-suite', 'Import DNMBsuite result folders and export publication figures'),
                             ('inspect-suite', 'Validate and summarize saved DNMBsuite outputs without writing results')]:
         s = sub.add_parser(name, help=help_text)
@@ -59,6 +64,12 @@ def main(argv=None):
     try:
         if args.command == 'version':
             print(f'DefenseViz {__version__}'); return 0
+        if args.command == 'setup':
+            from .managed_runtime import setup_managed
+            print(json.dumps(setup_managed(source=args.source, cache=args.cache,
+                                          refresh=args.refresh_databases, cpu=args.cpu),
+                             ensure_ascii=True, allow_nan=False))
+            return 0
         if args.command == 'check-resources':
             from .resources import verify_resources
             print(json.dumps(verify_resources(args.engine_config, args.out), ensure_ascii=True, allow_nan=False))
@@ -88,6 +99,12 @@ def main(argv=None):
                           rscript=args.rscript, strict_inputs=args.strict_inputs)
             overrides = {**kwargs, 'title': getattr(args, 'title', None), 'layout': getattr(args, 'layout', None)}
             source_root, settings, project_refs = resolve_suite_project(args.root, overrides)
+            if args.command == 'from-suite':
+                from .managed_runtime import managed_analysis
+                managed = managed_analysis(args, source_root, settings, project_refs)
+                if managed is not None:
+                    print(json.dumps(managed, ensure_ascii=True, allow_nan=False))
+                    return 0
             kwargs = {k: v for k, v in settings.items() if k in ANALYSIS_OPTIONS}
             external_overrides = {k: v for k, v in {'rscript': args.rscript, 'strict_inputs': args.strict_inputs}.items() if v is not None}
             if args.command == 'from-suite':

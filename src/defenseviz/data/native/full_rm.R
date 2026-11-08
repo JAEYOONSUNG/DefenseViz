@@ -48,9 +48,36 @@ wt(do.call(rbind,join),'annotation_join.tsv');wt(g,'genes_enriched.tsv')
 # Only safe serialized input is sent to the native collector.
 input<-dn$.dnmb_rebasefinder_prepare_input(g,out)
 genes<-dv$load_dnmb(input);stopifnot(!anyDuplicated(genes$locus_tag))
-anno<-dv$detect_annotation_sources(genes)
-m<-dv$detect_methyltransferases(genes,pfam_col=if(anno$pfam)NULL else NA,product_col='product');m<-dv$.defenseviz_dnmb_candidate_compat(m)
-r<-dv$detect_restriction_enzymes(genes,pfam_col=if(anno$pfam)NULL else NA,product_col='product',seq_col='translation',search_motifs=FALSE)
+# Adapter-only input schema selection. Domain matching/mapping stays native.
+.defenseviz_select_pfam_input <- function(data) {
+  columns <- names(data)
+  schemas <- list(
+    legacy_pfam = "PFAMs",
+    eggnog_pfam = "EggNOG_PFAMs",
+    interpro_pfam_accession = c("Signature accession_Pfam", "Signature.accession_Pfam")
+  )
+  # read.delim repairs colliding source names with .1/.2 suffixes; do not
+  # silently treat one repaired copy as the authoritative annotation field.
+  repaired <- grepl("^(PFAMs|EggNOG_PFAMs|Signature[ .]accession_Pfam)\\.[0-9]+$", columns)
+  if (any(repaired)) stop("Ambiguous repaired Pfam domain column: ", paste(columns[repaired], collapse=", "), call.=FALSE)
+  for (schema in names(schemas)) {
+    matches <- columns[columns %in% schemas[[schema]]]
+    if (length(matches)>1L) stop("Ambiguous Pfam domain columns for ", schema, ": ", paste(matches, collapse=", "), call.=FALSE)
+  }
+  supported <- columns[columns %in% unlist(schemas, use.names=FALSE)]
+  selected <- if ("PFAMs" %in% supported) "PFAMs" else if (length(supported)) supported[1L] else NA_character_
+  source <- if (is.na(selected)) NA_character_ else names(schemas)[vapply(schemas, function(x) selected %in% x, logical(1))]
+  values <- if (is.na(selected)) character() else as.character(data[[selected]])
+  nonplaceholder <- !is.na(values) & nzchar(trimws(values)) & !trimws(values) %in% c("NA", "-", "None")
+  list(column=selected, source=source, supported_columns_in_input_order=supported,
+       ignored_pfam_columns=columns[grepl("pfam", columns, ignore.case=TRUE) & !columns %in% supported],
+       selected_nonplaceholder_cells=sum(nonplaceholder),
+       rule="Existing exact PFAMs preference; otherwise first supported domain column in native input order. Values do not determine selection or fallback.")
+}
+
+pfam_input<-.defenseviz_select_pfam_input(genes);json(pfam_input,'pfam_input_selection.json')
+m<-dv$detect_methyltransferases(genes,pfam_col=pfam_input$column,product_col='product');m<-dv$.defenseviz_dnmb_candidate_compat(m)
+r<-dv$detect_restriction_enzymes(genes,pfam_col=pfam_input$column,product_col='product',seq_col='translation',search_motifs=FALSE)
 h<-dv$.defenseviz_read_hmm_candidates(hmmfile,genes,'locus_tag')
 # Previously exported candidate identities remain search nominees only. Their
 # saved type/role/curation values are deliberately absent from this interface.

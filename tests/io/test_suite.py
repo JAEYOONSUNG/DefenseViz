@@ -377,7 +377,7 @@ def test_unbound_candidate_is_quarantined_and_partial(tmp_path):
         load_suite(root, strict_inputs=True)
 
 
-def test_legacy_unquoted_newline_falls_back_to_native_workbook(tmp_path):
+def test_native_workbook_precedes_unselected_malformed_gene_tsv(tmp_path):
     import openpyxl
     root = native(tmp_path)
     path = root / "dnmb_module_rebasefinder/rebasefinder_input.tsv"
@@ -390,10 +390,11 @@ def test_legacy_unquoted_newline_falls_back_to_native_workbook(tmp_path):
     s.append(["g_b", "MBBB", "other"])
     s.append(["g_c", "MCCC", "other"])
     w.save(root / "example_total.xlsx")
-    data = load_suite(root)
-    assert any(c["code"] == "malformed_gene_tsv_fallback" for c in data["suite"]["conflicts"])
+    data = load_suite(root, strict_inputs=True)
+    assert not any(c["code"] == "malformed_gene_tsv_fallback" for c in data["suite"]["conflicts"])
     assert len(data["genes"]) == 3
-    assert any(not s["selected"] for s in data["suite"]["sources"] if s["path"].endswith("rebasefinder_input.tsv"))
+    assert not any(s["path"].endswith("rebasefinder_input.tsv") for s in data["suite"]["sources"])
+    assert any(s["selected"] and s["path"].endswith("example_total.xlsx") for s in data["suite"]["sources"])
 
 
 def test_retention_zero_sentinel_does_not_prove_reference_zero(tmp_path, monkeypatch):

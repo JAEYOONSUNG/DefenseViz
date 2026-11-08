@@ -1,5 +1,10 @@
 # Install the native runtime from public source
 
+For a new user without an existing R/tool environment, use the managed
+[`defenseviz setup` workflow](first-install.md). It builds the compatible Docker
+runtime and obtains the reference databases. This page documents the advanced
+native installer for users who already have compatible third-party dependencies.
+
 DefenseViz can install its required R namespaces directly from pinned GitHub
 source. A previous benchmark workspace or local patched source archive is not
 required by this installer. Databases, compatible third-party R dependencies and

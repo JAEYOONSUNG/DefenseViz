@@ -1,5 +1,11 @@
 # Prepare the analysis databases
 
+For a completely new installation, use [`defenseviz setup`](first-install.md).
+It downloads the supported public provider files, prepares these resources in a
+persistent user cache and configures the managed runtime automatically. The
+commands below are the advanced path for explicit local snapshots or existing
+native/container installations.
+
 A source checkout and DNMBsuite result folders do not include the analysis
 databases. Use an existing validated [resource bundle](runtime-bundle.md), or
 use the installed `defenseviz prepare-resources` command with authorized provider
